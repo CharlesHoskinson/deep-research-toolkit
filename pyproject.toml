@@ -32,9 +32,8 @@ full = ["deep-research-toolkit[web,pdf,compiler]"]
 drt = "deep_research_toolkit.cli:main"
 
 [project.urls]
-# TODO: fill in once the GitHub remote is created (owner/org not yet decided)
-Homepage = "https://github.com/TODO/deep-research-toolkit"
-Changelog = "https://github.com/TODO/deep-research-toolkit/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/CharlesHoskinson/deep-research-toolkit"
+Changelog = "https://github.com/CharlesHoskinson/deep-research-toolkit/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
