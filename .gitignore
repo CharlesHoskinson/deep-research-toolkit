@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.env
+build/
+dist/
+
+# per-project data a consuming repo owns -- never this toolkit repo's own artifacts
+compiled/
+knowledge_base/
+*-runs/
+.deepresearch/

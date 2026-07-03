@@ -1,0 +1,4 @@
+{"relation_id": "r_0001", "subject": "hydra-head", "predicate": "serves_as", "object": "synchronous settlement layer", "supporting_claim": "c_0001", "document_id": "hydra-settlement-test-fixture-4edb3c3c"}
+{"relation_id": "r_0002", "subject": "hydra-head", "predicate": "has_lifecycle_phases", "object": "Init, Open, Close, Fanout", "supporting_claim": "c_0002", "document_id": "hydra-settlement-test-fixture-4edb3c3c"}
+{"relation_id": "r_0003", "subject": "hydra-head", "predicate": "relies_on", "object": "unanimity and contestation period", "supporting_claim": "c_0004", "document_id": "hydra-settlement-test-fixture-4edb3c3c"}
+{"relation_id": "r_0004", "subject": "hydra-head", "predicate": "open_question_relates_to", "object": "ows", "supporting_claim": "c_0005", "document_id": "hydra-settlement-test-fixture-4edb3c3c"}

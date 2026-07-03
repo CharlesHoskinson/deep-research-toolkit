@@ -1,0 +1,15 @@
+{
+  "document_id": "hydra-settlement-test-fixture-4edb3c3c",
+  "source_file": "C:\\agentictrading\\tests\\fixtures\\hydra-settlement-test-fixture.pdf",
+  "page_count": 2,
+  "route": "digital-text",
+  "signals": {
+    "avg_extractable_chars_per_page": 987.0,
+    "has_acroform_fields": false,
+    "image_only_page_ratio": 0.0,
+    "table_like_page_ratio": 0.5,
+    "detected_math_density": "low"
+  },
+  "recommended_backend": "docling",
+  "notes": "Plain extractable digital text, no strong signal for any of the other routes."
+}

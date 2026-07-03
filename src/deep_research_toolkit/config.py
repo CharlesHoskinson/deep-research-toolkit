@@ -1,0 +1,143 @@
+"""Project-level configuration: find and load .deepresearch.yml.
+
+Discovery mirrors .git: walk upward from cwd (or a given start path) looking
+for .deepresearch.yml. Every skill script should call find_config()/load_config()
+at startup instead of hardcoding paths like "knowledge/" -- this is what lets
+the same skill run unmodified across different consuming projects.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+CONFIG_FILENAME = ".deepresearch.yml"
+DEFAULT_KNOWLEDGE_BASE_PATH = "knowledge_base"
+DEFAULT_PDF_RUNS_PATH = "pdf-runs"
+DEFAULT_RESEARCH_RUNS_PATH = "research-runs"
+
+
+def find_config(start: Path | None = None) -> Path | None:
+    """Walk upward from `start` (default: cwd) looking for .deepresearch.yml.
+
+    Same discovery model as `.git`: check `start`, then each parent, stop at
+    the first match, return None if the filesystem root is reached with no
+    match found.
+    """
+    cur = (start or Path.cwd()).resolve()
+    for parent in [cur, *cur.parents]:
+        candidate = parent / CONFIG_FILENAME
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+@dataclass
+class Config:
+    """Resolved project configuration. Paths are absolute, already resolved
+    relative to the config file's own location -- never relative to cwd,
+    since a skill script may be invoked from any subdirectory.
+    """
+
+    config_path: Path | None
+    project_root: Path
+    knowledge_base_path: Path
+    pdf_runs_path: Path
+    research_runs_path: Path
+    topic_name: str
+    scope_hint: str
+    tags: list[str]
+    features: dict[str, bool]
+    llm_provider: str
+    llm_model: str
+    llm_api_key_env: str
+    scrapling_default_mode: str
+    scrapling_rate_limit_seconds: float
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def feature_enabled(self, name: str) -> bool:
+        return bool(self.features.get(name, False))
+
+
+def _default_config(project_root: Path) -> Config:
+    """Zero-config fallback: no .deepresearch.yml found anywhere. Used so a
+    bare `git clone && run` still does something sensible for quick
+    exploration, per the CLI-first, no-magic-install philosophy -- this is
+    NOT a substitute for `drt init`, which is required for real project use
+    (it's what makes features.* opt-in explicit rather than silently
+    defaulting to "everything on").
+    """
+    return Config(
+        config_path=None,
+        project_root=project_root,
+        knowledge_base_path=project_root / DEFAULT_KNOWLEDGE_BASE_PATH,
+        pdf_runs_path=project_root / DEFAULT_PDF_RUNS_PATH,
+        research_runs_path=project_root / DEFAULT_RESEARCH_RUNS_PATH,
+        topic_name="(unconfigured project)",
+        scope_hint="No .deepresearch.yml found -- run `drt init` to configure this project's research scope.",
+        tags=[],
+        features={"web_research": False, "pdf_ingestion": False, "knowledge_compiler": False},
+        llm_provider="anthropic",
+        llm_model="claude-sonnet-4-5",
+        llm_api_key_env="ANTHROPIC_API_KEY",
+        scrapling_default_mode="http",
+        scrapling_rate_limit_seconds=1.0,
+        raw={},
+    )
+
+
+def load_config(start: Path | None = None) -> Config:
+    """Find and parse .deepresearch.yml, or return the zero-config default
+    if none exists. Never raises on a missing file -- only on a malformed one.
+    """
+    path = find_config(start)
+    if path is None:
+        return _default_config((start or Path.cwd()).resolve())
+
+    with open(path, encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    root = path.parent
+
+    kb = raw.get("knowledge_base", {}) or {}
+    topic = raw.get("topic", {}) or {}
+    features = raw.get("features", {}) or {}
+    llm = raw.get("llm", {}) or {}
+    scrapling = raw.get("scrapling", {}) or {}
+
+    return Config(
+        config_path=path,
+        project_root=root,
+        knowledge_base_path=(root / kb.get("path", DEFAULT_KNOWLEDGE_BASE_PATH)).resolve(),
+        pdf_runs_path=(root / kb.get("pdf_runs_dir", DEFAULT_PDF_RUNS_PATH)).resolve(),
+        research_runs_path=(root / kb.get("research_runs_dir", DEFAULT_RESEARCH_RUNS_PATH)).resolve(),
+        topic_name=topic.get("name", "(unnamed project)"),
+        scope_hint=topic.get("scope_hint", ""),
+        tags=list(topic.get("tags", [])),
+        features={
+            "web_research": bool(features.get("web_research", False)),
+            "pdf_ingestion": bool(features.get("pdf_ingestion", False)),
+            "knowledge_compiler": bool(features.get("knowledge_compiler", False)),
+        },
+        llm_provider=llm.get("provider", "anthropic"),
+        llm_model=llm.get("model", "claude-sonnet-4-5"),
+        llm_api_key_env=llm.get("api_key_env", "ANTHROPIC_API_KEY"),
+        scrapling_default_mode=scrapling.get("default_mode", "http"),
+        scrapling_rate_limit_seconds=float(scrapling.get("rate_limit_seconds", 1.0)),
+        raw=raw,
+    )
+
+
+def resolve_path(cli_value: str | None, config_value: Path, fallback: str) -> Path:
+    """Three-tier resolution used by every skill script: explicit CLI flag
+    wins, then the loaded config, then a hardcoded fallback (only reached in
+    the zero-config case) -- so scripts work both zero-config (quick
+    exploration) and fully configured (real project use).
+    """
+    if cli_value is not None:
+        return Path(cli_value).resolve()
+    if config_value is not None:
+        return config_value
+    return Path(fallback).resolve()

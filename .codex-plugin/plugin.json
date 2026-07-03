@@ -1,0 +1,20 @@
+{
+  "name": "deep-research-toolkit",
+  "version": "0.1.0",
+  "description": "Web retrieval, PDF ingestion, and knowledge compilation skills: build an evidence-backed, citable knowledge base from research and documents.",
+  "author": {
+    "name": "Charles Hoskinson"
+  },
+  "homepage": "https://github.com/TODO/deep-research-toolkit",
+  "repository": "https://github.com/TODO/deep-research-toolkit",
+  "license": "MIT",
+  "keywords": [
+    "research",
+    "rag",
+    "knowledge-graph",
+    "pdf",
+    "web-scraping",
+    "agent-skills"
+  ],
+  "skills": "./skills/"
+}

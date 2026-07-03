@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly heavy-tier run (real Docling/Scrapling calls) -- not on every push.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  fast:
+    name: Fast tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package (dev + pdf extras -- pdf needed for router unit tests)
+        run: pip install -e ".[dev,pdf]"
+      - name: Manifest / skill-template sync checks
+        run: |
+          python scripts/check-manifests-in-sync.py
+          python scripts/check-skill-templates-in-sync.py
+      - name: Fast unit tests (no heavy/network-dependent tests)
+        run: pytest tests -m "not heavy" -v
+      - name: ruff
+        run: ruff check src/ skills/
+
+  dependency-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: pip-audit
+
+  heavy:
+    name: Heavy integration tests (real Docling)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true  # slow/first-run-download-dependent; report but never block merges
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Cache Docling models + Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/ms-playwright
+          key: heavy-deps-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+      - run: pip install -e ".[dev,pdf]"
+      - run: pytest tests -m heavy -v

@@ -1,0 +1,4 @@
+Configuration,Participants,TPS,Finality
+Baseline L1,-,250,~20s
+Hydra Head (small),3,"1,000",<1s
+Hydra Head (large),10,800,<1s

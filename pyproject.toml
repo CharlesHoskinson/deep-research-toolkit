@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deep-research-toolkit"
+version = "0.1.0"
+description = "A deep-research skill suite for Claude Code and Codex: web retrieval, PDF ingestion, and knowledge compilation into an evidence-backed, agent-queryable knowledge base."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Charles Hoskinson" }]
+keywords = ["claude-code", "codex", "agent-skills", "research", "rag", "knowledge-graph"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+web = ["scrapling[all]>=0.4"]
+pdf = ["docling>=2.0", "pypdf>=4.0", "pdfplumber>=0.11"]
+compiler = ["duckdb>=1.0", "lancedb>=0.15", "sentence-transformers>=3.0"]
+dev = ["reportlab>=4.0", "pytest>=8.0", "pytest-cov", "ruff", "mypy", "pip-audit"]
+full = ["deep-research-toolkit[web,pdf,compiler]"]
+
+[project.scripts]
+drt = "deep_research_toolkit.cli:main"
+
+[project.urls]
+# TODO: fill in once the GitHub remote is created (owner/org not yet decided)
+Homepage = "https://github.com/TODO/deep-research-toolkit"
+Changelog = "https://github.com/TODO/deep-research-toolkit/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# skill_templates/ is a synced copy of the top-level skills/ tree (see
+# scripts/sync-skill-templates.py) -- this is what lets a real `pip install`
+# (not just editable/-e installs from a clone) still find skill files to
+# copy during `drt init`. The top-level skills/ stays the canonical source
+# (and is what Claude Code/Codex discover directly if this repo itself is
+# opened as a project) -- these are kept in sync by CI, not hand-edited
+# independently.
+deep_research_toolkit = ["skill_templates/**/*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "heavy: slow, dependency-heavy tests (real Docling/Scrapling calls) -- run explicitly, not on every push",
+]
+testpaths = ["tests"]

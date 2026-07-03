@@ -1,0 +1,40 @@
+{
+  "document_id": "hydra-settlement-test-fixture-4edb3c3c",
+  "source_file": "C:\\agentictrading\\tests\\fixtures\\hydra-settlement-test-fixture.pdf",
+  "source_hash": "sha256:4edb3c3caf64bc44fb2ad597a55fe6db9e515ab0570c370308aaac99316ae61b",
+  "created_at": "2026-07-03T18:33:18Z",
+  "stages": {
+    "pdf-ingest-router": {
+      "completed_at": "2026-07-03T18:34:23Z",
+      "route": "digital-text"
+    },
+    "pdf-to-canonical-markdown": {
+      "completed_at": "2026-07-03T18:34:20Z",
+      "parser": "docling",
+      "parser_version": "2.109.0"
+    },
+    "pdf-layout-provenance": {
+      "completed_at": "2026-07-03T18:34:22Z",
+      "unit_count": 17
+    },
+    "knowledge-extraction": {
+      "completed_at": "2026-07-03T18:34:22Z",
+      "table_count": 1,
+      "figure_count": 1
+    },
+    "canonical-markdown-to-llm-nodes": {
+      "completed_at": "2026-07-03T18:34:22Z",
+      "node_count": 9
+    },
+    "llm-wiki-writer": {
+      "completed_at": "2026-07-03T18:34:22Z",
+      "pages_written": [
+        "knowledge/concepts/hydra-settlement.md"
+      ]
+    },
+    "rag-eval-harness": {
+      "completed_at": "2026-07-03T18:34:23Z",
+      "pass_rate": 1.0
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{"entity_id": "hydra-head", "name": "Hydra Head", "aliases": ["Hydra"], "type": "protocol", "mentions": ["hydra-settlement-test-fixture-4edb3c3c:n002", "hydra-settlement-test-fixture-4edb3c3c:n004", "hydra-settlement-test-fixture-4edb3c3c:n005", "hydra-settlement-test-fixture-4edb3c3c:n008", "hydra-settlement-test-fixture-4edb3c3c:n007"]}
+{"entity_id": "cardano", "name": "Cardano", "aliases": [], "type": "blockchain", "mentions": ["hydra-settlement-test-fixture-4edb3c3c:n002", "hydra-settlement-test-fixture-4edb3c3c:n005"]}
+{"entity_id": "eutxo", "name": "eUTXO", "aliases": ["extended UTXO"], "type": "concept", "mentions": ["hydra-settlement-test-fixture-4edb3c3c:n002", "hydra-settlement-test-fixture-4edb3c3c:n005"]}
+{"entity_id": "ows", "name": "OWS", "aliases": ["Open Wallet Standard"], "type": "standard", "mentions": ["hydra-settlement-test-fixture-4edb3c3c:n009"]}

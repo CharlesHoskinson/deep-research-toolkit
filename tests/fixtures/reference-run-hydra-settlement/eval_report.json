@@ -1,0 +1,37 @@
+{
+  "document_id": "hydra-settlement-test-fixture-4edb3c3c",
+  "generated_at": "2026-07-03T18:34:23Z",
+  "checks": [
+    {
+      "name": "headings_recovered",
+      "passed": true,
+      "detail": "8/8 headings from canonical.md appear as section_path entries in chunks.jsonl"
+    },
+    {
+      "name": "tables_present",
+      "passed": true,
+      "detail": "1 table unit(s) detected in provenance.jsonl, 1 table CSV(s) in tables/"
+    },
+    {
+      "name": "page_citations_valid",
+      "passed": true,
+      "detail": "5/5 claim citations point at pages that exist in provenance.jsonl"
+    },
+    {
+      "name": "evidence_quotes_verbatim",
+      "passed": true,
+      "detail": "5/5 supporting_evidence quotes found verbatim on their cited page"
+    },
+    {
+      "name": "figures_accounted_for",
+      "passed": true,
+      "detail": "1/1 figures extracted or explicitly marked missing"
+    },
+    {
+      "name": "no_ocr_garbage",
+      "passed": true,
+      "detail": "checked 2 page(s); no page has >5% non-printable/mojibake characters"
+    }
+  ],
+  "pass_rate": 1.0
+}
