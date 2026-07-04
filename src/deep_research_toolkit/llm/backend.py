@@ -26,6 +26,7 @@ def get_backend(config) -> Backend:
             base_url=local["base_url"], model=local["model"],
             api_key=os.environ.get(local.get("api_key_env", "OPENAI_API_KEY"), "not-needed"),
             temperature=local["temperature"], top_p=local["top_p"], top_k=local["top_k"],
+            max_tokens=local.get("max_tokens", 16000),
         )
     raise LLMBackendNotConfigured(
         f"unknown llm.provider: {provider!r} (use agent | anthropic | local)"

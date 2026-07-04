@@ -83,7 +83,8 @@ def _default_config(project_root: Path) -> Config:
         index_dir=project_root / DEFAULT_INDEX_DIR,
         embedding_model=DEFAULT_EMBEDDING_MODEL,
         llm_local={"base_url": "http://localhost:11434/v1", "model": "Ornith-1.0-9B",
-                   "api_key_env": "OPENAI_API_KEY", "temperature": 0.6, "top_p": 0.95, "top_k": 20},
+                   "api_key_env": "OPENAI_API_KEY", "temperature": 0.6, "top_p": 0.95, "top_k": 20,
+                   "max_tokens": 16000},
         topic_name="(unconfigured project)",
         scope_hint="No .deepresearch.yml found -- run `drt init` to configure this project's research scope.",
         tags=[],
@@ -124,6 +125,7 @@ def load_config(start: Path | None = None) -> Config:
         "temperature": float(local.get("temperature", 0.6)),
         "top_p": float(local.get("top_p", 0.95)),
         "top_k": int(local.get("top_k", 20)),
+        "max_tokens": int(local.get("max_tokens", 16000)),
     }
 
     return Config(

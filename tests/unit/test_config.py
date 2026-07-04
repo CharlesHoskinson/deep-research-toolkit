@@ -80,3 +80,4 @@ def test_llm_local_block_parsed(tmp_path):
     assert cfg.llm_local["base_url"] == "http://localhost:11434/v1"
     assert cfg.llm_local["model"] == "Ornith-1.0-9B"
     assert cfg.llm_local["temperature"] == 0.6  # default filled in
+    assert cfg.llm_local["max_tokens"] == 16000  # generous default so reasoning isn't truncated
