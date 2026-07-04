@@ -64,6 +64,9 @@ def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
     kept, dropped = [], []
     for claim in claims:
         refs = normalize_evidence(claim, producer, source_id)
+        # For pdf runs the gate checks provenance page text, which the chunk text is
+        # built from; a chunk whose whitespace diverges from provenance could be
+        # dropped even if faithful -- fail-safe (under-produces).
         ok = bool(refs) and all(
             verbatim_ok(ref.quote, source_text_for(
                 {"producer": ref.producer, "source_id": ref.source_id, "page": ref.page}, config))

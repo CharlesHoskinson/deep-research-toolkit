@@ -1,2 +1,2 @@
-{"entity_id": "ows", "name": "Open Wallet Standard", "aliases": ["OWS"], "type": "standard", "mentions": ["reference-run-web-ows:c01"]}
+{"entity_id": "open-wallet-standard", "name": "Open Wallet Standard", "aliases": ["OWS"], "type": "standard", "mentions": ["reference-run-web-ows:c01"]}
 {"entity_id": "autonomous-agent", "name": "Autonomous Agent", "aliases": [], "type": "actor", "mentions": ["reference-run-web-ows:c01"]}
