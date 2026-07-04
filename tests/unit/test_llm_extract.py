@@ -34,3 +34,25 @@ def test_extract_drops_non_verbatim_quotes(tmp_path):
     written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
     assert [c["claim_id"] for c in written] == ["c1"]
     assert result["dropped"] and result["written"] == 1
+
+
+def test_extract_pdf_keeps_verbatim_and_drops_paraphrase(tmp_path):
+    run = tmp_path / "pdf-runs" / "doc-abc"
+    run.mkdir(parents=True)
+    (run / "manifest.json").write_text(json.dumps({"document_id": "doc-abc"}), encoding="utf-8")
+    (run / "provenance.jsonl").write_text(json.dumps(
+        {"page": 1, "text": "Hydra settles synchronously among participants."}) + "\n", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps(
+        {"node_id": "doc-abc:n5", "text": "Hydra settles synchronously among participants.",
+         "source": {"page_start": 1}}) + "\n", encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps([
+        {"claim_id": "c1", "claim": "good", "supporting_evidence": [
+            {"node_id": "doc-abc:n5", "quote": "settles synchronously", "page": 1}]},
+        {"claim_id": "c2", "claim": "bad", "supporting_evidence": [
+            {"node_id": "doc-abc:n5", "quote": "settles very fast", "page": 1}]},
+    ])
+    result = extract_claims_to_run(run, "pdf", cfg, _FakeBackend(payload))
+    written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    assert [c["claim_id"] for c in written] == ["c1"]
+    assert result["dropped"] == ["c2"] and result["written"] == 1
