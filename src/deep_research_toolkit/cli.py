@@ -33,6 +33,7 @@ knowledge_base:
   path: {kb_path}
   pdf_runs_dir: {pdf_runs_dir}
   research_runs_dir: {research_runs_dir}
+  index_dir: {index_dir}
 
 topic:
   name: "{topic_name}"
@@ -49,6 +50,14 @@ llm:
   provider: anthropic
   model: claude-sonnet-4-5
   api_key_env: ANTHROPIC_API_KEY
+  embedding_model: all-MiniLM-L6-v2
+  local:
+    base_url: http://localhost:11434/v1
+    model: Ornith-1.0-9B
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.6
+    top_p: 0.95
+    top_k: 20
 
 scrapling:
   default_mode: http
@@ -162,6 +171,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         kb_path=kb_path,
         pdf_runs_dir=pdf_runs_dir,
         research_runs_dir=research_runs_dir,
+        index_dir=".deepresearch/index",
         topic_name=args.topic_name or "(unnamed project)",
         scope_hint=args.scope_hint or "Describe what this project's research is about here.",
         web_research=str(features["web_research"]).lower(),

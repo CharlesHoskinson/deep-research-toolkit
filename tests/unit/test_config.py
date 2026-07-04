@@ -52,3 +52,31 @@ def test_load_config_resolves_paths_relative_to_config_file(tmp_path):
     assert cfg.topic_name == "Test"
     assert cfg.features["web_research"] is True
     assert cfg.features["pdf_ingestion"] is False
+
+
+def test_index_dir_defaults_and_resolves(tmp_path):
+    from deep_research_toolkit.config import load_config
+    (tmp_path / ".deepresearch.yml").write_text(
+        "version: 1\nknowledge_base:\n  path: kb\n", encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.index_dir == (tmp_path / ".deepresearch/index").resolve()
+    assert cfg.embedding_model == "all-MiniLM-L6-v2"
+
+
+def test_llm_local_block_parsed(tmp_path):
+    from deep_research_toolkit.config import load_config
+    (tmp_path / ".deepresearch.yml").write_text(
+        "version: 1\n"
+        "llm:\n"
+        "  provider: local\n"
+        "  local:\n"
+        "    base_url: http://localhost:11434/v1\n"
+        "    model: Ornith-1.0-9B\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.llm_provider == "local"
+    assert cfg.llm_local["base_url"] == "http://localhost:11434/v1"
+    assert cfg.llm_local["model"] == "Ornith-1.0-9B"
+    assert cfg.llm_local["temperature"] == 0.6  # default filled in

@@ -17,6 +17,8 @@ CONFIG_FILENAME = ".deepresearch.yml"
 DEFAULT_KNOWLEDGE_BASE_PATH = "knowledge_base"
 DEFAULT_PDF_RUNS_PATH = "pdf-runs"
 DEFAULT_RESEARCH_RUNS_PATH = "research-runs"
+DEFAULT_INDEX_DIR = ".deepresearch/index"
+DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 
 def find_config(start: Path | None = None) -> Path | None:
@@ -46,6 +48,9 @@ class Config:
     knowledge_base_path: Path
     pdf_runs_path: Path
     research_runs_path: Path
+    index_dir: Path
+    embedding_model: str
+    llm_local: dict[str, Any]
     topic_name: str
     scope_hint: str
     tags: list[str]
@@ -75,6 +80,10 @@ def _default_config(project_root: Path) -> Config:
         knowledge_base_path=project_root / DEFAULT_KNOWLEDGE_BASE_PATH,
         pdf_runs_path=project_root / DEFAULT_PDF_RUNS_PATH,
         research_runs_path=project_root / DEFAULT_RESEARCH_RUNS_PATH,
+        index_dir=project_root / DEFAULT_INDEX_DIR,
+        embedding_model=DEFAULT_EMBEDDING_MODEL,
+        llm_local={"base_url": "http://localhost:11434/v1", "model": "Ornith-1.0-9B",
+                   "api_key_env": "OPENAI_API_KEY", "temperature": 0.6, "top_p": 0.95, "top_k": 20},
         topic_name="(unconfigured project)",
         scope_hint="No .deepresearch.yml found -- run `drt init` to configure this project's research scope.",
         tags=[],
@@ -107,12 +116,25 @@ def load_config(start: Path | None = None) -> Config:
     llm = raw.get("llm", {}) or {}
     scrapling = raw.get("scrapling", {}) or {}
 
+    local = (llm.get("local") or {})
+    llm_local = {
+        "base_url": local.get("base_url", "http://localhost:11434/v1"),
+        "model": local.get("model", "Ornith-1.0-9B"),
+        "api_key_env": local.get("api_key_env", "OPENAI_API_KEY"),
+        "temperature": float(local.get("temperature", 0.6)),
+        "top_p": float(local.get("top_p", 0.95)),
+        "top_k": int(local.get("top_k", 20)),
+    }
+
     return Config(
         config_path=path,
         project_root=root,
         knowledge_base_path=(root / kb.get("path", DEFAULT_KNOWLEDGE_BASE_PATH)).resolve(),
         pdf_runs_path=(root / kb.get("pdf_runs_dir", DEFAULT_PDF_RUNS_PATH)).resolve(),
         research_runs_path=(root / kb.get("research_runs_dir", DEFAULT_RESEARCH_RUNS_PATH)).resolve(),
+        index_dir=(root / kb.get("index_dir", DEFAULT_INDEX_DIR)).resolve(),
+        embedding_model=llm.get("embedding_model", DEFAULT_EMBEDDING_MODEL),
+        llm_local=llm_local,
         topic_name=topic.get("name", "(unnamed project)"),
         scope_hint=topic.get("scope_hint", ""),
         tags=list(topic.get("tags", [])),

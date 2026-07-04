@@ -1,7 +1,7 @@
 {
   "name": "deep-research-toolkit",
   "description": "Web retrieval, PDF ingestion, and knowledge compilation skills: build an evidence-backed, citable knowledge base from research and documents.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Charles Hoskinson"
   },
