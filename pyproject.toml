@@ -24,7 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 web = ["scrapling[all]>=0.4"]
 pdf = ["docling>=2.0", "pypdf>=4.0", "pdfplumber>=0.11"]
-compiler = ["duckdb>=1.0", "lancedb>=0.15", "sentence-transformers>=3.0"]
+compiler = ["duckdb>=1.0", "lancedb>=0.15", "sentence-transformers>=3.0", "openai>=1.40"]
 dev = ["reportlab>=4.0", "pytest>=8.0", "pytest-cov", "ruff", "mypy", "pip-audit"]
 full = ["deep-research-toolkit[web,pdf,compiler]"]
 
