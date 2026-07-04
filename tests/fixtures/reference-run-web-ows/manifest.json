@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "reference-run-web-ows",
+  "source_url": "https://example.org/specs/open-wallet-standard",
+  "content_hash": "sha256:080510cf723739b3",
+  "fetched_at": "2026-07-03T18:40:00Z",
+  "chunk_count": 1
+}
