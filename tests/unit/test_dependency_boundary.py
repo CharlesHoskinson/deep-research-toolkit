@@ -30,3 +30,15 @@ def test_import_pypdf_without_pypdf_raises_specific_error(monkeypatch):
     with pytest.raises(PdfDepsNotInstalled) as exc_info:
         _import_pypdf()
     assert "deep-research-toolkit[pdf]" in str(exc_info.value)
+
+
+def test_sentence_transformer_embedder_without_dep_raises_specific_error(monkeypatch):
+    from deep_research_toolkit.compiler.embed import (
+        EmbedderNotInstalled,
+        SentenceTransformerEmbedder,
+    )
+
+    _block_import(monkeypatch, "sentence_transformers")
+    with pytest.raises(EmbedderNotInstalled) as exc_info:
+        SentenceTransformerEmbedder("all-MiniLM-L6-v2").embed(["x"])
+    assert "deep-research-toolkit[compiler]" in str(exc_info.value)
