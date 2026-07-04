@@ -21,6 +21,19 @@ versions it produces/accepts.
 | Suite version | manifest.json | classification.json | provenance.jsonl | chunks.jsonl | claims/entities/relations.jsonl | OKF frontmatter (`okf_version`) |
 |---|---|---|---|---|---|---|
 | 0.1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| 0.2.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+
+0.2.0 (the knowledge compiler) is additive: web research runs
+(`research-runs/<source_id>/`) write `manifest.json`, `chunks.jsonl`, and
+`claims/entities/relations.jsonl` at the **same `1.0` schema versions** the
+PDF pipeline already produces — the web evidence shape
+(`{locator, quote, url}` instead of `{node_id, quote, page}`) is a new
+optional variant within schema `1.0`, and existing PDF files are unchanged
+on disk. The compiled index's DuckDB `meta` table carries its own
+`index_schema_version`, deliberately **not** a column here: the index is a
+git-ignored, rebuildable cache, not a portable on-disk contract, so an
+incompatible index is handled by recompiling, never by migrating (see
+`docs/decisions/0002-knowledge-compiler.md`).
 
 ## Migrating
 
