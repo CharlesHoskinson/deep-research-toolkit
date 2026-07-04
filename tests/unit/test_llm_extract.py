@@ -109,6 +109,32 @@ def test_extract_resolves_abbreviated_chunk_ids(tmp_path):
     assert written[0]["supporting_evidence"][0]["node_id"] == "doc-abc:n5"  # rewritten to canonical
 
 
+def test_extract_resolves_abbreviated_entity_mentions(tmp_path):
+    # The model abbreviates chunk ids in entity mentions too ("c01" for
+    # "src-7:c01"); those must resolve to canonical chunk ids so entity_mentions
+    # joins back to chunks. Unresolvable mentions are dropped, not left dangling.
+    run = tmp_path / "research-runs" / "src-7"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Cardano uses proof of stake.", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps(
+        {"node_id": "src-7:c01", "text": "Cardano uses proof of stake."}) + "\n", encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = "<output>" + json.dumps({
+        "claims": [{"claim_id": "c1", "claim": "Cardano uses proof of stake.",
+                    "supporting_evidence": [{"locator": "c01", "quote": "Cardano uses proof of stake", "url": None}]}],
+        "entities": [{"entity_id": "cardano", "name": "Cardano", "aliases": [], "type": "blockchain",
+                      "mentions": ["c01"]},
+                     {"entity_id": "ghost", "name": "Ghost", "aliases": [], "type": "x", "mentions": ["c99"]}],
+        "relations": [],
+    }) + "</output>"
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
+    ents = {e["entity_id"]: e for e in
+            (json.loads(x) for x in (run / "entities.jsonl").read_text(encoding="utf-8").splitlines() if x)}
+    assert ents["cardano"]["mentions"] == ["src-7:c01"]   # abbreviated -> canonical
+    assert ents["ghost"]["mentions"] == []                # unresolvable -> dropped
+    assert result["written"] == 1                         # claim's abbreviated locator also resolved
+
+
 def test_parse_extraction_reads_output_block_and_ignores_reasoning():
     text = ('<think>I will plan, draft, verify each quote, then emit.</think>\n'
             'Here is the result:\n<output>\n'

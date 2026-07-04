@@ -198,6 +198,13 @@ def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
                 ok = False
         (kept if ok else dropped).append(claim)
 
+    # Entity `mentions` are chunk ids too, and the model abbreviates them the same
+    # way it abbreviates evidence ids -- resolve them to canonical chunk ids so
+    # entity_mentions actually joins back to chunks/sources downstream. Drop any
+    # mention that resolves to no real chunk rather than leave a dangling id.
+    for ent in parsed["entities"]:
+        ent["mentions"] = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
+
     _write_jsonl(run_dir / "claims.jsonl", kept, {"document_id": source_id})
     _write_jsonl(run_dir / "entities.jsonl", parsed["entities"], {})
     _write_jsonl(run_dir / "relations.jsonl", parsed["relations"], {"document_id": source_id})
