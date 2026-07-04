@@ -3,6 +3,7 @@ deterministic tools. No tool makes an LLM call (ADR 0001 decision #3)."""
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from . import search as search_mod
@@ -14,11 +15,12 @@ from .embed import Embedder, get_embedder
 
 
 class Index:
-    def __init__(self, con, lancedb_handle, embedder, config) -> None:
+    def __init__(self, con, lancedb_handle, embedder, config, degraded: bool = False) -> None:
         self.con = con
         self.lance = lancedb_handle
         self.embedder = embedder
         self.config = config
+        self.degraded = degraded
 
     @classmethod
     def open(cls, config, embedder: Embedder | None = None) -> "Index":
@@ -28,11 +30,18 @@ class Index:
                 f"No index at {index_dir}. Run the knowledge-compiler skill's compile.py first."
             )
         con = open_duckdb(index_dir)
+        degraded = False
         try:
             lance = open_lancedb(index_dir)
         except Exception:
             lance = None
-        return cls(con, lance, embedder or get_embedder(config.embedding_model), config)
+            degraded = True
+            logging.warning(
+                "Could not open LanceDB at %s; vector search is unavailable, "
+                "falling back to lexical-only search.", index_dir / "lancedb",
+            )
+        return cls(con, lance, embedder or get_embedder(config.embedding_model), config,
+                   degraded=degraded)
 
     def close(self) -> None:
         self.con.close()

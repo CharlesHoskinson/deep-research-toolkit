@@ -33,6 +33,7 @@ def _project(tmp_path):
 def test_search_claims_and_read_page(tmp_path):
     cfg = _project(tmp_path)
     idx = Index.open(cfg, embedder=FakeEmbedder())
+    assert idx.degraded is False  # lancedb opened normally, vector search available
     assert any(c["claim_id"] == "c1" for c in idx.search_claims("settlement"))
     page = idx.read_page("concepts/hydra.md")
     assert page["frontmatter"]["title"] == "Hydra"
