@@ -54,8 +54,12 @@ def compile_index(config, embedder: Embedder | None = None) -> dict:
     claims, evidence, entities, mentions, relations = [], [], [], [], []
     for producer, root in [("pdf", config.pdf_runs_path), ("web", config.research_runs_path)]:
         for run in ingest.discover_runs(root):
-            c, e = ingest.iter_run_claims(run, producer); claims += c; evidence += e
-            en, mn = ingest.iter_run_entities(run, producer); entities += en; mentions += mn
+            c, e = ingest.iter_run_claims(run, producer)
+            claims += c
+            evidence += e
+            en, mn = ingest.iter_run_entities(run, producer)
+            entities += en
+            mentions += mn
             relations += ingest.iter_run_relations(run, producer)
 
     _insert(con, "claims", claims, ["claim_id", "producer", "source_id", "claim", "claim_type", "confidence"])
