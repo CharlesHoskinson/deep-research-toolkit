@@ -18,11 +18,20 @@ _SYSTEM = (
 )
 
 
-def build_extraction_prompt(chunks: list[dict]) -> tuple[str, str]:
+def build_extraction_prompt(chunks: list[dict], producer: str = "web") -> tuple[str, str]:
+    if producer == "pdf":
+        evidence = ('[{"node_id": "<the chunk\'s node_id>", "quote": "<verbatim substring of the '
+                    'chunk text>", "page": <the chunk\'s page number>}]')
+        body = "\n\n".join(
+            f"[node_id={c.get('node_id')} page={(c.get('source') or {}).get('page_start')}]\n{c.get('text', '')}"
+            for c in chunks
+        )
+    else:
+        evidence = '[{"locator": "<node_id>", "quote": "<verbatim substring>", "url": "<source_url or null>"}]'
+        body = "\n\n".join(f"[{c.get('node_id') or c.get('locator')}]\n{c.get('text', '')}" for c in chunks)
     schema = ('[{"claim_id": "c_0001", "claim": "...", "claim_type": "architectural|empirical|'
               'definitional|comparative", "confidence": "high|medium|low", "supporting_evidence": '
-              '[{"locator": "<node_id>", "quote": "<verbatim substring>", "url": "<source_url or null>"}]}]')
-    body = "\n\n".join(f"[{c.get('node_id') or c.get('locator')}]\n{c.get('text', '')}" for c in chunks)
+              f'{evidence}}}]')
     user = f"Output schema:\n{schema}\n\nChunks:\n{body}"
     return _SYSTEM, user
 
@@ -49,7 +58,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
     source_id = run_dir.name if producer == "web" else \
         json.loads((run_dir / "manifest.json").read_text(encoding="utf-8")).get("document_id", run_dir.name)
     chunks = _read_jsonl(run_dir / "chunks.jsonl")
-    system, user = build_extraction_prompt(chunks)
+    system, user = build_extraction_prompt(chunks, producer)
     claims = parse_claims_response(backend.complete(system, user))
 
     kept, dropped = [], []
