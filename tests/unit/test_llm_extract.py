@@ -135,6 +135,47 @@ def test_extract_resolves_abbreviated_entity_mentions(tmp_path):
     assert result["written"] == 1                         # claim's abbreviated locator also resolved
 
 
+def test_extract_batches_sources_and_merges_entities(tmp_path):
+    # A source larger than batch_size is extracted in bounded batches; claim ids
+    # are prefixed for uniqueness and the same entity seen in two batches merges.
+    run = tmp_path / "research-runs" / "src-b"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Alpha fact here. Beta fact here.", encoding="utf-8")
+    with open(run / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps({"node_id": "src-b:c01", "text": "Alpha fact here."}) + "\n")
+        f.write(json.dumps({"node_id": "src-b:c02", "text": "Beta fact here."}) + "\n")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+
+    class _PerBatch:
+        def complete(self, system, user, **kw):
+            cid, quote = ("src-b:c01", "Alpha fact here") if "src-b:c01" in user else ("src-b:c02", "Beta fact here")
+            return "<output>" + json.dumps({
+                "claims": [{"claim_id": "c1", "claim": quote,
+                            "supporting_evidence": [{"locator": cid, "quote": quote, "url": None}]}],
+                "entities": [{"entity_id": "e", "name": "E", "aliases": [], "type": "x", "mentions": [cid]}],
+                "relations": [],
+            }) + "</output>"
+
+    result = extract_claims_to_run(run, "web", cfg, _PerBatch(), batch_size=1)
+    assert result["batches"] == 2 and result["written"] == 2 and result["parse_failures"] == 0
+    ids = [json.loads(x)["claim_id"] for x in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if x]
+    assert ids == ["b00_c1", "b01_c1"]  # prefixed across batches
+    ents = [json.loads(x) for x in (run / "entities.jsonl").read_text(encoding="utf-8").splitlines() if x]
+    assert len(ents) == 1 and set(ents[0]["mentions"]) == {"src-b:c01", "src-b:c02"}  # merged
+
+
+def test_extract_reports_parse_failures_on_truncation(tmp_path):
+    # A reasoning model that runs out of tokens mid-think returns no parseable
+    # JSON; that must surface as parse_failures, not silently as "0 claims found".
+    run = tmp_path / "research-runs" / "src-f"
+    run.mkdir(parents=True)
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-f:c01", "text": "x"}) + "\n", encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    truncated = _FakeBackend("<think>reasoning ran on and never reached the output block")
+    result = extract_claims_to_run(run, "web", cfg, truncated)
+    assert result["written"] == 0 and result["parse_failures"] == 1
+
+
 def test_parse_extraction_reads_output_block_and_ignores_reasoning():
     text = ('<think>I will plan, draft, verify each quote, then emit.</think>\n'
             'Here is the result:\n<output>\n'

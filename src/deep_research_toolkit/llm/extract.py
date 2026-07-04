@@ -155,21 +155,31 @@ def _write_jsonl(path: Path, rows: list[dict], stamp: dict) -> None:
             f.write(json.dumps({"schema_version": SCHEMA_VERSION, **stamp, **row}, ensure_ascii=False) + "\n")
 
 
-def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
-    """Read chunks.jsonl, have the backend extract claims/entities/relations,
-    drop any claim whose quote is not verbatim in its chunk, and write
-    claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
-    Returns a summary dict.
+#: Chunks per LLM call. A reasoning model spends its whole token budget thinking
+#: about a large chunk set and can run out before emitting the final JSON, so a
+#: source is extracted in bounded batches rather than one giant prompt. Small
+#: enough that even a verbose reasoning pass fits comfortably under max_tokens.
+DEFAULT_BATCH_SIZE = 6
+
+
+def _batches(items: list, size: int):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def extract_claims_to_run(run_dir, producer: str, config, backend,
+                          batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
+    """Read chunks.jsonl, have the backend extract claims/entities/relations in
+    bounded batches, drop any claim whose quote is not verbatim in its chunk, and
+    write claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
+    Returns a summary dict (including ``parse_failures``: batches whose output
+    could not be parsed, usually reasoning-token truncation).
     """
     run_dir = Path(run_dir)
     source_id = run_dir.name if producer == "web" else \
         json.loads((run_dir / "manifest.json").read_text(encoding="utf-8")).get("document_id", run_dir.name)
     chunks = _read_jsonl(run_dir / "chunks.jsonl")
-    system, user = build_extraction_prompt(chunks, producer)
-    parsed = parse_extraction_response(backend.complete(system, user))
 
-    # Gate claims against the exact chunk text the model was shown (see the
-    # llm.provider=local design note; the mechanical gate is the backstop).
     chunk_text_by_id = {(c.get("node_id") or c.get("locator")): c.get("text", "") for c in chunks}
     chunk_ids = [cid for cid in chunk_text_by_id if cid]
 
@@ -187,31 +197,63 @@ def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
 
     id_key = "node_id" if producer == "pdf" else "locator"
     kept, dropped = [], []
-    for claim in parsed["claims"]:
-        evidence = claim.get("supporting_evidence") or []
-        ok = bool(evidence)
-        for ev in evidence:
-            real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
-            if real and verbatim_ok(ev.get("quote") or "", chunk_text_by_id[real]):
-                ev[id_key] = real  # rewrite to the canonical chunk id
-            else:
-                ok = False
-        (kept if ok else dropped).append(claim)
+    entities_by_id: dict[str, dict] = {}
+    relations: list[dict] = []
+    parse_failures = 0
+    batch_list = list(_batches(chunks, max(1, batch_size)))
 
-    # Entity `mentions` are chunk ids too, and the model abbreviates them the same
-    # way it abbreviates evidence ids -- resolve them to canonical chunk ids so
-    # entity_mentions actually joins back to chunks/sources downstream. Drop any
-    # mention that resolves to no real chunk rather than leave a dangling id.
-    for ent in parsed["entities"]:
-        ent["mentions"] = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
+    for i, batch in enumerate(batch_list):
+        system, user = build_extraction_prompt(batch, producer)
+        parsed = parse_extraction_response(backend.complete(system, user))
+        if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
+            parse_failures += 1
+            continue
+
+        # Give ids a batch prefix (only when batched) so they stay unique across
+        # batches while keeping each relation's supporting_claim reference valid.
+        prefix = f"b{i:02d}_" if len(batch_list) > 1 else ""
+        for claim in parsed["claims"]:
+            claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
+            evidence = claim.get("supporting_evidence") or []
+            ok = bool(evidence)
+            for ev in evidence:
+                real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
+                if real and verbatim_ok(ev.get("quote") or "", chunk_text_by_id[real]):
+                    ev[id_key] = real  # rewrite to the canonical chunk id
+                else:
+                    ok = False
+            (kept if ok else dropped).append(claim)
+
+        for ent in parsed["entities"]:
+            eid = ent.get("entity_id")
+            if not eid:
+                continue
+            # Entity `mentions` are abbreviated chunk ids too -- resolve them so
+            # entity_mentions joins back to chunks; drop unresolvable ones.
+            ment = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
+            if eid in entities_by_id:  # same entity seen in an earlier batch -> merge
+                cur = entities_by_id[eid]
+                cur["mentions"] = sorted(set(cur.get("mentions") or []) | set(ment))
+                cur["aliases"] = sorted(set(cur.get("aliases") or []) | set(ent.get("aliases") or []))
+            else:
+                ent["mentions"] = sorted(set(ment))
+                entities_by_id[eid] = ent
+
+        for rel in parsed["relations"]:
+            rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
+            if rel.get("supporting_claim"):
+                rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
+            relations.append(rel)
 
     _write_jsonl(run_dir / "claims.jsonl", kept, {"document_id": source_id})
-    _write_jsonl(run_dir / "entities.jsonl", parsed["entities"], {})
-    _write_jsonl(run_dir / "relations.jsonl", parsed["relations"], {"document_id": source_id})
+    _write_jsonl(run_dir / "entities.jsonl", list(entities_by_id.values()), {})
+    _write_jsonl(run_dir / "relations.jsonl", relations, {"document_id": source_id})
 
     return {
         "written": len(kept),
         "dropped": [c.get("claim_id") for c in dropped],
-        "entities": len(parsed["entities"]),
-        "relations": len(parsed["relations"]),
+        "entities": len(entities_by_id),
+        "relations": len(relations),
+        "batches": len(batch_list),
+        "parse_failures": parse_failures,
     }
