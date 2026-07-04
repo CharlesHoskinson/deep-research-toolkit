@@ -54,5 +54,41 @@ class SentenceTransformerEmbedder:
         return [list(map(float, v)) for v in model.encode(texts, normalize_embeddings=True)]
 
 
-def get_embedder(model_name: str = "all-MiniLM-L6-v2") -> Embedder:
+class OllamaEmbedder:
+    """Embed via an OpenAI-compatible endpoint (Ollama :11434/v1) serving a local
+    embedding model such as qwen3-embedding:4b -- a materially stronger retrieval
+    embedding than MiniLM. Vector dimension is whatever the model returns (LanceDB
+    infers it), so 4B/8B swap cleanly with no schema change."""
+
+    def __init__(self, model: str, base_url: str = "http://localhost:11434/v1",
+                 api_key: str = "not-needed") -> None:
+        self.model = model
+        self.base_url = base_url
+        self.api_key = api_key
+        self._client = None
+
+    def _client_(self):
+        if self._client is None:
+            try:
+                from openai import OpenAI
+            except ImportError as e:
+                raise EmbedderNotInstalled(
+                    "An OpenAI-compatible client is required for an Ollama embedding model. "
+                    'Install it with: pip install "deep-research-toolkit[compiler]" (or: pip install openai).'
+                ) from e
+            self._client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+        return self._client
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        resp = self._client_().embeddings.create(model=self.model, input=list(texts))
+        return [list(d.embedding) for d in resp.data]
+
+
+def get_embedder(model_name: str = "all-MiniLM-L6-v2",
+                 base_url: str = "http://localhost:11434/v1") -> Embedder:
+    # An Ollama model tag has a "name:tag" shape; a sentence-transformers model
+    # name does not. Route on that so `embedding_model: qwen3-embedding:4b` uses
+    # the endpoint while `all-MiniLM-L6-v2` uses sentence-transformers.
+    if ":" in model_name:
+        return OllamaEmbedder(model_name, base_url)
     return SentenceTransformerEmbedder(model_name)

@@ -52,7 +52,10 @@ def compile_index(config, embedder: Embedder | None = None) -> dict:
             )
         shutil.rmtree(index_dir)
     index_dir.mkdir(parents=True, exist_ok=True)
-    embedder = embedder or get_embedder(config.embedding_model)
+    embedder = embedder or get_embedder(
+        config.embedding_model,
+        getattr(config, "llm_local", {}).get("base_url", "http://localhost:11434/v1"),
+    )
 
     con = open_duckdb(index_dir)
     try:
