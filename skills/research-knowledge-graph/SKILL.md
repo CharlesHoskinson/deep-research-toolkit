@@ -53,6 +53,34 @@ Defaults to plain HTTP; use `--mode stealth` only when a plain fetch gets
 blocked (anti-bot challenge, 403) — stealth mode gets past things a plain
 web-fetch tool cannot.
 
+## Turning a source into claims
+
+When a fetched source is substantial enough to mine for claims (not just
+a fact to merge into a wiki page), scaffold a web research run from the
+cleaned content:
+
+```
+python scripts/start_research_run.py <url> --content-file PATH [--research-runs-dir DIR]
+```
+
+This writes `research-runs/<source_id>/` containing `source.md` (the
+content as fetched), `chunks.jsonl` (one node per heading section), and a
+`manifest.json` with `producer: web`. The runs dir defaults from
+`.deepresearch.yml` via `deep_research_toolkit.config`.
+
+Then do the extraction yourself: read the run's `chunks.jsonl` and write
+`claims.jsonl`, `entities.jsonl`, and `relations.jsonl` into the same run
+directory, following `references/web-claim-extraction.md` — it gives the
+exact schemas (web evidence is `{"locator": "<source_id>:cNN", "quote":
+"...", "url": "..."}`) and the rules that matter, chiefly that every
+quote must be a verbatim substring of `source.md`. Don't script this
+part; deciding what counts as an atomic, well-evidenced claim is a
+judgment call.
+
+These runs are indexed by the `knowledge-compiler` skill alongside PDF
+runs, so web-sourced and PDF-sourced claims about the same entity end up
+in one queryable graph.
+
 ## Writing to the knowledge base
 
 Every page follows the frontmatter schema in
