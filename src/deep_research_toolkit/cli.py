@@ -271,6 +271,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         ("pdf", "pdfplumber", "pdfplumber"),
         ("compiler", "duckdb", "duckdb"),
         ("compiler", "lancedb", "lancedb"),
+        ("compiler", "sentence_transformers", "sentence-transformers"),
+        ("compiler", "openai", "openai"),
     ]
     missing_tiers = set()
     for tier, module_name, pip_name in checks:
@@ -301,6 +303,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             print("  docling imports OK (models download on first real conversion, not here)")
         except ImportError:
             pass
+        print(
+            "  note: a `local` LLM provider needs a running Ollama/vLLM endpoint"
+            " at llm.local.base_url (not checked here)"
+        )
 
     return 1 if missing_tiers else 0
 

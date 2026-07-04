@@ -22,8 +22,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install package (dev + pdf extras -- pdf needed for router unit tests)
-        run: pip install -e ".[dev,pdf]"
+      - name: Install package (dev + pdf; duckdb/lancedb for compiler fast tests)
+        run: pip install -e ".[dev,pdf]" "duckdb>=1.0" "lancedb>=0.15"
       - name: Manifest / skill-template sync checks
         run: |
           python scripts/check-manifests-in-sync.py
@@ -61,5 +61,5 @@ jobs:
             ~/.cache/huggingface
             ~/.cache/ms-playwright
           key: heavy-deps-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
-      - run: pip install -e ".[dev,pdf]"
+      - run: pip install -e ".[dev,pdf,compiler]"
       - run: pytest tests -m heavy -v
