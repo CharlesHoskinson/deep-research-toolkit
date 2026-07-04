@@ -89,7 +89,8 @@ class Index:
     def get_entity(self, name_or_id: str) -> dict:
         row = self.con.execute(
             "SELECT entity_id, name, type, aliases_json FROM entities "
-            "WHERE entity_id = ? OR lower(name) = lower(?) LIMIT 1", [name_or_id, name_or_id]).fetchone()
+            "WHERE entity_id = ? OR lower(name) = lower(?) "
+            "ORDER BY producer, source_id LIMIT 1", [name_or_id, name_or_id]).fetchone()
         if not row:
             return {"query": name_or_id, "error": "entity not found"}
         eid = row[0]
