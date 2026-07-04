@@ -267,6 +267,54 @@ it never reaches the JSON. Keep the documented sampling (`temperature 0.6,
 top_p 0.95, top_k 20`) — lowering the temperature for "determinism" backfires
 into repetition on this model family.
 
-Embeddings are configured separately (`llm.embedding_model`, default
-`all-MiniLM-L6-v2`) and always run locally via sentence-transformers —
-they are not routed through the LLM backend.
+**Role-routed model stack.** One model is rarely right for every phase, so
+the local provider routes each phase to its own model under `llm.roles`.
+`get_backend(config, role="extract")` resolves the model, sampling, thinking
+mode, and response format for that role; a call with no role (or a role left
+unconfigured) falls back to the flat `llm.local` model, so a single-model
+setup still works unchanged. The roles and their defaults:
+
+| role | default mode | what it's for | fits |
+|---|---|---|---|
+| `extract` | non-thinking, `json` mode, `max_tokens` 3000, `temperature` 0 | high-volume claim/entity/relation extraction | a fast **instruct** model |
+| `wiki_write` | non-thinking, `max_tokens` 4096 | merge claims into OKF pages | a mid/large instruct model |
+| `conflict_adjudicate` | thinking, `max_tokens` 8192 | confirm real contradictions | a reasoning model |
+| `synthesize` | thinking, `max_tokens` 12000 | dossiers, theses, analysis | a reasoning model |
+| `code_agent` | thinking, `max_tokens` 16000 | repo/coding-agent work | an agentic-coding model (e.g. Ornith) |
+
+```yaml
+llm:
+  provider: local
+  embedding_model: qwen3-embedding:4b
+  roles:
+    extract:     {model: qwen2.5:7b-instruct}
+    wiki_write:  {model: qwen3.6:35b-a3b}
+    synthesize:  {model: qwen3.6:27b}
+  local:
+    base_url: http://localhost:11434/v1
+    model: ornith-9b-drt      # fallback / code_agent
+```
+
+The split matters most at `extract`, which runs once per chunk-batch per
+source: it wants a model that emits JSON immediately, not one that burns its
+budget on a hidden deliberation pass. **Use a genuinely non-reasoning
+instruct model here.** A caution from testing: a *hybrid* thinking model's
+"non-thinking" switch is not always honored by the serving layer — with the
+Ollama builds tested, `qwen3.5:9b` ignored both the `think: false` request
+parameter and a `/no_think` prompt directive and reasoned unboundedly,
+producing no output before hitting `max_tokens`, exactly the failure Ornith
+shows. A true instruct model (`qwen2.5:7b-instruct`) has no reasoning path to
+suppress and is the reliable extractor. `response_format: json` (Ollama
+`json_object` mode) keeps its output parseable; extraction is still batched,
+so a dense source that would overflow one call is split, and any batch whose
+output can't be parsed is surfaced as `parse_failures` rather than silently
+counted as "no claims."
+
+**Embeddings** are configured separately (`llm.embedding_model`) and routed
+by name shape: a plain sentence-transformers name (`all-MiniLM-L6-v2`, the
+default) runs locally via sentence-transformers, while an Ollama model tag
+(`qwen3-embedding:4b`) embeds through the same `llm.local.base_url` endpoint —
+a materially stronger retrieval embedding. LanceDB infers the vector
+dimension from the model's output, so swapping MiniLM for a 4B/8B Qwen
+embedding (or 4B for 8B) needs only the config line and a recompile, no schema
+change. Embeddings are never routed through the generative LLM backend.

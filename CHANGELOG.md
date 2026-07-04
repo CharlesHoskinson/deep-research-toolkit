@@ -41,6 +41,23 @@ for how suite versions map to on-disk schema versions).
 - New `[compiler]` extra: `duckdb`, `lancedb`, `sentence-transformers`
   (embeddings default `all-MiniLM-L6-v2`), and `openai` (client for the
   local backend).
+- Role-routed local model stack (`llm.roles` in `.deepresearch.yml`): each
+  pipeline phase routes to its own model with its own thinking mode,
+  sampling, `max_tokens`, and `response_format` — a fast non-thinking
+  instruct model for high-volume `extract`, a reasoning model for
+  `synthesize`/`conflict_adjudicate`. `get_backend(config, role=...)`
+  resolves it; single-model configs are unchanged. See the "Role-routed
+  model stack" section of `docs/contracts/knowledge-compiler.md`.
+- Ollama embedding backend: an `embedding_model` with a `name:tag` shape
+  (e.g. `qwen3-embedding:4b`) embeds via the local endpoint instead of
+  sentence-transformers; LanceDB infers the dimension so models swap with
+  no schema change.
+- Programmatic extraction hardening: batched per-source extraction (bounded
+  chunks per call) to avoid reasoning-token truncation on large sources,
+  with a `parse_failures` count so a truncated call is visible rather than
+  silently "no claims"; abbreviated chunk ids the model emits are resolved
+  to canonical ids in both claim evidence and entity mentions; bare-string
+  claim/entity outputs are skipped rather than crashing.
 
 ### 0.1.0 — initial extraction
 
