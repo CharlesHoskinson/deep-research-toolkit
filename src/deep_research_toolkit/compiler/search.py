@@ -16,7 +16,11 @@ def fts_search(con, table: str, id_col: str, text_col: str, query: str, k: int) 
         f"SELECT {id_col}, fts_main_{table}.match_bm25({id_col}, ?) AS score "
         f"FROM {table} WHERE score IS NOT NULL ORDER BY score DESC LIMIT {int(k)}"
     )
-    return [row[0] for row in con.execute(sql, [query]).fetchall()]
+    try:
+        return [row[0] for row in con.execute(sql, [query]).fetchall()]
+    except Exception:
+        # FTS index absent (e.g. the table had zero rows at compile time) -> no lexical hits.
+        return []
 
 
 def vector_search(lancedb_handle, table: str, embedder, query: str, k: int) -> list[str]:

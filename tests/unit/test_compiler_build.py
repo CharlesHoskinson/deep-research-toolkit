@@ -1,4 +1,7 @@
+import dataclasses
 import json
+
+import pytest
 
 from deep_research_toolkit.common.frontmatter import write_okf
 from deep_research_toolkit.compiler.build import compile_index, open_duckdb
@@ -37,3 +40,21 @@ def test_compile_index_is_idempotent(tmp_path):
     compile_index(cfg, embedder=FakeEmbedder())
     stats = compile_index(cfg, embedder=FakeEmbedder())  # second run must not double rows
     assert stats["wiki_pages"] == 1 and stats["claims"] == 1
+
+
+def test_compile_index_refuses_nonempty_dir_without_marker(tmp_path):
+    cfg = _project(tmp_path)
+    foreign = tmp_path / "my-notes"
+    foreign.mkdir()
+    (foreign / "important.txt").write_text("do not delete", encoding="utf-8")
+    cfg = dataclasses.replace(cfg, index_dir=foreign)
+    with pytest.raises(ValueError, match="knowledge.duckdb"):
+        compile_index(cfg, embedder=FakeEmbedder())
+    assert (foreign / "important.txt").is_file()  # nothing was deleted
+
+
+def test_compile_index_refuses_knowledge_base_as_index_dir(tmp_path):
+    cfg = _project(tmp_path)
+    cfg = dataclasses.replace(cfg, index_dir=cfg.knowledge_base_path)
+    with pytest.raises(ValueError, match="Refusing"):
+        compile_index(cfg, embedder=FakeEmbedder())
