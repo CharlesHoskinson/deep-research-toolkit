@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deep-research-toolkit"
-version = "0.1.0"
+version = "0.2.0"
 description = "A deep-research skill suite for Claude Code and Codex: web retrieval, PDF ingestion, and knowledge compilation into an evidence-backed, agent-queryable knowledge base."
 readme = "README.md"
 requires-python = ">=3.10"
