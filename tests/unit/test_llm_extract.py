@@ -56,3 +56,27 @@ def test_extract_pdf_keeps_verbatim_and_drops_paraphrase(tmp_path):
     written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
     assert [c["claim_id"] for c in written] == ["c1"]
     assert result["dropped"] == ["c2"] and result["written"] == 1
+
+
+def test_extract_pdf_gate_uses_chunk_text_not_provenance(tmp_path):
+    # The chunk the model is shown joins two source units with a blank line ("\n\n"); the
+    # re-derived provenance page text joins the same units with a single "\n". A quote that
+    # spans that boundary is verbatim in the chunk the model actually quoted from, but NOT in
+    # the provenance page text. The extract gate must accept it -- it is aligned to chunk
+    # text (what the prompt showed the model), not to a re-derived provenance view.
+    run = tmp_path / "pdf-runs" / "doc-x"
+    run.mkdir(parents=True)
+    (run / "manifest.json").write_text(json.dumps({"document_id": "doc-x"}), encoding="utf-8")
+    (run / "provenance.jsonl").write_text(
+        json.dumps({"page": 1, "text": "First part."}) + "\n"
+        + json.dumps({"page": 1, "text": "Second part."}) + "\n", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps(
+        {"node_id": "doc-x:n1", "text": "First part.\n\nSecond part.", "source": {"page_start": 1}}) + "\n",
+        encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps([
+        {"claim_id": "c1", "claim": "spans boundary", "supporting_evidence": [
+            {"node_id": "doc-x:n1", "quote": "First part.\n\nSecond part.", "page": 1}]},
+    ])
+    result = extract_claims_to_run(run, "pdf", cfg, _FakeBackend(payload))
+    assert result["written"] == 1 and result["dropped"] == []

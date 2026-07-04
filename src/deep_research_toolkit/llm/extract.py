@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..compiler.dossier import source_text_for, verbatim_ok
+from ..compiler.dossier import verbatim_ok
 from ..compiler.schema import normalize_evidence
 
 _SYSTEM = (
@@ -61,15 +61,20 @@ def extract_claims_to_run(run_dir, producer: str, config, backend) -> dict:
     system, user = build_extraction_prompt(chunks, producer)
     claims = parse_claims_response(backend.complete(system, user))
 
+    # Gate against the exact chunk text the model was shown -- the prompt tells it to quote
+    # the chunk, so that is what a quote must be verbatim in. This keeps the extract gate
+    # aligned with the model's actual input for both producers, rather than re-deriving a
+    # provenance/source view whose whitespace can diverge from the chunk (which would drop
+    # faithful quotes). The claim still records node_id/page (pdf) or locator/url (web), so it
+    # stays traceable; compose_dossier applies its own source-of-record gate at query time.
+    chunk_text_by_id = {(c.get("node_id") or c.get("locator")): c.get("text", "") for c in chunks}
+
     kept, dropped = [], []
     for claim in claims:
         refs = normalize_evidence(claim, producer, source_id)
-        # For pdf runs the gate checks provenance page text, which the chunk text is
-        # built from; a chunk whose whitespace diverges from provenance could be
-        # dropped even if faithful -- fail-safe (under-produces).
+        # Fail-safe: a ref whose locator matches no chunk resolves to "" and is dropped.
         ok = bool(refs) and all(
-            verbatim_ok(ref.quote, source_text_for(
-                {"producer": ref.producer, "source_id": ref.source_id, "page": ref.page}, config))
+            verbatim_ok(ref.quote, chunk_text_by_id.get(ref.locator, ""))
             for ref in refs
         )
         (kept if ok else dropped).append(claim)
