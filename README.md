@@ -24,10 +24,13 @@ already there instead of re-scraping the internet. The wiki isn't the
 knowledge. It's the source corpus. The claims and citations built from it
 are what an agent actually reasons over.
 
-Two pieces of this are built and tested today: a web-research skill and a
-seven-stage PDF ingestion pipeline. Both write into the same knowledge base,
-using the same format, so it doesn't matter whether a fact came from a
-webpage or a whitepaper: it ends up in one place, checkable the same way.
+All three layers of this are built and tested today: a web-research skill,
+a seven-stage PDF ingestion pipeline, and a knowledge compiler that turns
+everything the first two produced into a queryable hybrid index with a
+small set of retrieval tools on top. The two producers write into the same
+knowledge base, using the same format, so it doesn't matter whether a fact
+came from a webpage or a whitepaper: it ends up in one place, checkable
+the same way, and the compiler indexes both sides into one graph.
 
 ## How it fits together
 
@@ -92,8 +95,6 @@ webpage or a whitepaper: it ends up in one place, checkable the same way.
 | headings recovered? citations verbatim?                 |
 | figures accounted for?  -> eval_report.json             |
 +---------------------------------------------------------+
-
-   - - - - - - -  designed, not yet built  - - - - - - -   
                             |
                             v
 +---------------------------------------------------------+
@@ -103,8 +104,10 @@ webpage or a whitepaper: it ends up in one place, checkable the same way.
                             |
                             v
 +---------------------------------------------------------+
-| retrieval-planner tools                                 |
-| search_wiki / search_claims / get_entity / ...          |
+| retrieval-planner tools (8)                             |
+| search_wiki / read_page / search_claims / get_entity    |
+| neighbors / get_sources / find_contradictions /         |
+| compose_dossier                                         |
 +---------------------------------------------------------+
                             |
                             v
@@ -117,9 +120,13 @@ webpage or a whitepaper: it ends up in one place, checkable the same way.
 Every PDF gets its own working directory,
 `<pdf_runs_dir>/<document_id>/`, holding everything the seven stages
 produced: the raw Docling export, the chunked nodes, the claims with their
-page citations, the eval report. It's git-tracked on purpose: it's meant to
-be the auditable record of how a conclusion was reached, not scratch space
-you'd `.gitignore`.
+page citations, the eval report. Web sources substantial enough to mine
+for claims get the same treatment in `research-runs/<source_id>/`: the
+fetched content, its chunks, and the claims extracted from it. Both kinds
+of run directory are git-tracked on purpose: they're meant to be the
+auditable record of how a conclusion was reached, not scratch space you'd
+`.gitignore`. The compiled index is the one exception — it's a derived
+cache, rebuilt from the run directories on demand, and stays out of git.
 
 ## Quick start
 
@@ -154,14 +161,15 @@ knowing about ahead of time rather than mid-pipeline.
 
 ## The skills
 
-Eight skills ship today. Seven of them form the PDF ingestion pipeline;
-the eighth handles web research. Every one of them is deliberately small.
-That's not an accident. A single monolithic "research skill" would load
-its entire instruction set into context on every use, whether you needed
-the PDF-parsing details or not. Splitting the work into eight focused
-skills means Claude or Codex only pulls in the instructions for the stage
-actually running, which keeps any single conversation's context usage
-proportional to what it's actually doing.
+Ten skills ship today. Seven of them form the PDF ingestion pipeline, one
+handles web research, and two form the knowledge-compiler layer that
+indexes and queries what the other eight produce. Every one of them is
+deliberately small. That's not an accident. A single monolithic "research
+skill" would load its entire instruction set into context on every use,
+whether you needed the PDF-parsing details or not. Splitting the work into
+ten focused skills means Claude or Codex only pulls in the instructions
+for the stage actually running, which keeps any single conversation's
+context usage proportional to what it's actually doing.
 
 ### research-knowledge-graph
 
@@ -202,6 +210,24 @@ project's research scope actually is (never guessing from its own generic
 description), searches what's already there, fetches only what's missing,
 and writes or updates a page. Nothing about the skill itself is tied to any
 particular topic; the topic lives entirely in that one config file.
+
+Web research also does what PDF ingestion has done from the start: turn a
+substantial source into evidence-backed claims, not just wiki prose. When
+a fetched page is worth mining, `start_research_run.py` scaffolds a
+`research-runs/<source_id>/` directory that deliberately mirrors a PDF
+run: the fetched content saved verbatim as `source.md`, one chunk per
+heading section in `chunks.jsonl`, and a `manifest.json` marking the
+producer as `web`. The agent then extracts `claims.jsonl`,
+`entities.jsonl`, and `relations.jsonl` into that same directory, under
+the same rules the PDF pipeline enforces, chiefly that every supporting
+quote must be a verbatim substring of `source.md`. That symmetry is the
+point: the knowledge compiler indexes web runs and PDF runs into one
+table, so a claim about some entity from a webpage and a claim about the
+same entity from a whitepaper end up in the same queryable graph, checked
+by the same evidence gate. Only the evidence shape differs (a web claim
+cites a chunk locator and a URL; a PDF claim cites a node id and a page
+number), and the compiler normalizes that difference away at index time
+without touching either producer's files on disk.
 
 ### pdf-ingest-router
 
@@ -440,6 +466,99 @@ a cost this stage's automated pass should never carry without being asked.
 It's documented as an optional manual step for documents where it's worth
 the extra spend, not baked into `pass_rate`.
 
+### knowledge-compiler
+
+Everything above produces files: wiki pages, chunked nodes, claims with
+citations. Files are the right durable format (auditable, diffable,
+git-tracked), but they're a poor query surface. Answering "what do we know
+about X, and what's the evidence?" by grepping a knowledge base gets
+slower and lossier as the corpus grows, and it misses semantically related
+material that doesn't share keywords. This skill compiles the whole corpus
+(`knowledge_base/`, `pdf-runs/`, `research-runs/`) into a hybrid index:
+DuckDB for full-text search over pages and claims plus the graph tables
+(wiki links, entities, relations, evidence), and LanceDB for vector search
+over wiki pages and claims, embedded locally with sentence-transformers
+(`all-MiniLM-L6-v2` by default, configurable). Search queries run both
+engines and fuse the two rankings with reciprocal rank fusion, so a hit
+only one side finds still surfaces.
+
+Compilation is a full rebuild every run, on purpose. At the scale this
+toolkit actually serves (a per-project knowledge base on one machine), a
+rebuild costs seconds, and it means there is no cache-invalidation state
+to reason about: the index is either current or stale, and stale is fixed
+by recompiling. For the same reason the index lives in a git-ignored
+directory (`.deepresearch/index/` by default) rather than being committed.
+The run directories and the wiki are the record; the index is derived from
+them and any checkout can regenerate it.
+
+The one piece of judgment-free normalization the compiler does is the
+`evidence_ref`: PDF claims cite `node_id` + `page`, web claims cite a
+chunk locator + URL, and the compiler maps both into a single
+producer-agnostic evidence shape as it indexes. Neither producer's files
+change on disk; the asymmetry is absorbed in one function at index time,
+which is what lets every retrieval tool below treat evidence uniformly
+regardless of where it came from. The full index schema and normalization
+mapping are in `docs/contracts/knowledge-compiler.md`, and the build-time
+design decisions in `docs/decisions/0002-knowledge-compiler.md`.
+
+### retrieval-planner
+
+The query half of the compiler layer: eight small tools over the compiled
+index, exposed as one CLI (`scripts/query.py`) that prints JSON. Six are
+plain lookups: `search_wiki` and `search_claims` (hybrid keyword+vector
+search), `read_page` (fetch one wiki page whole), `get_entity` (an entity
+with its aliases, mentions, and relations), `neighbors` (a bounded graph
+walk over the relation table), and `get_sources` (provenance for a page or
+a claim). None of the eight makes an LLM call, which is a design rule
+inherited from ADR 0001, not an implementation accident: tools that are
+cheap and deterministic can be called freely and composed by an agent
+mid-conversation, while a tool hiding a model call inside would have
+unpredictable cost and non-reproducible output.
+
+The seventh tool, `find_contradictions`, is deliberately dumber than it
+sounds. It reports mechanical candidates only: relation triples where one
+subject and predicate map to more than one distinct object, plus any wiki
+page already marked `conflicted`. Deciding whether "founded in 2015" vs
+"founded in 2017" is a real contradiction or whether "supports X" and
+"supports Y" are just both true takes judgment, and judgment is the
+agent's job, done in one batched pass over all candidates rather than a
+hidden model call per candidate.
+
+The eighth, `compose_dossier`, is where everything upstream pays off. It
+assembles a set of claims (picked by query or by explicit ids) with their
+full citations into an evidence dossier, and it applies the toolkit's
+verbatim rule as a hard gate: a claim reaches `included` only if every
+supporting quote is an exact substring of its source (the cited PDF page's
+text, or the web run's `source.md`). Anything else lands in `rejected`
+with an explicit reason, never silently mixed in with the verified
+material. The result is the artifact the whole pipeline exists to produce:
+a set of claims an agent can answer from, where every line traces back to
+a quote that actually appears, character for character, in a real source.
+
+### The optional local LLM backend
+
+Everywhere this toolkit needs judgment (deciding what counts as an atomic
+claim, merging entity mentions, synthesizing a wiki page), the default
+worker is the in-session agent itself, reading the relevant SKILL.md. That
+default is unchanged, and it's still the recommendation: frontier-model
+judgment is exactly what those steps need. What's new is an opt-in
+alternative for the extraction step: set `llm.provider: local` in
+`.deepresearch.yml` and point it at any OpenAI-compatible endpoint (Ollama
+on `:11434/v1`, vLLM on `:8000/v1`) serving a local model such as
+`Ornith-1.0-9B`, and `extract_claims.py` will run claim extraction
+programmatically over a run's chunks: useful for batch-processing many
+sources without burning agent context on each one.
+
+The reason this is safe to offer at all is the verbatim gate. Programmatic
+extraction runs every proposed claim through the same exact-substring
+check `compose_dossier` uses, and auto-drops any claim whose evidence
+quotes aren't verbatim in the source, before anything is written to
+`claims.jsonl`. A smaller local model can therefore only under-produce
+(fewer claims survive), never corrupt the corpus with paraphrases that
+look like citations. `scripts/validate-local-llm.py` measures exactly
+that: how much of the reference extraction a given local model recovers,
+and how many of its proposals the gate had to drop.
+
 ## Configuration
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at your
@@ -454,6 +573,7 @@ knowledge_base:
   path: knowledge_base/
   pdf_runs_dir: pdf-runs/
   research_runs_dir: research-runs/
+  index_dir: .deepresearch/index/
 
 topic:
   name: "Your project's research topic"
@@ -468,9 +588,14 @@ features:
   knowledge_compiler: false
 
 llm:
-  provider: anthropic
-  model: claude-sonnet-4-5
-  api_key_env: ANTHROPIC_API_KEY
+  provider: anthropic          # "anthropic"/"agent": the in-session agent
+  model: claude-sonnet-4-5     # does extraction; "local": an OpenAI-compatible
+  api_key_env: ANTHROPIC_API_KEY   # endpoint does it (see llm.local below)
+  embedding_model: all-MiniLM-L6-v2
+  local:                       # only read when provider: local
+    base_url: http://localhost:11434/v1
+    model: Ornith-1.0-9B
+    api_key_env: OPENAI_API_KEY
 
 scrapling:
   default_mode: http
@@ -479,32 +604,36 @@ scrapling:
 
 `drt init` writes a starter version of this file and asks what tier you
 need (`web`, `pdf`, `compiler`, or `full`), which sets the `features.*`
-flags accordingly. See `docs/contracts/pdf-ingestion-pipeline.md` and
-`docs/contracts/okf-frontmatter.md` for the full schema every artifact in
-this toolkit follows, including the `schema_version` fields that make
+flags accordingly. See `docs/contracts/pdf-ingestion-pipeline.md`,
+`docs/contracts/okf-frontmatter.md`, and
+`docs/contracts/knowledge-compiler.md` for the full schema every artifact
+in this toolkit follows, including the `schema_version` fields that make
 future changes to these formats detectable rather than silent.
 
 ## Status and roadmap
 
-**Built and tested:** both skill stacks above (web research and the
-seven-stage PDF pipeline), including the `drt` CLI, the dual Claude
-Code/Codex plugin manifests, 36 fast unit tests, and a heavy integration
-test that runs the entire PDF pipeline through real Docling conversion
-against a test fixture and checks for a perfect score on every eval
-check. All of it has been verified against a real installed package, not
-just a development checkout, so what's described above is what actually
-runs.
+**Built and tested:** all three layers above — web research, the
+seven-stage PDF pipeline, and the knowledge-compiler layer (the
+`knowledge-compiler` and `retrieval-planner` skills, suite version
+0.2.0) — including the `drt` CLI, the dual Claude Code/Codex plugin
+manifests, 73 fast unit tests, and two heavy integration tests: one that
+runs the entire PDF pipeline through real Docling conversion against a
+test fixture and checks for a perfect score on every eval check, and one
+that compiles a real corpus into the DuckDB + LanceDB index with the real
+embedding model and exercises every retrieval tool against it. All of it
+has been verified against a real installed package, not just a
+development checkout, so what's described above is what actually runs.
 
-**Designed, not yet built:** the knowledge-compiler layer sketched in the
-lower half of the diagram above: a hybrid DuckDB and LanceDB index over
-everything the two pipelines have produced, and a small set of retrieval
-tools (`search_wiki`, `search_claims`, `get_entity`, `neighbors`, and a
-few others) that would let an agent query the accumulated knowledge base
-directly instead of grepping files by hand. The full reasoning behind that
-design (including what was deliberately left out, like GraphRAG-style
-community detection and a hosted query server, both judged premature at
-the scale this toolkit actually runs at) is in
-`docs/decisions/0001-architecture.md`.
+**Deferred on purpose:** incremental index compilation (the compiler does
+a full rebuild each run, which is seconds at the scale this toolkit
+serves), an MCP query server over the finished knowledge base,
+GraphRAG-style community detection, and a learned reranker — each judged
+premature at per-project, single-machine scale rather than forgotten. The
+reasoning for the original architecture is in
+`docs/decisions/0001-architecture.md`; the decisions made while building
+the compiler layer (the injectable test embedder, the index-time
+evidence normalization, the opt-in local LLM backend) are in
+`docs/decisions/0002-knowledge-compiler.md`.
 
 ## Contributing
 
