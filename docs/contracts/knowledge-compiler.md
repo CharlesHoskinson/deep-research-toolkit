@@ -227,25 +227,45 @@ resolved by `deep_research_toolkit.llm.backend.get_backend()`:
   `LLMBackendNotConfigured` is by design, because under this provider a
   script asking a backend to extract claims is a usage error.
 - **`local` (opt-in).** An OpenAI-compatible endpoint — Ollama's
-  `:11434/v1`, vLLM's `:8000/v1` — serving a local model such as
+  `:11434/v1`, vLLM's `:8000/v1` — serving a local reasoning model such as
   `Ornith-1.0-9B`, configured under `llm.local` (`base_url`, `model`,
-  `api_key_env`, `temperature`, `top_p`, `top_k`). Responses have any
-  `<think>...</think>` reasoning block stripped before parsing.
+  `api_key_env`, `temperature`, `top_p`, `top_k`, `max_tokens`). Responses
+  have the reasoning trace stripped before parsing (`strip_think` handles
+  both a full `<think>...</think>` block and a template that primes the
+  assistant turn with `<think>`, so only the closing tag comes back).
 
-Under `local`, claim extraction can run programmatically:
-`extract_claims_to_run()` (exposed as `scripts/extract_claims.py` in both
-`research-knowledge-graph` and the run-based extraction path) builds a
-producer-aware prompt from a run's `chunks.jsonl`, parses the model's JSON
-claims, and then applies **the same verbatim gate as `compose_dossier`**
-before writing anything: every claim whose evidence quotes are not all
-verbatim substrings of the run's source text is **auto-dropped**, reported
-in the result's `dropped` list rather than written to `claims.jsonl`. The
-consequence is the property the whole design leans on: a smaller or
-off-label local model can only *under-produce* (fewer claims survive the
-gate), never corrupt the corpus with plausible-sounding paraphrases.
-`scripts/validate-local-llm.py` is the manual (not-CI) harness for
-checking how much of the reference extraction a given local model
-recovers.
+Under `local`, extraction runs programmatically: `extract_claims_to_run()`
+(exposed as `scripts/extract_claims.py` in both `research-knowledge-graph`
+and the run-based path) does *not* hand the model a rigid schema. It builds
+a **task brief** — the goal, the typed output contract, the verbatim-quote
+invariant stated as a checkable precondition, and the extraction rules —
+and lets a self-scaffolding model plan and self-verify its own approach,
+reasoning first and emitting the final JSON inside `<output>...</output>`.
+It produces `claims.jsonl`, `entities.jsonl`, and `relations.jsonl`. Every
+claim is then run through **the same verbatim gate** before it is written:
+each evidence quote must be an exact substring of the chunk the model was
+shown (abbreviated chunk ids the model emits are resolved back to their
+canonical form first), and any claim that fails is **auto-dropped** into the
+result's `dropped` list rather than written. The property the whole design
+leans on holds: a smaller or off-label local model can only *under-produce*,
+never corrupt the corpus with plausible-sounding paraphrases.
+`scripts/validate-local-llm.py` is the manual (not-CI) harness for measuring
+how much of the reference extraction a given local model recovers, and how
+many of its proposals the gate dropped.
+
+**Serving a local reasoning model.** Reasoning models are the point of the
+`local` path, and two operational details decide whether one works at all.
+First, the model needs its real chat template. The stock
+`Ornith-1.0-9B-GGUF` on Hugging Face ships no template, so Ollama falls back
+to a raw passthrough that silences the model's `<think>` reasoning (and can
+degenerate into repetition loops); build a local model from it with a proper
+ChatML `TEMPLATE` — `ollama create <name> -f Modelfile` — and point
+`llm.local.model` at that name. Second, budget tokens generously:
+`max_tokens` defaults to 16000 because a reasoning model spends thousands of
+tokens thinking before it answers, and a low cap truncates it mid-thought so
+it never reaches the JSON. Keep the documented sampling (`temperature 0.6,
+top_p 0.95, top_k 20`) — lowering the temperature for "determinism" backfires
+into repetition on this model family.
 
 Embeddings are configured separately (`llm.embedding_model`, default
 `all-MiniLM-L6-v2`) and always run locally via sentence-transformers —
