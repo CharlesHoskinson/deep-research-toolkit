@@ -225,6 +225,8 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         # batches while keeping each relation's supporting_claim reference valid.
         prefix = f"b{i:02d}_" if len(batch_list) > 1 else ""
         for claim in parsed["claims"]:
+            if not isinstance(claim, dict):
+                continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
             claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
             evidence = claim.get("supporting_evidence") or []
             ok = bool(evidence)
@@ -237,6 +239,8 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
             (kept if ok else dropped).append(claim)
 
         for ent in parsed["entities"]:
+            if not isinstance(ent, dict):
+                continue
             eid = ent.get("entity_id")
             if not eid:
                 continue
@@ -252,6 +256,8 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                 entities_by_id[eid] = ent
 
         for rel in parsed["relations"]:
+            if not isinstance(rel, dict):
+                continue
             rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
             if rel.get("supporting_claim"):
                 rel["supporting_claim"] = prefix + str(rel["supporting_claim"])

@@ -135,6 +135,26 @@ def test_extract_resolves_abbreviated_entity_mentions(tmp_path):
     assert result["written"] == 1                         # claim's abbreviated locator also resolved
 
 
+def test_extract_tolerates_bare_string_claims(tmp_path):
+    # Some instruct models emit claims as bare strings ({"claims": ["text"]})
+    # instead of objects. Those have no evidence and must be skipped, not crash.
+    run = tmp_path / "research-runs" / "src-s"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Snails are molluscs.", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-s:c01", "text": "Snails are molluscs."}) + "\n",
+                                      encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps({
+        "claims": ["Snails are molluscs.",  # bare string -> skipped, no crash
+                   {"claim_id": "c1", "claim": "Snails are molluscs.",
+                    "supporting_evidence": [{"locator": "src-s:c01", "quote": "Snails are molluscs", "url": None}]}],
+        "entities": ["not a dict", {"entity_id": "snail", "name": "Snail", "mentions": ["src-s:c01"]}],
+        "relations": ["also not a dict"],
+    })
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
+    assert result["written"] == 1 and result["entities"] == 1  # only the well-formed items survive
+
+
 def test_extract_batches_sources_and_merges_entities(tmp_path):
     # A source larger than batch_size is extracted in bounded batches; claim ids
     # are prefixed for uniqueness and the same entity seen in two batches merges.
