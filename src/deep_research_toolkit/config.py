@@ -20,6 +20,38 @@ DEFAULT_RESEARCH_RUNS_PATH = "research-runs"
 DEFAULT_INDEX_DIR = ".deepresearch/index"
 DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+#: Per-phase model roles for a local model stack -- extraction wants a fast,
+#: non-thinking, schema-constrained model; synthesis/adjudication want a
+#: reasoning model. Each role is overridable under `llm.roles.<role>` in
+#: .deepresearch.yml; any field left unset falls back to the flat `llm.local`
+#: model, so a single-model setup still works (back-compat) while a real stack
+#: routes each phase to the right model.
+ROLE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "extract":             {"thinking": False, "temperature": 0.0, "max_tokens": 2000,  "response_format": "json"},
+    "wiki_write":          {"thinking": False, "temperature": 0.2, "max_tokens": 4096,  "response_format": None},
+    "conflict_adjudicate": {"thinking": True,  "temperature": 0.2, "max_tokens": 8192,  "response_format": None},
+    "synthesize":          {"thinking": True,  "temperature": 0.4, "max_tokens": 12000, "response_format": None},
+    "code_agent":          {"thinking": True,  "temperature": 0.6, "max_tokens": 16000, "response_format": None},
+}
+
+
+def _resolve_roles(roles_raw: dict[str, Any], local: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    resolved: dict[str, dict[str, Any]] = {}
+    for name, d in ROLE_DEFAULTS.items():
+        r = roles_raw.get(name) or {}
+        resolved[name] = {
+            "model": r.get("model", local["model"]),
+            "base_url": r.get("base_url", local["base_url"]),
+            "api_key_env": r.get("api_key_env", local["api_key_env"]),
+            "thinking": bool(r.get("thinking", d["thinking"])),
+            "temperature": float(r.get("temperature", d["temperature"])),
+            "top_p": float(r.get("top_p", local.get("top_p", 0.95))),
+            "top_k": int(r.get("top_k", local.get("top_k", 20))),
+            "max_tokens": int(r.get("max_tokens", d["max_tokens"])),
+            "response_format": r.get("response_format", d["response_format"]),
+        }
+    return resolved
+
 
 def find_config(start: Path | None = None) -> Path | None:
     """Walk upward from `start` (default: cwd) looking for .deepresearch.yml.
@@ -51,6 +83,7 @@ class Config:
     index_dir: Path
     embedding_model: str
     llm_local: dict[str, Any]
+    llm_roles: dict[str, dict[str, Any]]
     topic_name: str
     scope_hint: str
     tags: list[str]
@@ -82,9 +115,10 @@ def _default_config(project_root: Path) -> Config:
         research_runs_path=project_root / DEFAULT_RESEARCH_RUNS_PATH,
         index_dir=project_root / DEFAULT_INDEX_DIR,
         embedding_model=DEFAULT_EMBEDDING_MODEL,
-        llm_local={"base_url": "http://localhost:11434/v1", "model": "Ornith-1.0-9B",
+        llm_local=(_default_local := {"base_url": "http://localhost:11434/v1", "model": "Ornith-1.0-9B",
                    "api_key_env": "OPENAI_API_KEY", "temperature": 0.6, "top_p": 0.95, "top_k": 20,
-                   "max_tokens": 16000},
+                   "max_tokens": 16000}),
+        llm_roles=_resolve_roles({}, _default_local),
         topic_name="(unconfigured project)",
         scope_hint="No .deepresearch.yml found -- run `drt init` to configure this project's research scope.",
         tags=[],
@@ -127,6 +161,7 @@ def load_config(start: Path | None = None) -> Config:
         "top_k": int(local.get("top_k", 20)),
         "max_tokens": int(local.get("max_tokens", 16000)),
     }
+    llm_roles = _resolve_roles(llm.get("roles") or {}, llm_local)
 
     return Config(
         config_path=path,
@@ -134,6 +169,7 @@ def load_config(start: Path | None = None) -> Config:
         knowledge_base_path=(root / kb.get("path", DEFAULT_KNOWLEDGE_BASE_PATH)).resolve(),
         pdf_runs_path=(root / kb.get("pdf_runs_dir", DEFAULT_PDF_RUNS_PATH)).resolve(),
         research_runs_path=(root / kb.get("research_runs_dir", DEFAULT_RESEARCH_RUNS_PATH)).resolve(),
+        llm_roles=llm_roles,
         index_dir=(root / kb.get("index_dir", DEFAULT_INDEX_DIR)).resolve(),
         embedding_model=llm.get("embedding_model", DEFAULT_EMBEDDING_MODEL),
         llm_local=llm_local,

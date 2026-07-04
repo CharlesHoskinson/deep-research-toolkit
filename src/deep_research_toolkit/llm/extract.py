@@ -60,6 +60,9 @@ RULES:
 - Only emit a relation a claim actually asserts. Do not force claims, entities,
   or relations the text does not support -- a short solid set beats a long shaky one.
 
+{tail}"""
+
+_TAIL_THINKING = """\
 METHOD (build your own approach; this is your harness):
 Plan, identify the entities, draft each claim with a candidate quote, re-read
 each quote against its chunk to confirm it is an exact substring, revise or drop,
@@ -68,12 +71,20 @@ then emit. Reason freely first.
 FORMAT: After reasoning, emit ONLY the final JSON object inside <output> and
 </output> tags -- nothing else inside those tags."""
 
+_TAIL_DIRECT = """\
+Work through the chunks and copy each quote exactly. Output ONLY the JSON object
+matching the contract above -- no reasoning, no commentary, no markdown fences."""
+
 _PDF_EVIDENCE = '{"node_id": "<chunk_id>", "quote": "<verbatim substring>", "page": <int>}'
 _WEB_EVIDENCE = '{"locator": "<chunk_id>", "quote": "<verbatim substring>", "url": "<source url or null>"}'
 
 
-def build_extraction_prompt(chunks: list[dict], producer: str = "web") -> tuple[str, str]:
-    system = _SYSTEM.format(evidence_shape=_PDF_EVIDENCE if producer == "pdf" else _WEB_EVIDENCE)
+def build_extraction_prompt(chunks: list[dict], producer: str = "web",
+                            thinking: bool = True) -> tuple[str, str]:
+    system = _SYSTEM.format(
+        evidence_shape=_PDF_EVIDENCE if producer == "pdf" else _WEB_EVIDENCE,
+        tail=_TAIL_THINKING if thinking else _TAIL_DIRECT,
+    )
     lines = []
     for c in chunks:
         cid = c.get("node_id") or c.get("locator")
@@ -202,8 +213,9 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     parse_failures = 0
     batch_list = list(_batches(chunks, max(1, batch_size)))
 
+    thinking = getattr(backend, "thinking", True)
     for i, batch in enumerate(batch_list):
-        system, user = build_extraction_prompt(batch, producer)
+        system, user = build_extraction_prompt(batch, producer, thinking=thinking)
         parsed = parse_extraction_response(backend.complete(system, user))
         if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
             parse_failures += 1

@@ -12,7 +12,14 @@ class Backend(Protocol):
     def complete(self, system: str, user: str, **sampling) -> str: ...
 
 
-def get_backend(config) -> Backend:
+def get_backend(config, role: str | None = None) -> Backend:
+    """Resolve the backend for a pipeline phase.
+
+    `role` selects a per-phase model from `config.llm_roles` (e.g. "extract",
+    "synthesize"); pass None for the flat single-model config. Under the local
+    provider this is what routes high-volume extraction to a fast non-thinking
+    model and one-shot synthesis to a reasoning model.
+    """
     provider = getattr(config, "llm_provider", "agent")
     if provider in ("agent", "anthropic"):
         from .agent import AgentBackend
@@ -21,12 +28,15 @@ def get_backend(config) -> Backend:
         import os
 
         from .local import LocalOpenAIBackend
-        local = config.llm_local
+        roles = getattr(config, "llm_roles", None) or {}
+        spec = roles[role] if role and role in roles else config.llm_local
         return LocalOpenAIBackend(
-            base_url=local["base_url"], model=local["model"],
-            api_key=os.environ.get(local.get("api_key_env", "OPENAI_API_KEY"), "not-needed"),
-            temperature=local["temperature"], top_p=local["top_p"], top_k=local["top_k"],
-            max_tokens=local.get("max_tokens", 16000),
+            base_url=spec["base_url"], model=spec["model"],
+            api_key=os.environ.get(spec.get("api_key_env", "OPENAI_API_KEY"), "not-needed"),
+            temperature=spec["temperature"], top_p=spec["top_p"], top_k=spec["top_k"],
+            max_tokens=spec.get("max_tokens", 16000),
+            thinking=spec.get("thinking", True),
+            response_format=spec.get("response_format"),
         )
     raise LLMBackendNotConfigured(
         f"unknown llm.provider: {provider!r} (use agent | anthropic | local)"

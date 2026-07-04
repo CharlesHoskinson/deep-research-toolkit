@@ -81,3 +81,26 @@ def test_llm_local_block_parsed(tmp_path):
     assert cfg.llm_local["model"] == "Ornith-1.0-9B"
     assert cfg.llm_local["temperature"] == 0.6  # default filled in
     assert cfg.llm_local["max_tokens"] == 16000  # generous default so reasoning isn't truncated
+
+
+def test_llm_roles_default_and_override(tmp_path):
+    from deep_research_toolkit.config import load_config
+    (tmp_path / ".deepresearch.yml").write_text(
+        "version: 1\n"
+        "llm:\n"
+        "  provider: local\n"
+        "  local:\n"
+        "    model: base-model\n"
+        "  roles:\n"
+        "    extract:\n"
+        "      model: qwen3.5:9b\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(tmp_path)
+    # extract role: model overridden, role-appropriate defaults filled in
+    assert cfg.llm_roles["extract"]["model"] == "qwen3.5:9b"
+    assert cfg.llm_roles["extract"]["thinking"] is False
+    assert cfg.llm_roles["extract"]["response_format"] == "json"
+    # unconfigured role inherits the flat local model but keeps its own defaults
+    assert cfg.llm_roles["synthesize"]["model"] == "base-model"
+    assert cfg.llm_roles["synthesize"]["thinking"] is True

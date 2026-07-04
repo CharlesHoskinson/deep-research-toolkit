@@ -20,7 +20,7 @@ def main():
     args = parser.parse_args()
     config = load_config()
     try:
-        result = extract_claims_to_run(Path(args.run_dir), "pdf", config, get_backend(config))
+        result = extract_claims_to_run(Path(args.run_dir), "pdf", config, get_backend(config, role="extract"))
     except LLMBackendNotConfigured as e:
         sys.exit(str(e))
     print(result)

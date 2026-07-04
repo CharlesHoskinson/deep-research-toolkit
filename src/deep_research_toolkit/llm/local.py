@@ -29,7 +29,8 @@ class LocalOpenAIBackend:
 
     def __init__(self, base_url: str, model: str, api_key: str,
                  temperature: float, top_p: float, top_k: int,
-                 max_tokens: int = 16000) -> None:
+                 max_tokens: int = 16000, thinking: bool = True,
+                 response_format: str | dict | None = None) -> None:
         self.base_url = base_url
         self.model = model
         self.api_key = api_key
@@ -38,8 +39,15 @@ class LocalOpenAIBackend:
         self.top_k = top_k
         # Reasoning models spend thousands of tokens in <think> before answering;
         # a low cap truncates the reasoning and the model never reaches its
-        # output. Budget generously (Ornith field guidance: >=8K).
+        # output. Budget generously for a thinking role, tightly for extract.
         self.max_tokens = max_tokens
+        # thinking=False disables a Qwen/reasoning model's <think> pass (Ollama
+        # `think` control) -- right for high-volume, well-specified extraction,
+        # where a hidden deliberation pass is wasted time.
+        self.thinking = thinking
+        # "json" -> OpenAI json_object mode (grammar-constrained valid JSON); a
+        # dict is passed through as a full response_format (e.g. json_schema).
+        self.response_format = response_format
         self._client = None
 
     def _load_client(self):
@@ -57,7 +65,8 @@ class LocalOpenAIBackend:
 
     def _client_complete(self, system: str, user: str, **kw):
         client = self._load_client()
-        return client.chat.completions.create(
+        extra_body = {"top_k": kw.get("top_k", self.top_k), "think": kw.get("thinking", self.thinking)}
+        kwargs = dict(
             model=self.model,
             messages=[
                 {"role": "system", "content": system},
@@ -66,8 +75,14 @@ class LocalOpenAIBackend:
             temperature=kw.get("temperature", self.temperature),
             top_p=kw.get("top_p", self.top_p),
             max_tokens=kw.get("max_tokens", self.max_tokens),
-            extra_body={"top_k": kw.get("top_k", self.top_k)},
+            extra_body=extra_body,
         )
+        rf = kw.get("response_format", self.response_format)
+        if rf == "json":
+            kwargs["response_format"] = {"type": "json_object"}
+        elif isinstance(rf, dict):
+            kwargs["response_format"] = rf
+        return client.chat.completions.create(**kwargs)
 
     def complete(self, system: str, user: str, **sampling) -> str:
         resp = self._client_complete(system, user, **sampling)
