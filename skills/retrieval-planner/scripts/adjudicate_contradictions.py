@@ -26,7 +26,10 @@ def main():
     args = parser.parse_args()
 
     raw = sys.stdin.read() if args.candidates == "-" else Path(args.candidates).read_text(encoding="utf-8")
-    candidates = json.loads(raw)
+    try:
+        candidates = json.loads(raw)
+    except json.JSONDecodeError as e:
+        sys.exit(f"invalid JSON in {args.candidates}: {e}")
     if not candidates:
         print("no candidates -- nothing to adjudicate")
         return
