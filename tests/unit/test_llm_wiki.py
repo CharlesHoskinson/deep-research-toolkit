@@ -39,3 +39,16 @@ def test_unknown_marker_retries_once_then_raises():
 def test_empty_claims_is_an_error():
     with pytest.raises(ValueError):
         write_wiki_body("Praos", "Concept", [], StubBackend(["x"]))
+
+
+def test_low_coverage_body_is_rejected():
+    body = "Praos exists."  # zero markers, no unknowns
+    with pytest.raises(ValueError, match="coverage"):
+        write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([body]))
+
+
+def test_fenced_reply_is_unwrapped_before_gating():
+    fenced = "```markdown\nPraos arrived in 2018 [claim:c1] and tolerates delays [claim:c2].\n```"
+    out = write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([fenced]))
+    assert not out["body"].startswith("```")
+    assert out["citations"]["coverage"] == 1.0

@@ -30,6 +30,8 @@ def main():
     parser.add_argument("--title", required=True)
     parser.add_argument("--entity", help="only claims mentioning this entity (case-insensitive substring)")
     parser.add_argument("--description")
+    parser.add_argument("--resource")
+    parser.add_argument("--aliases", help="comma-separated")
     parser.add_argument("--tags", help="comma-separated")
     parser.add_argument("--source-docs")
     parser.add_argument("--force", action="store_true")
@@ -60,6 +62,8 @@ def main():
     try:
         scaffold_page(
             path, type=args.type, title=args.title, description=args.description,
+            resource=args.resource,
+            aliases=[a.strip() for a in args.aliases.split(",")] if args.aliases else None,
             tags=[t.strip() for t in args.tags.split(",")] if args.tags else None,
             source_docs=[d.strip() for d in args.source_docs.split(",")] if args.source_docs else None,
             status="draft", body=out["body"], force=args.force,
