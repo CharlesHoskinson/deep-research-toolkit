@@ -17,6 +17,9 @@ def _project(tmp_path):
     (run / "manifest.json").write_text(json.dumps({"document_id": "doc-abc"}), encoding="utf-8")
     (run / "provenance.jsonl").write_text(json.dumps(
         {"page": 1, "text": "Hydra settles synchronously among participants."}) + "\n", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps(
+        {"node_id": "doc-abc:n5", "text": "Hydra settles synchronously among participants.",
+         "source": {"page_start": 1}}) + "\n", encoding="utf-8")
     (run / "claims.jsonl").write_text(json.dumps({
         "claim_id": "c1", "claim": "Hydra settles synchronously", "claim_type": "architectural",
         "confidence": "high",

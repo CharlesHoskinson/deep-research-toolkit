@@ -20,7 +20,7 @@ import re
 from collections import deque
 from pathlib import Path
 
-from ..compiler.dossier import verbatim_ok
+from ..common.verbatim import verbatim_ok
 
 SCHEMA_VERSION = "1.0"
 

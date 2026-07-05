@@ -151,18 +151,19 @@ def check_page_citations_valid(run_dir: Path) -> dict[str, Any]:
 
 def check_evidence_quotes_verbatim(run_dir: Path) -> dict[str, Any]:
     """The most important check: every claim's supporting quote must be a
-    verbatim substring of the provenance text on its cited page. This is
-    what keeps claims auditable instead of merely plausible-sounding --
-    do not weaken this to a fuzzy/normalized match."""
+    verbatim substring of the chunk it cites. This uses the one shared gate
+    (`common.verbatim`, chunk-based) that extraction and dossier composition
+    also apply, so this harness agrees with them by construction -- do not
+    weaken it to a fuzzy/normalized match or re-derive a different source text."""
+    from ..common.verbatim import verbatim_ok
+
     name = "evidence_quotes_verbatim"
     claims = _read_jsonl(run_dir / "claims.jsonl")
-    provenance = _read_jsonl(run_dir / "provenance.jsonl")
-    if claims is None or provenance is None:
-        return _skip(name, "claims.jsonl or provenance.jsonl not present yet")
+    chunks = _read_jsonl(run_dir / "chunks.jsonl")
+    if claims is None or chunks is None:
+        return _skip(name, "claims.jsonl or chunks.jsonl not present yet")
 
-    text_by_page: dict[Any, list[str]] = {}
-    for u in provenance:
-        text_by_page.setdefault(u.get("page"), []).append(u.get("text") or "")
+    chunk_text = {(c.get("node_id") or c.get("locator")): c.get("text") or "" for c in chunks}
 
     total = 0
     bad = []
@@ -170,15 +171,15 @@ def check_evidence_quotes_verbatim(run_dir: Path) -> dict[str, Any]:
         for ev in claim.get("supporting_evidence") or []:
             total += 1
             quote = ev.get("quote") or ""
-            page_texts = text_by_page.get(ev.get("page"), [])
-            if not quote or not any(quote in t for t in page_texts):
-                bad.append(f"{claim.get('claim_id')} quote not verbatim on page {ev.get('page')}: {quote!r}")
+            locator = ev.get("node_id") or ev.get("locator")
+            if not verbatim_ok(quote, chunk_text.get(locator, "")):
+                bad.append(f"{claim.get('claim_id')} quote not verbatim in chunk {locator}: {quote!r}")
 
     if total == 0:
         return {"name": name, "passed": True, "detail": "no supporting_evidence quotes found"}
 
     passed = not bad
-    detail = f"{total - len(bad)}/{total} supporting_evidence quotes found verbatim on their cited page"
+    detail = f"{total - len(bad)}/{total} supporting_evidence quotes found verbatim in their cited chunk"
     if bad:
         detail += "; failing: " + "; ".join(bad)
     return {"name": name, "passed": passed, "detail": detail}

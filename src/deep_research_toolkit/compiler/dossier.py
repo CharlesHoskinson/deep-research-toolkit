@@ -1,47 +1,34 @@
 """compose_dossier: assemble claims + citations into an evidence dossier,
 gated by the verbatim-quote invariant. A claim whose quote is not a verbatim
-substring of its source text is dropped into `rejected`, never emitted as
-if verified. This reuses the exact-substring semantics of
-pdf.eval.check_evidence_quotes_verbatim; do not weaken it."""
+substring of the chunk it cites is dropped into `rejected`, never emitted as if
+verified. The gate is the single shared one in `common.verbatim` (chunk-based),
+the same check extraction and the eval harness apply -- do not weaken it or
+re-derive a different notion of "source text" here."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+from ..common.verbatim import chunk_text_by_locator, verbatim_ok
 
-def verbatim_ok(quote: str, source_text: str) -> bool:
-    return bool(quote) and quote in source_text
+__all__ = ["verbatim_ok", "source_text_for", "compose_dossier"]
 
 
-def _pdf_page_text(run_dir: Path, page: int | None) -> str:
-    prov = run_dir / "provenance.jsonl"
-    if not prov.is_file():
-        return ""
-    parts = []
-    with open(prov, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            unit = json.loads(line)
-            if unit.get("page") == page:
-                parts.append(unit.get("text") or "")
-    return "\n".join(parts)
+def _run_dir_for(producer: str, source_id: str, config) -> Path:
+    root = Path(config.pdf_runs_path) if producer == "pdf" else Path(config.research_runs_path)
+    return root / source_id
 
 
 def source_text_for(evidence_row: dict[str, Any], config) -> str:
-    producer, source_id = evidence_row["producer"], evidence_row["source_id"]
-    if producer == "pdf":
-        return _pdf_page_text(Path(config.pdf_runs_path) / source_id, evidence_row.get("page"))
-    if producer == "web":
-        src = Path(config.research_runs_path) / source_id / "source.md"
-        return src.read_text(encoding="utf-8") if src.is_file() else ""
-    return ""
+    """The chunk text an evidence quote must be verbatim in -- the chunk its
+    locator names, read from the run's chunks.jsonl (same as extraction)."""
+    run_dir = _run_dir_for(evidence_row["producer"], evidence_row["source_id"], config)
+    return chunk_text_by_locator(run_dir).get(evidence_row.get("locator") or "", "")
 
 
 def compose_dossier(con, config, claim_ids: list[str]) -> dict:
     included, rejected = [], []
+    chunk_cache: dict[Path, dict[str, str]] = {}
     for cid in claim_ids:
         claim_row = con.execute(
             "SELECT claim_id, producer, source_id, claim, claim_type, confidence FROM claims WHERE claim_id = ?",
@@ -59,7 +46,10 @@ def compose_dossier(con, config, claim_ids: list[str]) -> dict:
 
         failures = []
         for ev in evidence:
-            if not verbatim_ok(ev["quote"], source_text_for(ev, config)):
+            run_dir = _run_dir_for(ev["producer"], ev["source_id"], config)
+            if run_dir not in chunk_cache:
+                chunk_cache[run_dir] = chunk_text_by_locator(run_dir)
+            if not verbatim_ok(ev["quote"], chunk_cache[run_dir].get(ev.get("locator") or "", "")):
                 failures.append(ev["quote"])
 
         entry = {

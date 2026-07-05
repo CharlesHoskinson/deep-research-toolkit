@@ -52,7 +52,13 @@ def test_full_pipeline_pass_rate_1(tmp_path):
     assert document_id == reference_manifest["document_id"], (
         "fixture PDF content changed -- reference claims/entities/relations no longer apply"
     )
-    for name in ["claims.jsonl", "entities.jsonl", "relations.jsonl"]:
+    # Copy the reference chunks.jsonl alongside the claims too: the claims' node_id
+    # citations were built against the reference chunks, and the eval harness's
+    # verbatim check is chunk-based (the one shared gate), so it must see the
+    # matching chunks. The fresh chunk_nodes() above still runs to prove the stage
+    # works; its output is replaced here only so the eval validates the consistent
+    # reference claims+chunks pair.
+    for name in ["chunks.jsonl", "claims.jsonl", "entities.jsonl", "relations.jsonl"]:
         (run_dir / name).write_text((reference / name).read_text(encoding="utf-8"), encoding="utf-8")
 
     knowledge_base = tmp_path / "knowledge_base"
