@@ -28,10 +28,22 @@ jobs:
         run: |
           python scripts/check-manifests-in-sync.py
           python scripts/check-skill-templates-in-sync.py
-      - name: Fast unit tests (no heavy/network-dependent tests)
-        run: pytest tests -m "not heavy" -v
+      - name: Fast unit tests (no heavy/network-dependent tests) + coverage
+        run: pytest tests -m "not heavy" -v --cov=deep_research_toolkit --cov-report=term-missing
       - name: ruff
         run: ruff check src/ skills/
+
+  types:
+    name: mypy (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # advisory: reports type issues but does not block merges
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,pdf]" "duckdb>=1.0" "lancedb>=0.15"
+      - run: mypy src/deep_research_toolkit
 
   dependency-audit:
     name: pip-audit

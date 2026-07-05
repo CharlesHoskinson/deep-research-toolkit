@@ -41,6 +41,8 @@ def main():
     p.add_argument("query", nargs="?", default=None)
     p.add_argument("--claims", default=None, help="comma-separated claim_ids")
     p.add_argument("--k", type=int, default=12)
+    p.add_argument("--format", choices=["json", "md"], default="json",
+                   help="md renders a self-citing markdown dossier (claims + verbatim quotes + sources)")
     args = parser.parse_args()
 
     embedder = FakeEmbedder() if os.environ.get("DRT_FAKE_EMBEDDER") == "1" else None
@@ -63,6 +65,10 @@ def main():
         elif args.cmd == "compose-dossier":
             claim_ids = args.claims.split(",") if args.claims else None
             out = idx.compose_dossier(query=args.query, claim_ids=claim_ids, k=args.k)
+            if args.format == "md":
+                from deep_research_toolkit.compiler.dossier import render_dossier_markdown
+                print(render_dossier_markdown(out))
+                return
         else:
             parser.error("unknown command")
         print(json.dumps(out, indent=2, ensure_ascii=False))

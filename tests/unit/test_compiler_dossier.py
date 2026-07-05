@@ -58,3 +58,16 @@ def test_gates_agree_on_a_quote_spanning_provenance_units(tmp_path):
     assert gate("First part.\n\nSecond part.", chunk_text)                     # shared gate
     assert compose_dossier(con, cfg, ["c1"])["included"]                        # dossier gate agrees
     assert check_evidence_quotes_verbatim(run)["passed"]                        # eval harness agrees
+
+
+def test_render_dossier_markdown_is_self_citing():
+    from deep_research_toolkit.compiler.dossier import render_dossier_markdown
+    d = {
+        "included": [{"claim": "Snails are molluscs.",
+                      "evidence": [{"quote": "Snails are molluscs", "url": "http://x", "locator": "s:c01", "page": None}]}],
+        "rejected": [{"claim_id": "c9"}],
+    }
+    md = render_dossier_markdown(d)
+    assert "Snails are molluscs." in md
+    assert '"Snails are molluscs"' in md and "http://x" in md   # citation travels inline
+    assert "1 claim(s) omitted" in md

@@ -11,7 +11,7 @@ from typing import Any
 
 from ..common.verbatim import chunk_text_by_locator, verbatim_ok
 
-__all__ = ["verbatim_ok", "source_text_for", "compose_dossier"]
+__all__ = ["verbatim_ok", "source_text_for", "compose_dossier", "render_dossier_markdown"]
 
 
 def _run_dir_for(producer: str, source_id: str, config) -> Path:
@@ -62,3 +62,24 @@ def compose_dossier(con, config, claim_ids: list[str]) -> dict:
         else:
             included.append(entry)
     return {"included": included, "rejected": rejected}
+
+
+def render_dossier_markdown(dossier: dict) -> str:
+    """Render a composed dossier as a self-citing markdown document: each
+    included claim followed by its verbatim quote and source, so the deliverable
+    carries its own audit trail inline instead of in a separate run directory."""
+    lines = ["# Evidence dossier", ""]
+    for i, claim in enumerate(dossier.get("included") or [], 1):
+        lines.append(f"{i}. {claim.get('claim', '')}")
+        for ev in claim.get("evidence") or []:
+            src = ev.get("url") or ev.get("source_id") or "?"
+            loc = ev.get("locator") or ""
+            if ev.get("page") is not None:
+                loc = f"{loc} p.{ev['page']}".strip()
+            cite = f"{src} ({loc})".strip() if loc else src
+            lines.append(f"   > \"{ev.get('quote', '')}\" — {cite}")
+        lines.append("")
+    rejected = dossier.get("rejected") or []
+    if rejected:
+        lines.append(f"_{len(rejected)} claim(s) omitted: not verbatim-verifiable against their source._")
+    return "\n".join(lines).rstrip() + "\n"

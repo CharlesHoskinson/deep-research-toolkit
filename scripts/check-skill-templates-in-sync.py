@@ -2,8 +2,12 @@
 """CI guard: src/deep_research_toolkit/skill_templates/ must be an exact
 copy of the canonical skills/ tree. Run scripts/sync-skill-templates.py if
 this fails.
+
+Compares by content hash, not filecmp's default shallow (size + mtime) check:
+a same-length edit to skills/ that forgot to re-run the sync script would slip
+past a stat-based comparison but is caught here.
 """
-import filecmp
+import hashlib
 import sys
 from pathlib import Path
 
@@ -12,25 +16,27 @@ SOURCE = REPO_ROOT / "skills"
 DEST = REPO_ROOT / "src" / "deep_research_toolkit" / "skill_templates"
 
 
+def _tree_hashes(root: Path) -> dict[str, str]:
+    return {
+        p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in root.rglob("*") if p.is_file()
+    }
+
+
 def main() -> int:
     if not DEST.is_dir():
         print(f"{DEST} does not exist -- run scripts/sync-skill-templates.py")
         return 1
 
-    cmp = filecmp.dircmp(SOURCE, DEST)
+    src, dst = _tree_hashes(SOURCE), _tree_hashes(DEST)
     problems = []
-
-    def walk(c: filecmp.dircmp, rel: str = "") -> None:
-        for name in c.left_only:
-            problems.append(f"only in skills/: {rel}{name}")
-        for name in c.right_only:
-            problems.append(f"only in skill_templates/: {rel}{name}")
-        for name in c.diff_files:
-            problems.append(f"content differs: {rel}{name}")
-        for name, sub in c.subdirs.items():
-            walk(sub, f"{rel}{name}/")
-
-    walk(cmp)
+    for rel in sorted(set(src) - set(dst)):
+        problems.append(f"only in skills/: {rel}")
+    for rel in sorted(set(dst) - set(src)):
+        problems.append(f"only in skill_templates/: {rel}")
+    for rel in sorted(set(src) & set(dst)):
+        if src[rel] != dst[rel]:
+            problems.append(f"content differs: {rel}")
 
     if problems:
         print("skills/ and skill_templates/ have drifted:")

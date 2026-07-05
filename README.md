@@ -616,7 +616,8 @@ future changes to these formats detectable rather than silent.
 seven-stage PDF pipeline, and the knowledge-compiler layer (the
 `knowledge-compiler` and `retrieval-planner` skills, suite version
 0.2.0) — including the `drt` CLI, the dual Claude Code/Codex plugin
-manifests, 73 fast unit tests, and two heavy integration tests: one that
+manifests, a fast unit-test suite that runs on every push, and two heavy
+integration tests: one that
 runs the entire PDF pipeline through real Docling conversion against a
 test fixture and checks for a perfect score on every eval check, and one
 that compiles a real corpus into the DuckDB + LanceDB index with the real
