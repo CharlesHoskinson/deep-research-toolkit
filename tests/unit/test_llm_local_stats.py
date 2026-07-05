@@ -23,14 +23,18 @@ def _backend():
     return b
 
 
-def test_stats_accumulate_across_calls():
+def test_stats_accumulate_across_calls(monkeypatch):
+    # complete() imports time locally, so patch module-wide. The fake clock
+    # yields t0/t1 for each call: 1.5s for the first, 2.5s for the second.
+    ticks = iter([0.0, 1.5, 10.0, 12.5])
+    monkeypatch.setattr("time.perf_counter", lambda: next(ticks))
     b = _backend()
     b.complete("sys", "user")
     b.complete("sys", "user")
     assert b.stats["calls"] == 2
     assert b.stats["prompt_tokens"] == 22
     assert b.stats["completion_tokens"] == 14
-    assert b.stats["seconds"] >= 0
+    assert b.stats["seconds"] == 4.0
 
 
 def test_stats_survive_missing_usage():
