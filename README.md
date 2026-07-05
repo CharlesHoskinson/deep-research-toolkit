@@ -1317,7 +1317,7 @@ knowledge_base:
   path: knowledge_base               # the compiled wiki (OKF markdown) lives here
   pdf_runs_dir: pdf-runs             # one run directory per ingested PDF
   research_runs_dir: research-runs   # one run directory per web-research source
-  index_dir: .deepresearch/index     # DuckDB + LanceDB index; git-ignored, rebuilt on demand
+  index_dir: .deepresearch/index     # DuckDB + LanceDB index; rebuilt on demand, so keep it git-ignored
 
 topic:
   name: "Perovskite stability"       # what "research X for the knowledge base" resolves X to
@@ -1342,7 +1342,9 @@ llm:
 
   # Optional, only read under provider: local -- per-phase model routing.
   # `drt init` does not write this block; add only the roles (and fields)
-  # you want to override. Everything unset falls back to llm.local.
+  # you want to override. An unset model, base_url, api_key_env, top_p, or
+  # top_k falls back to llm.local; an unset thinking, temperature,
+  # max_tokens, or response_format uses that role's ROLE_DEFAULTS entry.
   # roles:
   #   extract:             {model: qwen2.5:7b-instruct}  # thinking off, temp 0.0, JSON out
   #   wiki_write:          {model: ...}                  # thinking off, temp 0.2
@@ -1353,7 +1355,7 @@ llm:
   local:                             # only read when provider: local
     base_url: http://localhost:11434/v1  # any OpenAI-compatible endpoint (Ollama, vLLM, ...)
     model: Ornith-1.0-9B             # fallback model for any role not routed above
-    api_key_env: OPENAI_API_KEY      # local servers accept any value; the var must exist
+    api_key_env: OPENAI_API_KEY      # local servers usually ignore the key; the var can stay unset
     temperature: 0.6                 # flat defaults; roles override these per phase
     top_p: 0.95
     top_k: 20
@@ -1364,7 +1366,7 @@ scrapling:                           # web retrieval behavior (web tier)
   rate_limit_seconds: 1.0            # minimum delay between fetches
 ```
 
-Discovery mirrors `.git`: every skill script calls `load_config()`, which
+Discovery mirrors `.git`: the skill scripts call `load_config()`, which
 walks upward from the current directory until it finds a
 `.deepresearch.yml`, so commands work from any subdirectory of the
 project. Nothing in any skill hardcodes a topic, a directory name, or a
@@ -1384,9 +1386,15 @@ different models, so under `provider: local` each of the five roles --
 `extract`, `wiki_write`, `conflict_adjudicate`, `synthesize`,
 `code_agent` -- can point at its own model with its own sampling
 settings, thinking mode, and response format. The defaults live in
-`ROLE_DEFAULTS` in `config.py`. A role you never mention, or a field you
-leave out of one, falls back to the flat `llm.local` entry, which is why
-a single-model setup needs no `roles` block at all.
+`ROLE_DEFAULTS` in `config.py`, and the fallback splits by field. Leave
+`model`, `base_url`, `api_key_env`, `top_p`, or `top_k` out of a role and
+it inherits the flat `llm.local` value; leave out `thinking`,
+`temperature`, `max_tokens`, or `response_format` and the role gets its
+own `ROLE_DEFAULTS` value instead. Omit `temperature` under `extract`,
+say, and you get 0.0 (the extract default), not whatever `llm.local`
+sets. A single-model setup still needs no `roles` block at all: every
+role then runs on the `llm.local` model, with per-phase reasoning and
+sampling defaults that suit each phase.
 
 ## Status and roadmap
 
