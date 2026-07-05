@@ -906,9 +906,21 @@ material that doesn't share keywords. This skill compiles the whole corpus
 DuckDB for full-text search over pages and claims plus the graph tables
 (wiki links, entities, relations, evidence), and LanceDB for vector search
 over wiki pages and claims, embedded locally with sentence-transformers
-(`all-MiniLM-L6-v2` by default, configurable). Search queries run both
-engines and fuse the two rankings with reciprocal rank fusion, so a hit
-only one side finds still surfaces.
+(`all-MiniLM-L6-v2` by default, configurable). The two engines cover each
+other's blind spots: FTS finds the exact term you typed, vectors find the
+paragraph that says the same thing in different words.
+
+Building the index is one command, the skill's
+`python scripts/compile.py [--index-dir DIR]`, after a one-time
+`pip install "deep-research-toolkit[compiler]"` for the DuckDB, LanceDB,
+and sentence-transformers dependencies. The first run downloads the
+embedding model (the same one-time, offline-after cost as Docling's
+models); every run after that is fully local, and it prints row counts on
+success so you can sanity-check that the corpus you expected actually got
+indexed. The build also refuses two footguns before touching anything:
+it won't compile into the project root or into the knowledge base itself,
+and it won't delete a non-empty directory unless it contains a
+`knowledge.duckdb` from a previous build.
 
 Compilation is a full rebuild every run, on purpose. At the scale this
 toolkit actually serves (a per-project knowledge base on one machine), a
@@ -925,7 +937,12 @@ chunk locator + URL, and the compiler maps both into a single
 producer-agnostic evidence shape as it indexes. Neither producer's files
 change on disk; the asymmetry is absorbed in one function at index time,
 which is what lets every retrieval tool below treat evidence uniformly
-regardless of where it came from. The full index schema and normalization
+regardless of where it came from. That's also the boundary of what
+compilation does: it maps fields, it never interprets them. There is no
+LLM call anywhere in a compile, no summarizing, no deduplication
+judgment -- if two runs extracted overlapping claims, both are indexed,
+and deciding what they add up to is left to the agent querying them.
+The full index schema and normalization
 mapping are in `docs/contracts/knowledge-compiler.md`, and the build-time
 design decisions in `docs/decisions/0002-knowledge-compiler.md`.
 
@@ -933,8 +950,10 @@ design decisions in `docs/decisions/0002-knowledge-compiler.md`.
 
 The query half of the compiler layer: eight small tools over the compiled
 index, exposed as one CLI (`scripts/query.py`) that prints JSON. Six are
-plain lookups: `search_wiki` and `search_claims` (hybrid keyword+vector
-search), `read_page` (fetch one wiki page whole), `get_entity` (an entity
+plain lookups: `search_wiki` and `search_claims` (each runs both the
+lexical and the vector engine and fuses the two rankings with reciprocal
+rank fusion, the standard k=60, so a hit only one side finds still
+surfaces), `read_page` (fetch one wiki page whole), `get_entity` (an entity
 with its aliases, mentions, and relations), `neighbors` (a bounded graph
 walk over the relation table), and `get_sources` (provenance for a page or
 a claim). None of the eight makes an LLM call, which is a design rule
@@ -963,29 +982,68 @@ material. The result is the artifact the whole pipeline exists to produce:
 a set of claims an agent can answer from, where every line traces back to
 a quote that actually appears, character for character, in a real source.
 
+Two failure modes are handled without drama. If there's no index at all,
+opening it fails immediately with a message pointing at the
+knowledge-compiler skill, rather than returning empty results that look
+like an empty corpus. If the vector tables can't be opened but the DuckDB
+side can, search degrades to lexical-only with a logged warning instead
+of dying -- worse recall, but every result still real. The exact
+arguments and output shape of each tool are specified field by field in
+`skills/retrieval-planner/references/tool-contracts.md`, and
+[The retrieval tools](#the-retrieval-tools) below walks through all
+eight with examples.
+
 ### The optional local LLM backend
 
 Everywhere this toolkit needs judgment (deciding what counts as an atomic
 claim, merging entity mentions, synthesizing a wiki page), the default
-worker is the in-session agent itself, reading the relevant SKILL.md. That
-default is unchanged, and it's still the recommendation: frontier-model
-judgment is exactly what those steps need. What's new is an opt-in
-alternative for the extraction step: set `llm.provider: local` in
-`.deepresearch.yml` and point it at any OpenAI-compatible endpoint (Ollama
-on `:11434/v1`, vLLM on `:8000/v1`) serving a local model such as
-`Ornith-1.0-9B`, and `extract_claims.py` will run claim extraction
-programmatically over a run's chunks: useful for batch-processing many
-sources without burning agent context on each one.
+worker is the in-session agent itself, reading the relevant SKILL.md.
+That is what `llm.provider: agent` means (the config also accepts
+`anthropic` as a synonym), and it asks nothing of your machine: no API
+key to set, no server to run. The default backend
+enforces this honestly rather than papering over it -- ask it to complete
+a prompt and it raises an error on purpose, with a message explaining
+that under this provider a script doing its own extraction is a usage
+mistake, not a missing dependency.
 
-The reason this is safe to offer at all is the verbatim gate. Programmatic
-extraction runs every proposed claim through the same exact-substring
-check `compose_dossier` uses, and auto-drops any claim whose evidence
-quotes aren't verbatim in the source, before anything is written to
-`claims.jsonl`. A smaller local model can therefore only under-produce
-(fewer claims survive), never corrupt the corpus with paraphrases that
-look like citations. `scripts/validate-local-llm.py` measures exactly
-that: how much of the reference extraction a given local model recovers,
-and how many of its proposals the gate had to drop.
+The opt-in alternative is `llm.provider: local` in `.deepresearch.yml`,
+pointed at any OpenAI-compatible endpoint (Ollama on `:11434/v1`, vLLM on
+`:8000/v1`) serving a local model such as `Ornith-1.0-9B`. Under it,
+extraction runs programmatically: `python scripts/extract_claims.py
+<run_dir>` (the script ships in both `knowledge-extraction` for PDF runs
+and `research-knowledge-graph` for web runs) reads a run's `chunks.jsonl`,
+hands the model bounded batches of chunks, and writes `claims.jsonl`,
+`entities.jsonl`, and `relations.jsonl` back into the run directory. The
+prompt is a task brief, not a schema dump: it states the goal, the typed
+output contract, and the verbatim-quote invariant as a checkable
+precondition, then lets a reasoning model plan its own pass. A batch
+whose output can't be parsed (usually a model running out of tokens
+mid-reasoning) is retried as smaller halves, and what still fails is
+surfaced as a `parse_failures` count rather than recorded as "no claims
+here". The payoff is throughput: forty sources overnight without
+spending agent context on each one.
+
+The reason this is safe to offer at all is the verbatim gate. Before
+anything is written, every proposed claim runs through the same
+exact-substring check (`common/verbatim.py`) that `compose_dossier` and
+the eval harness apply: each evidence quote must appear character for
+character in the chunk the model was shown, or the claim is auto-dropped
+into a `dropped` list instead of `claims.jsonl`. A smaller local model
+can therefore only under-produce -- fewer claims survive -- never corrupt
+the corpus with paraphrases dressed up as citations.
+`scripts/validate-local-llm.py` measures exactly that trade: how much of
+a reference extraction a given model recovers, and how many of its
+proposals the gate had to drop.
+
+What this backend deliberately is not: a switch that moves the whole
+toolkit onto a local model. Claim extraction is the only shipped
+programmatic caller, because it is the one high-volume step whose output
+is mechanically checkable; wiki synthesis, conflict adjudication, and
+research planning remain agent work even under `provider: local`. Getting
+a local model to perform well at extraction has its own operational
+details -- the chat template a reasoning model needs, generous token
+budgets, the `llm.roles` map that routes each phase to a model suited to
+it -- all covered in [Running local models](#running-local-models) below.
 
 ## Configuration
 
