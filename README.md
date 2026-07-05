@@ -14,7 +14,7 @@ cite, and keep building on instead of starting over on every question.
 - [Core ideas](#core-ideas)
 - [How it fits together](#how-it-fits-together)
 - [Quick start](#quick-start)
-- [A worked example](#a-worked-example-end-to-end)
+- [A worked example, end to end](#a-worked-example-end-to-end)
 - [The skills](#the-skills)
 - [The retrieval tools](#the-retrieval-tools)
 - [Running local models](#running-local-models)
@@ -68,10 +68,10 @@ Most of this toolkit follows from a small number of ideas. Once you have
 them, each of the ten skills described later reads as a consequence rather
 than a separate thing to learn -- of course the chunker doesn't guess at
 summaries, of course a weak local model can't corrupt the corpus. This
-section defines the vocabulary the
-rest of the README reuses -- the three layers, the verbatim-quote gate,
-evidence_ref, OKF, producer, run directory -- so that when a later section
-says "the gate rejects it," you already know which gate and why it exists.
+section defines the vocabulary the rest of the README reuses -- the three
+layers, the verbatim-quote gate, evidence_ref, OKF, producer, run
+directory -- so that when a later section says "the gate rejects it," you
+already know which gate and why it exists.
 
 ### The three layers
 
@@ -84,14 +84,14 @@ every other layer were deleted, the corpus alone would still be a complete
 and inspectable record.
 
 The second layer is the derived index: DuckDB for full-text and graph
-queries, LanceDB for vectors. It's git-ignored, and it's rebuilt from
-scratch on every compile -- never patched incrementally. That sounds
-wasteful until you notice what it buys: there is no state in which the
-index and the files can silently disagree. The index is either current or
-stale, and stale is fixed by recompiling, which takes seconds at the
-per-project scale this toolkit serves. Nothing ever has to patch the index
-to match a changed file, so a whole class of cache-invalidation bugs
-can't exist here.
+queries, LanceDB for vectors. It's meant to be git-ignored, and it's
+rebuilt from scratch on every compile -- never patched incrementally.
+That sounds wasteful until you notice what it buys: there is no state in
+which the index and the files can silently disagree. The index is either
+current or stale, and stale is fixed by recompiling, which takes seconds
+at the per-project scale this toolkit serves. Nothing ever has to patch
+the index to match a changed file, so a whole class of cache-invalidation
+bugs can't exist here.
 
 The third layer is the judgment layer: an LLM, whether the in-session
 agent reading a SKILL.md or a local model behind an OpenAI-compatible
@@ -116,7 +116,7 @@ next idea enforces.
                                 |  compiled (full rebuild)
                                 v
 +---------------------------------------------------------------+
-|  DERIVED INDEX    (git-ignored -- a rebuildable cache)        |
+|  DERIVED INDEX    (keep git-ignored -- a rebuildable cache)   |
 |  DuckDB (full-text + graph)   +   LanceDB (vectors)           |
 +-------------------------------+-------------------------------+
                                 |  queried by
@@ -191,14 +191,14 @@ distinction `EvidenceRef` needs to preserve after normalization.
 
 Every skill in this toolkit is a phase of one pipeline: acquire, chunk,
 extract, compile, retrieve, synthesize. What's worth noticing is how
-little of it
-an LLM touches. Extraction, wiki-writing, and the final answer composed
-from a dossier are judgment work, marked [JUDGMENT: LLM] in the diagram.
-Everything else -- fetching, Docling conversion, provenance recovery,
-chunking, index compilation, all eight retrieval tools -- is deterministic
-Python, plus one local embedding model at compile time. Rerun a
-deterministic stage and you get the same files. Swap the model behind a
-judgment stage and the verbatim-quote gate still decides what gets in.
+little of it an LLM touches. Extraction, wiki-writing, and the final
+answer composed from a dossier are judgment work, marked [JUDGMENT: LLM]
+in the diagram. Everything else -- fetching, Docling conversion,
+provenance recovery, chunking, index compilation, all eight retrieval
+tools -- is deterministic Python, plus one local embedding model at
+compile time. Rerun a deterministic stage and you get the same files.
+Swap the model behind a judgment stage and the verbatim-quote gate still
+decides what gets in.
 
 Each source gets a run directory: `<pdf_runs_dir>/<document_id>/` for a
 PDF, `research-runs/<source_id>/` for a web source worth mining. These are
@@ -209,7 +209,8 @@ record of how a conclusion was reached, not scratch space you'd
 `.gitignore`. The three layers map onto the diagram directly: run
 directories and `knowledge_base/` are the durable corpus, the two marked
 stages are the judgment layer, and the compiler's output is the derived
-index, the one thing kept out of git because any checkout can rebuild it.
+index, the one thing to keep out of git because any checkout can
+rebuild it.
 
 ```
                        .deepresearch.yml
@@ -323,18 +324,19 @@ drt init --tier pdf --topic-name "Perovskite stability" \
 A bare `drt init` still works, but it writes `topic.name: "(unnamed
 project)"` with a placeholder scope hint and every `features.*` flag set
 to true. Either way, the generated `.deepresearch.yml` is meant to be
-opened and edited afterward. That file matters more than it looks: every
-skill reads its topic and scope from there instead of hardcoding one, so
-"research X for the knowledge base" means your X, not some generic
+opened and edited afterward. That file matters more than it looks: the
+skills read their topic and scope from there instead of hardcoding one,
+so "research X for the knowledge base" means your X, not some generic
 default.
 
 Beyond the config file, `drt init` scaffolds the knowledge base directory
 and copies each skill (its `SKILL.md` plus scripts) into both
 `.claude/skills/` and `.agents/skills/` -- the first is where Claude Code
-looks for skills, the second is where Codex does. After that, open the project in either
-agent and ask it to research something, or point it at a PDF; the relevant
-skill's `SKILL.md` takes it from there. The by-hand sequences below are
-for when you want to see each stage individually, or script them.
+looks for skills, the second is where Codex does. After that, open the
+project in either agent and ask it to research something, or point it at
+a PDF; the relevant skill's `SKILL.md` takes it from there. The by-hand
+sequences below are for when you want to see each stage individually, or
+script them.
 
 ### First PDF, by hand
 
@@ -549,23 +551,23 @@ a page.
 
 Web research doesn't stop at wiki prose. It also produces claims -- the
 same evidence-backed records the PDF pipeline has emitted from the start.
-When
-a fetched source is substantial enough to mine, `start_research_run.py`
-scaffolds a `research-runs/<source_id>/` directory that mirrors a PDF
-run: the fetched content saved verbatim as `source.md`, one chunk per
-heading section in `chunks.jsonl`, and a `manifest.json` marking the
-producer as `web`. The agent then writes `claims.jsonl`,
-`entities.jsonl`, and `relations.jsonl` into that same directory itself --
-the skill leaves extraction unscripted on purpose, since deciding what
-counts as an atomic, well-evidenced claim is a judgment call -- under the
-rule that every supporting quote must be a verbatim substring of
-`source.md`. That symmetry is the point. The knowledge compiler indexes
-web runs and PDF runs into one table, so a claim about an entity from a
-webpage and a claim about the same entity from a whitepaper land in the
-same queryable graph, checked by the same evidence gate. Only the evidence
-shape differs (a web claim cites a chunk locator and a URL, a PDF claim a
-node id and a page number), and the compiler normalizes that difference
-away at index time without touching either producer's files on disk.
+When a fetched source is substantial enough to mine,
+`start_research_run.py` scaffolds a `research-runs/<source_id>/`
+directory that mirrors a PDF run: the fetched content saved verbatim as
+`source.md`, one chunk per heading section in `chunks.jsonl`, and a
+`manifest.json` marking the producer as `web`. The agent then writes
+`claims.jsonl`, `entities.jsonl`, and `relations.jsonl` into that same
+directory itself -- the skill leaves extraction unscripted by default,
+since deciding what counts as an atomic, well-evidenced claim is a
+judgment call -- under the rule that every supporting quote must be a
+verbatim substring of `source.md`. That symmetry is the point. The
+knowledge compiler indexes web runs and PDF runs into one table, so a
+claim about an entity from a webpage and a claim about the same entity
+from a whitepaper land in the same queryable graph, checked by the same
+evidence gate. Only the evidence shape differs (a web claim cites a
+chunk locator and a URL, a PDF claim a node id and a page number), and
+the compiler normalizes that difference away at index time without
+touching either producer's files on disk.
 
 ### pdf-ingest-router
 
@@ -576,8 +578,9 @@ this, and which of the toolkit's backends should handle it? It computes a
 stable `document_id` (a slug of the filename plus a hash of the file's
 bytes, so the same PDF always gets the same identity even if you run this
 twice) and creates that document's working directory. Everything after
-this stage reads and writes into `<pdf_runs_dir>/<document_id>/` and never
-touches the original PDF path again.
+this stage reads and writes into `<pdf_runs_dir>/<document_id>/`; no
+later stage is ever passed the PDF path again -- the one that needs it
+reads `source_file` back out of the manifest.
 
 The classification itself comes from five real signals, computed with
 `pypdf` and `pdfplumber` rather than guessed: average extractable
@@ -669,9 +672,9 @@ factual claim it can't back up. It walks Docling's structured export in
 true document order, not headings first and tables afterward -- processing
 text and tables as separate passes is enough to attach a table to the wrong
 section when it sits between two paragraphs -- and emits one record per
-structural unit: heading,
-paragraph, table, figure, caption, or list item, each carrying its page
-number, its section path, its bounding box, and a content hash.
+structural unit: heading, paragraph, table, figure, caption, or list
+item, each carrying its page number, its section path, its bounding box,
+and a content hash.
 
 The command is `python scripts/extract_provenance.py <run_dir>`, and it
 reads exactly two files: `docling_raw.json` for the structure and
@@ -694,15 +697,16 @@ Docling's raw level field for headings that have no numbering to parse at
 all, like a document's title. It's a heuristic, not a guarantee, and it
 says so.
 
-Every downstream stage that cites a page number or checks a quote against
-source text is really checking against this stage's output, `provenance.jsonl`.
-It's the layer that makes the difference between "the model said so" and
-"here's the exact page and bounding box this came from." That's also
-why `confidence` is honestly recorded as `1.0` across the board right now:
-this pipeline doesn't run OCR yet, so there's no real per-element
-confidence score to report, and a fabricated one would be worse than an
-honest placeholder. Table cell structure is the other deliberate
-exclusion: tables get flattened here into a pipe-separated text rendering,
+Every downstream stage that cites a page number or checks a quote
+against source text is really checking against this stage's output,
+`provenance.jsonl`. It's the layer that makes the difference between
+"the model said so" and "here's the exact page and bounding box this
+came from." That's also why `confidence` is honestly recorded as `1.0`
+across the board right now: this pipeline doesn't run OCR yet, so
+there's no real per-element confidence score to report, and a
+fabricated one would be worse than an honest placeholder. Table cell
+structure is the other deliberate exclusion: tables get flattened here
+into a pipe-separated text rendering,
 just enough to hash and locate them, because the real per-cell CSV
 extraction is `knowledge-extraction`'s job two stages later.
 
@@ -786,12 +790,13 @@ page it appears on. That constraint is checked mechanically downstream by
 `rag-eval-harness`, and it's the single property that keeps this toolkit's
 claims audit-able rather than merely plausible-sounding. A claim with a
 quote that doesn't actually appear in its cited source is worse than no
-claim at all, because it looks verified when it isn't. The other rules that shape a good extraction pass
-are almost as load-bearing: one checkable assertion per claim rather than a
-compound sentence trying to do two jobs, entity mentions merged under
-their most formal name with variants kept as aliases instead of spawning
-duplicate rows, and a hard rule against forcing a claim or relation the
-source text doesn't actually support just to hit some notional quota.
+claim at all, because it looks verified when it isn't. The other rules
+that shape a good extraction pass are almost as load-bearing: one
+checkable assertion per claim rather than a compound sentence trying to
+do two jobs, entity mentions merged under their most formal name with
+variants kept as aliases instead of spawning duplicate rows, and a hard
+rule against forcing a claim or relation the source text doesn't
+actually support just to hit some notional quota.
 
 It's normal, and expected, for a good extraction pass to produce a short
 list: the toolkit's own reference example pulls five well-evidenced claims
@@ -808,9 +813,9 @@ reads `claims.jsonl` and `entities.jsonl`, groups entities into
 page-worthy concepts (not every entity needs its own file), and for each
 one, searches the existing knowledge base before writing anything. If a
 page for that concept already exists, this stage merges the new claims
-into it and bumps its timestamp rather than creating a near-duplicate file.
-That's exactly the discipline `research-knowledge-graph` already applies to web
-research, applied here to PDF-derived content instead.
+into it and bumps its timestamp rather than creating a near-duplicate
+file. That's exactly the discipline `research-knowledge-graph` already
+applies to web research, applied here to PDF-derived content instead.
 
 The writing itself is the agent's judgment, but the bookkeeping runs
 through one script. New pages get scaffolded with
@@ -839,9 +844,8 @@ contradiction that's visible is more useful than a resolved-looking answer
 that's actually just a coin flip.
 
 Every page this stage touches, whether newly created or merged into, gets
-logged to `wiki_pages_written.json` in the run directory: the audit trail
-`rag-eval-harness` reads to know exactly which pages this run is
-responsible for. The stage finishes by running
+logged to `wiki_pages_written.json` in the run directory: the record of
+which pages this run created or updated. The stage finishes by running
 `research-knowledge-graph`'s `lint_graph.py` over the whole knowledge
 base. A wiki-writer run that leaves the graph broken (an orphaned
 page, a dangling link) is treated as worse than one that wrote nothing at
@@ -927,8 +931,8 @@ Compilation is a full rebuild every run, on purpose. At the scale this
 toolkit actually serves (a per-project knowledge base on one machine), a
 rebuild costs seconds, and it means there is no cache-invalidation state
 to reason about: the index is either current or stale, and stale is fixed
-by recompiling. For the same reason the index lives in a git-ignored
-directory (`.deepresearch/index/` by default) rather than being committed.
+by recompiling. For the same reason you'll want the index directory
+(`.deepresearch/index/` by default) git-ignored rather than committed.
 The run directories and the wiki are the record; the index is derived from
 them and any checkout can regenerate it.
 
@@ -976,8 +980,8 @@ The eighth, `compose_dossier`, is where everything upstream pays off. It
 assembles a set of claims (picked by query or by explicit ids) with their
 full citations into an evidence dossier, and it applies the toolkit's
 verbatim rule as a hard gate: a claim reaches `included` only if every
-supporting quote is an exact substring of its source (the cited PDF page's
-text, or the web run's `source.md`). Anything else lands in `rejected`
+supporting quote is an exact substring of the chunk it cites, re-read
+from the run directory's `chunks.jsonl`. Anything else lands in `rejected`
 with an explicit reason, never silently mixed in with the verified
 material. The result is the artifact the whole pipeline exists to produce:
 a set of claims an agent can answer from, where every line traces back to
@@ -1037,9 +1041,9 @@ a reference extraction a given model recovers, and how many of its
 proposals the gate had to drop.
 
 What this backend deliberately is not: a switch that moves the whole
-toolkit onto a local model. Claim extraction is the only shipped
-programmatic caller, because it is the one high-volume step whose output
-is mechanically checkable; wiki synthesis, conflict adjudication, and
+toolkit onto a local model. Claim extraction is the main programmatic
+caller, because it is the one high-volume step whose output is
+mechanically checkable; wiki synthesis, conflict adjudication, and
 research planning remain agent work even under `provider: local`. Getting
 a local model to perform well at extraction has its own operational
 details -- the chat template a reasoning model needs, generous token
@@ -1197,9 +1201,9 @@ llm:
   provider: local
   embedding_model: qwen3-embedding:4b
   roles:
-    extract:     {model: qwen2.5:7b-instruct}
-    wiki_write:  {model: qwen3.6:35b-a3b}
-    synthesize:  {model: qwen3.6:27b}
+    extract:     {model: qwen2.5:7b-instruct}  # the tested extract model
+    wiki_write:  {model: qwen3.6:35b-a3b}      # illustrative tag, not tested
+    synthesize:  {model: qwen3.6:27b}          # illustrative tag, not tested
   local:
     base_url: http://localhost:11434/v1
     model: ornith-9b-drt      # fallback / code_agent
@@ -1219,9 +1223,9 @@ volume and wants an immediate JSON answer. The fix was not to wait for
 the switch to start working; it was to stop depending on a switch. A
 true instruct model such as `qwen2.5:7b-instruct` has no reasoning path
 to suppress, so there is nothing for the serving layer to get wrong.
-The question to ask is never "does this model support non-thinking
-mode" but "does this serving stack, at this version, honor that
-switch" -- and the only way to answer it is to test the exact
+"Does this model support non-thinking mode" turns out to be the wrong
+question. The right one is "does this serving stack, at this version,
+honor that switch" -- and the only way to answer it is to test the exact
 (model, server, version) triple you intend to run.
 
 Getting a reasoning model to work at all involves two more serving
@@ -1322,7 +1326,7 @@ knowledge_base:
 
 topic:
   name: "Perovskite stability"       # what "research X for the knowledge base" resolves X to
-  scope_hint: >                      # read by every skill so it knows what is in scope
+  scope_hint: >                      # how the skills know what is in scope
     Degradation mechanisms and encapsulation,
     not manufacturing economics.
   tags: []                           # free-form labels; empty is fine
@@ -1407,11 +1411,11 @@ so sentence-transformers never lands in the environment: the compiler
 tests run against real DuckDB and LanceDB, with an injected fake
 embedder (deterministic, hash-derived vectors) standing in for
 sentence-transformers, so the whole compile-and-query path is exercised
-end to end without downloading or loading an embedding model. The same job checks that
-the two plugin manifests and the skill templates are in sync, runs the
-fast suite -- dozens of unit and light integration tests -- with
-coverage, and lints with ruff; an advisory mypy job and a pip-audit job
-run alongside it. This tier is the gate every change has to pass.
+end to end without downloading or loading an embedding model. The same
+job checks that the two plugin manifests and the skill templates are in
+sync, runs the fast suite (dozens of unit and light integration tests)
+with coverage, and lints with ruff; an advisory mypy job and a pip-audit
+job run alongside it. This tier is the gate every change has to pass.
 
 The heavy tier is the one that touches real models, and it never runs on
 an ordinary push: its triggers are a weekly cron (Monday mornings, UTC)
@@ -1594,7 +1598,7 @@ source and an exact quote instead of a model's say-so.
   and response format. Unset roles fall back to the flat `llm.local`
   model.
 - **the compiler** -- the `knowledge-compiler` stage: a full,
-  from-scratch rebuild of the git-ignored DuckDB + LanceDB index from
+  from-scratch rebuild of the disposable DuckDB + LanceDB index from
   the corpus, normalizing evidence as it goes. If the index and the
   files disagree, the files win -- you recompile.
 
@@ -1618,12 +1622,12 @@ the Python version floor and the assets Docling and Playwright download
 on first use, well after `pip install` has reported success.
 
 Tests come in two tiers, split by dependency weight. The fast suite,
-`pytest -m "not heavy"`, runs on every push and pull request on both
-Ubuntu and Windows, and it has to pass before you open a PR. Tests
-marked `heavy` make real Docling and embedding-model calls against
-`tests/fixtures/`; they run on a weekly cron and manual dispatch, not
-on your PR, so run `pytest -m heavy` locally only when you've touched
-the PDF core or the embedding path.
+`pytest -m "not heavy"`, runs on every push to main and every pull
+request on both Ubuntu and Windows, and it has to pass before you open a
+PR. Tests marked `heavy` make real Docling and embedding-model calls
+against `tests/fixtures/`; they run on a weekly cron and manual
+dispatch, not on your PR, so run `pytest -m heavy` locally only when
+you've touched the PDF core or the embedding path.
 
 The on-disk formats are the load-bearing part of this repo, and their
 contracts live in `docs/contracts/` -- manifest keys, JSONL row shapes,
