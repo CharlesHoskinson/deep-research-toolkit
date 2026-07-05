@@ -142,9 +142,9 @@ The consequence is what makes the whole design safe to operate. A weak or
 hallucinating model can only under-produce -- fewer of its proposed claims
 survive the gate -- but it cannot fabricate a citation that looks real,
 because a paraphrased or invented quote fails the substring test no matter
-how plausible it reads. That's why the optional local-model backend exists
-at all: swapping a frontier model for a 9B one changes how much gets
-extracted, not whether what's extracted can be trusted.
+how plausible it reads. That's why a local-model backend can be the
+default at all: swapping a frontier model for a 7B one changes how much
+gets extracted, not whether what's extracted can be trusted.
 
 ### evidence_ref: two producers, one shape
 
@@ -298,8 +298,8 @@ install only the machinery you'll actually run:
   Docling fetches its OCR and layout models on first use, not at install
   time.
 - **`compiler`** pulls in DuckDB, LanceDB, sentence-transformers (the
-  local embedding model), and the `openai` client, which exists solely so
-  the optional local-LLM backend can talk to any OpenAI-compatible
+  fallback local embedding path), and the `openai` client, which exists
+  solely so the local-LLM backend can talk to any OpenAI-compatible
   endpoint. No hosted API key is required for anything in this tier.
 - **`full`** is the union of the other three.
 
@@ -354,10 +354,11 @@ python .claude/skills/canonical-markdown-to-llm-nodes/scripts/chunk_nodes.py pdf
 At this point the run directory holds `chunks.jsonl`, and the pipeline
 needs judgment: an LLM has to read those chunks and write `claims.jsonl`,
 `entities.jsonl`, and `relations.jsonl`. That's the `knowledge-extraction`
-stage, done inside an agent session (its `SKILL.md` carries the rules,
-chiefly that every claim's quote must be verbatim from the cited page), or
-programmatically via the local-LLM backend if you've configured one. Then
-the eval harness re-checks the whole run mechanically:
+stage, run programmatically through the local-LLM backend under the
+default `provider: local`, or done by hand inside an agent session if
+you've set `llm.provider: agent` (either way its `SKILL.md` carries the
+rules, chiefly that every claim's quote must be verbatim from the cited
+page). Then the eval harness re-checks the whole run mechanically:
 
 ```bash
 python .claude/skills/rag-eval-harness/scripts/run_eval.py pdf-runs/your-file-a1b2c3d4
@@ -386,7 +387,8 @@ python .claude/skills/research-knowledge-graph/scripts/start_research_run.py <ur
 
 That creates `research-runs/<source_id>/` with the content chunked by
 heading section -- the web-side mirror of a PDF run. Extraction is the
-same judgment step as above (an agent, or the local backend), writing
+same judgment step as above (the local backend by default, or an agent
+under `provider: agent`), writing
 verbatim-gated claims into the run directory. Then compile everything into
 the index and ask it something:
 
@@ -494,7 +496,8 @@ schema -- a manifest, a JSONL record, an OKF page -- so each skill only has
 to explain its own stage, never the whole pipeline. Deterministic work
 (fetching, chunking, hashing, linting, index building) lives in scripts
 the skills call, while the two genuinely judgment-based stages, claim
-extraction and wiki synthesis, are the agent itself reasoning over those
+extraction and wiki synthesis, are an LLM (the configured local model,
+or the in-session agent under `provider: agent`) reasoning over those
 files with the skill supplying the rules -- the split
 `docs/decisions/0001-architecture.md` commits to. And nothing
 topic-specific is baked in anywhere: per-project scope lives in
@@ -555,12 +558,11 @@ When a fetched source is substantial enough to mine,
 `start_research_run.py` scaffolds a `research-runs/<source_id>/`
 directory that mirrors a PDF run: the fetched content saved verbatim as
 `source.md`, one chunk per heading section in `chunks.jsonl`, and a
-`manifest.json` marking the producer as `web`. The agent then writes
+`manifest.json` marking the producer as `web`. Extraction then writes
 `claims.jsonl`, `entities.jsonl`, and `relations.jsonl` into that same
-directory itself -- the skill leaves extraction unscripted by default,
-since deciding what counts as an atomic, well-evidenced claim is a
-judgment call -- under the rule that every supporting quote must be a
-verbatim substring of `source.md`. That symmetry is the point. The
+directory -- the skill's `extract_claims.py` on the default local
+provider, or the agent by hand under `provider: agent` -- under the rule
+that every supporting quote must be a verbatim substring of `source.md`. That symmetry is the point. The
 knowledge compiler indexes web runs and PDF runs into one table, so a
 claim about an entity from a webpage and a claim about the same entity
 from a whitepaper land in the same queryable graph, checked by the same
@@ -910,17 +912,20 @@ material that doesn't share keywords. This skill compiles the whole corpus
 (`knowledge_base/`, `pdf-runs/`, `research-runs/`) into a hybrid index:
 DuckDB for full-text search over pages and claims plus the graph tables
 (wiki links, entities, relations, evidence), and LanceDB for vector search
-over wiki pages and claims, embedded locally with sentence-transformers
-(`all-MiniLM-L6-v2` by default, configurable). The two engines cover each
+over wiki pages and claims, embedded locally (`qwen3-embedding:8b` by
+default, served through Ollama; a plain sentence-transformers name works
+too). The two engines cover each
 other's blind spots: FTS finds the exact term you typed, vectors find the
 paragraph that says the same thing in different words.
 
 Building the index is one command, the skill's
 `python scripts/compile.py [--index-dir DIR]`, after a one-time
 `pip install "deep-research-toolkit[compiler]"` for the DuckDB, LanceDB,
-and sentence-transformers dependencies. The first run downloads the
-embedding model (the same one-time, offline-after cost as Docling's
-models); every run after that is fully local, and it prints row counts on
+and sentence-transformers dependencies. The embedding model is a
+one-time cost too: an `ollama pull` for the default Ollama embedder, or
+an automatic first-run download for a sentence-transformers one (the
+same offline-after cost as Docling's models). Every run is fully local,
+and it prints row counts on
 success so you can sanity-check that the corpus you expected actually got
 indexed. The build also refuses two footguns before touching anything:
 it won't compile into the project root or into the knowledge base itself,
@@ -998,37 +1003,45 @@ arguments and output shape of each tool are specified field by field in
 [The retrieval tools](#the-retrieval-tools) below walks through all
 eight with examples.
 
-### The optional local LLM backend
+### The local LLM backend
 
 Everywhere this toolkit needs judgment (deciding what counts as an atomic
-claim, merging entity mentions, synthesizing a wiki page), the default
-worker is the in-session agent itself, reading the relevant SKILL.md.
-That is what `llm.provider: agent` means (the config also accepts
-`anthropic` as a synonym), and it asks nothing of your machine: no API
-key to set, no server to run. The default backend
-enforces this honestly rather than papering over it -- ask it to complete
-a prompt and it raises an error on purpose, with a message explaining
-that under this provider a script doing its own extraction is a usage
-mistake, not a missing dependency.
+claim, merging entity mentions, synthesizing a wiki page), the work goes
+to an LLM, and the default worker is a local model stack. That is what
+`llm.provider: local` means, and it is what `drt init` writes: an
+OpenAI-compatible endpoint (Ollama on `:11434/v1` by default; vLLM on
+`:8000/v1` works the same) serving `qwen2.5:7b-instruct` as the flat
+fallback model, a per-role Qwen model for each pipeline phase under
+`llm.roles`, and `qwen3-embedding:8b` for embeddings. It expects a
+running endpoint with those models pulled; [Running local
+models](#running-local-models) covers the operational details.
 
-The opt-in alternative is `llm.provider: local` in `.deepresearch.yml`,
-pointed at any OpenAI-compatible endpoint (Ollama on `:11434/v1`, vLLM on
-`:8000/v1`) serving a local model such as `Ornith-1.0-9B`. Under it,
-extraction runs programmatically: `python scripts/extract_claims.py
-<run_dir>` (the script ships in both `knowledge-extraction` for PDF runs
-and `research-knowledge-graph` for web runs) reads a run's `chunks.jsonl`,
-hands the model bounded batches of chunks, and writes `claims.jsonl`,
-`entities.jsonl`, and `relations.jsonl` back into the run directory. The
-prompt is a task brief, not a schema dump: it states the goal, the typed
-output contract, and the verbatim-quote invariant as a checkable
-precondition, then lets a reasoning model plan its own pass. A batch
-whose output can't be parsed (usually a model running out of tokens
-mid-reasoning) is retried as smaller halves, and what still fails is
-surfaced as a `parse_failures` count rather than recorded as "no claims
-here". The payoff is throughput: forty sources overnight without
-spending agent context on each one.
+Under this provider, extraction runs programmatically: `python
+scripts/extract_claims.py <run_dir>` (the script ships in both
+`knowledge-extraction` for PDF runs and `research-knowledge-graph` for
+web runs) reads a run's `chunks.jsonl`, hands the model bounded batches
+of chunks, and writes `claims.jsonl`, `entities.jsonl`, and
+`relations.jsonl` back into the run directory. The prompt is a task
+brief, not a schema dump: it states the goal, the typed output contract,
+and the verbatim-quote invariant as a checkable precondition, then lets
+the model plan its own pass. A batch whose output can't be parsed
+(usually a model running out of tokens mid-reasoning) is retried as
+smaller halves, and what still fails is surfaced as a `parse_failures`
+count rather than recorded as "no claims here". The payoff is
+throughput: forty sources overnight without spending agent context on
+each one.
 
-The reason this is safe to offer at all is the verbatim gate. Before
+The opt-out is `llm.provider: agent` in `.deepresearch.yml` (the config
+also accepts `anthropic` as a synonym): no local models at all, with the
+in-session agent itself doing the LLM work, reading the relevant
+SKILL.md. It asks nothing of your machine -- no server to run, no models
+to pull, no API key to set -- and the backend enforces the division
+honestly rather than papering over it: ask it to complete a prompt and
+it raises an error on purpose, with a message explaining that under this
+provider a script doing its own extraction is a usage mistake, not a
+missing dependency.
+
+The reason a local model is safe to trust here is the verbatim gate. Before
 anything is written, every proposed claim runs through the same
 exact-substring check (`common/verbatim.py`) that `compose_dossier` and
 the eval harness apply: each evidence quote must appear character for
@@ -1041,9 +1054,9 @@ a reference extraction a given model recovers, and how many of its
 proposals the gate had to drop.
 
 What this backend deliberately is not: a switch that moves the whole
-toolkit onto a local model. Claim extraction is the main programmatic
-caller, because it is the one high-volume step whose output is
-mechanically checkable; wiki synthesis, conflict adjudication, and
+toolkit onto programmatic model calls. Claim extraction is the main
+programmatic caller, because it is the one high-volume step whose output
+is mechanically checkable; wiki synthesis, conflict adjudication, and
 research planning remain agent work even under `provider: local`. Getting
 a local model to perform well at extraction has its own operational
 details -- the chat template a reasoning model needs, generous token
@@ -1161,9 +1174,11 @@ So under `provider: local` the config routes each phase to its own
 model. `llm.roles` maps a role name to a model, sampling settings, a
 thinking mode, and a response format, and
 `get_backend(config, role="extract")` resolves the backend for that
-phase. Any role you leave unset -- or all of them -- falls back to the
-flat `llm.local` model, so a single-model setup keeps working
-unchanged. The routing is additive, not required.
+phase. Each role ships with its own default model (the Qwen stack
+below), and the fallback is back-compat friendly: a role that doesn't
+name a model uses the flat `llm.local.model` if your project set that
+key explicitly, and the role's shipped Qwen default otherwise. A
+single-model setup keeps working unchanged.
 
 ```
   PHASE                     ROLE (llm.roles)      MODEL KIND
@@ -1178,35 +1193,35 @@ unchanged. The routing is additive, not required.
                                                   transformers
 
   get_backend(config, role="extract") -> the model for that phase
-  any role left unset      -> falls back to the flat llm.local model
+  role without a model     -> flat llm.local.model if set explicitly,
+                              else the role's shipped Qwen default
 ```
 
 The per-role defaults (`ROLE_DEFAULTS` in `config.py`) encode what each
-phase needs:
+phase needs, model included -- this table is the default stack:
 
-| Role | Thinking | `temperature` | `max_tokens` | `response_format` |
-|------|----------|---------------|--------------|-------------------|
-| `extract` | off | 0.0 | 3000 | `json` |
-| `wiki_write` | off | 0.2 | 4096 | -- |
-| `conflict_adjudicate` | on | 0.2 | 8192 | -- |
-| `synthesize` | on | 0.4 | 12000 | -- |
-| `code_agent` | on | 0.6 | 16000 | -- |
+| Role | Model | Thinking | `temperature` | `max_tokens` | `response_format` |
+|------|-------|----------|---------------|--------------|-------------------|
+| `extract` | `qwen2.5:7b-instruct` | off | 0.0 | 3000 | `json` |
+| `wiki_write` | `qwen3.6:35b-a3b` | off | 0.2 | 4096 | -- |
+| `conflict_adjudicate` | `qwen3.6:27b` | on | 0.2 | 8192 | -- |
+| `synthesize` | `qwen3.6:27b` | on | 0.4 | 12000 | -- |
+| `code_agent` | `Ornith-1.0-9B` | on | 0.6 | 16000 | -- |
 
 `top_p` (0.95) and `top_k` (20) come from `llm.local` unless a role
-overrides them, as do the model, `base_url`, and `api_key_env`. A
-minimal stack overrides just the models:
+overrides them, as do `base_url` and `api_key_env`. `drt init` writes
+this stack out explicitly (the full block is in
+[Configuration](#configuration)), and any field of any role can be
+overridden under `llm.roles.<role>` in `.deepresearch.yml`. To run
+everything on one model instead, set `llm.local.model` and skip the
+`roles` block:
 
 ```yaml
 llm:
   provider: local
-  embedding_model: qwen3-embedding:4b
-  roles:
-    extract:     {model: qwen2.5:7b-instruct}  # the tested extract model
-    wiki_write:  {model: qwen3.6:35b-a3b}      # illustrative tag, not tested
-    synthesize:  {model: qwen3.6:27b}          # illustrative tag, not tested
   local:
     base_url: http://localhost:11434/v1
-    model: ornith-9b-drt      # fallback / code_agent
+    model: qwen2.5:7b-instruct   # every role runs on this one model
 ```
 
 One finding from testing is worth stating plainly: a model's
@@ -1242,10 +1257,10 @@ truncates it mid-thought -- and keep the documented sampling
 for "determinism" backfires into repetition on this model family.
 
 Embeddings are a separate axis, set by `llm.embedding_model` and routed
-by the shape of the name: a plain sentence-transformers name
-(`all-MiniLM-L6-v2`, the default) runs through sentence-transformers,
-while an Ollama tag -- anything with a `:`, like `qwen3-embedding:4b`
--- embeds through the same local endpoint. LanceDB infers the vector
+by the shape of the name: an Ollama tag -- anything with a `:`, like
+the default `qwen3-embedding:8b` -- embeds through the same local
+endpoint, while a plain sentence-transformers name (`all-MiniLM-L6-v2`,
+for example) runs through sentence-transformers. LanceDB infers the vector
 dimension from the model's output, so swapping embedding models is a
 one-line config change and a recompile, with no schema migration. To
 judge whether a candidate generative model is good enough,
@@ -1311,8 +1326,7 @@ means what the claim says it means, still takes a reader.
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at
 your project's root. Here it is in full, annotated. The shape below is
-exactly what `drt init` writes, plus the optional `llm.roles` block that
-the config loader also reads:
+exactly what `drt init` writes:
 
 ```yaml
 # .deepresearch.yml -- deep-research-toolkit project configuration
@@ -1337,34 +1351,34 @@ features:                            # written by `drt init` from --tier; edit f
   knowledge_compiler: false          # index + retrieval layer (--tier compiler or full)
 
 llm:
-  provider: anthropic                # agent | anthropic | local. "agent" and its
-                                     # synonym "anthropic" mean the in-session agent
-                                     # does the LLM work (the default); "local"
-                                     # routes to the endpoint under llm.local
-  model: claude-sonnet-4-5           # model name when a hosted API is called directly
-  api_key_env: ANTHROPIC_API_KEY     # name of the env var holding the key -- never the key
-  embedding_model: all-MiniLM-L6-v2  # sentence-transformers or Ollama embedding model
-
-  # Optional, only read under provider: local -- per-phase model routing.
-  # `drt init` does not write this block; add only the roles (and fields)
-  # you want to override. An unset model, base_url, api_key_env, top_p, or
-  # top_k falls back to llm.local; an unset thinking, temperature,
-  # max_tokens, or response_format uses that role's ROLE_DEFAULTS entry.
-  # roles:
-  #   extract:             {model: qwen2.5:7b-instruct}  # thinking off, temp 0.0, JSON out
-  #   wiki_write:          {model: ...}                  # thinking off, temp 0.2
-  #   conflict_adjudicate: {model: ...}                  # thinking on,  temp 0.2
-  #   synthesize:          {model: ...}                  # thinking on,  temp 0.4
-  #   code_agent:          {model: ...}                  # thinking on,  temp 0.6
-
+  # Local, role-routed Qwen stack served by Ollama is the default. It needs a
+  # running Ollama endpoint (see llm.local.base_url) with the models below
+  # pulled. To run without local models -- letting the in-session agent do the
+  # extraction by hand instead -- set: provider: agent
+  provider: local                    # local | agent ("anthropic" is a synonym for agent)
+  embedding_model: qwen3-embedding:8b  # Ollama tag; a plain sentence-transformers name works too
   local:                             # only read when provider: local
     base_url: http://localhost:11434/v1  # any OpenAI-compatible endpoint (Ollama, vLLM, ...)
-    model: Ornith-1.0-9B             # fallback model for any role not routed above
+    model: qwen2.5:7b-instruct   # flat fallback (role=None, and any role below without its own model)
     api_key_env: OPENAI_API_KEY      # local servers usually ignore the key; the var can stay unset
     temperature: 0.6                 # flat defaults; roles override these per phase
     top_p: 0.95
     top_k: 20
     max_tokens: 16000
+  # Per-phase models. extract stays a true instruct model (qwen2.5:7b-instruct),
+  # NOT qwen3.5:9b -- under the Ollama builds tested it ignored non-thinking mode
+  # and produced nothing on extraction.
+  roles:
+    extract:
+      model: qwen2.5:7b-instruct
+    wiki_write:
+      model: qwen3.6:35b-a3b
+    conflict_adjudicate:
+      model: qwen3.6:27b
+    synthesize:
+      model: qwen3.6:27b
+    code_agent:
+      model: Ornith-1.0-9B
 
 scrapling:                           # web retrieval behavior (web tier)
   default_mode: http                 # http | stealth; stealth drives a real browser
@@ -1391,15 +1405,18 @@ different models, so under `provider: local` each of the five roles --
 `extract`, `wiki_write`, `conflict_adjudicate`, `synthesize`,
 `code_agent` -- can point at its own model with its own sampling
 settings, thinking mode, and response format. The defaults live in
-`ROLE_DEFAULTS` in `config.py`, and the fallback splits by field. Leave
-`model`, `base_url`, `api_key_env`, `top_p`, or `top_k` out of a role and
-it inherits the flat `llm.local` value; leave out `thinking`,
-`temperature`, `max_tokens`, or `response_format` and the role gets its
-own `ROLE_DEFAULTS` value instead. Omit `temperature` under `extract`,
-say, and you get 0.0 (the extract default), not whatever `llm.local`
-sets. A single-model setup still needs no `roles` block at all: every
-role then runs on the `llm.local` model, with per-phase reasoning and
-sampling defaults that suit each phase.
+`ROLE_DEFAULTS` in `config.py`, and the fallback splits by field.
+`model` follows a back-compat rule: a role that doesn't name one uses
+the flat `llm.local.model` if your project set that key explicitly, and
+the role's shipped Qwen default otherwise. Leave `base_url`,
+`api_key_env`, `top_p`, or `top_k` out of a role and it inherits the
+flat `llm.local` value; leave out `thinking`, `temperature`,
+`max_tokens`, or `response_format` and the role gets its own
+`ROLE_DEFAULTS` value instead. Omit `temperature` under `extract`, say,
+and you get 0.0 (the extract default), not whatever `llm.local` sets. A
+single-model setup still needs no `roles` block at all: set
+`llm.local.model` and every role runs on that one model, with per-phase
+reasoning and sampling defaults that suit each phase.
 
 ## Verification and testing
 
@@ -1503,11 +1520,15 @@ two producers (PDF and web) feed one graph, their different evidence
 shapes normalized into a single `evidence_ref` at index time.
 
 **Do I need a GPU?**
-No. Under the default `agent` provider, the in-session agent does the
-extraction and synthesis, and every other stage is deterministic Python
-plus a small CPU-friendly embedding model at compile time. A GPU starts
-to matter only if you opt into the `local` provider and serve your own
-models -- see [Running local models](#running-local-models).
+For the shipped defaults, realistically yes. The default is the local
+Qwen stack served by Ollama -- roughly 7B to 35B models for the
+generative roles, plus `qwen3-embedding:8b` for embeddings -- and models
+that size want a GPU (see [Running local
+models](#running-local-models)). To run without local models, set
+`llm.provider: agent`, which has the in-session agent do the extraction
+and synthesis by hand, and point `llm.embedding_model` at a small
+sentence-transformers model such as `all-MiniLM-L6-v2`; then every stage
+is deterministic Python plus a CPU-friendly embedder at compile time.
 
 **Which local model should I use?**
 No single model is right for every phase, which is what `llm.roles` is
@@ -1519,10 +1540,13 @@ candidate against the reference extraction fixture before you commit to
 it.
 
 **Is my data sent anywhere?**
-Not by default. The corpus, index, and embeddings all live on your
-machine, and no tier requires a hosted API key. Fetching a web source
-talks to that website, of course, but your corpus only leaves the
-machine if you point `llm.local.base_url` at a remote endpoint yourself.
+Not by default. The default provider is local: the corpus, the index,
+the embeddings, and every model call stay on your machine, and no tier
+requires a hosted API key. Fetching a web source talks to that website,
+of course. Your corpus leaves the machine only if you point
+`llm.local.base_url` at a remote endpoint yourself, or if you run under
+`llm.provider: agent`, where the in-session agent's own hosted API sees
+whatever it reads.
 
 **Can I mix PDFs and web sources in one knowledge base?**
 Yes -- that's the normal case. Both producers write run directories with
@@ -1596,8 +1620,9 @@ source and an exact quote instead of a model's say-so.
 - **role (`llm.roles`)** -- a named pipeline phase (`extract`,
   `wiki_write`, `conflict_adjudicate`, `synthesize`, `code_agent`) that
   the local provider routes to its own model, sampling, thinking mode,
-  and response format. Unset roles fall back to the flat `llm.local`
-  model.
+  and response format. A role without its own model uses the flat
+  `llm.local.model` if the project set one explicitly, and its shipped
+  Qwen default otherwise.
 - **the compiler** -- the `knowledge-compiler` stage: a full,
   from-scratch rebuild of the disposable DuckDB + LanceDB index from
   the corpus, normalizing evidence as it goes. If the index and the

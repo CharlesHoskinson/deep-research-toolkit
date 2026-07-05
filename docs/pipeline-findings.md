@@ -119,7 +119,7 @@ passed gate is safe" is exactly the false inference the architecture invites.
 ### Testing: test the mechanical, refuse to fake the judgment
 
 The most honest thing about the test suite is what it declines to test. The
-extraction and synthesis *judgment* is not mocked; the default agent backend
+extraction and synthesis *judgment* is not mocked; the `agent` backend
 raises rather than pretending to make a judgment call, because a faked judgment
 test proves nothing. What is tested is everything mechanical — the verbatim
 gate, rank fusion, the graph walk, batching, id resolution, role routing — as

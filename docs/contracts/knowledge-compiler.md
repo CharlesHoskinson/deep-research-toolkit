@@ -135,8 +135,10 @@ tables, both with the same three-column shape `{id, text, vector}`:
 - **`claim_vectors`** — one row per claim (`id` = `claim_id`, `text` = the
   claim sentence).
 
-Embeddings come from sentence-transformers using the configured
-`llm.embedding_model` (default `all-MiniLM-L6-v2`), normalized. Tests
+Embeddings come from the configured `llm.embedding_model` (default
+`qwen3-embedding:8b`, served through the Ollama endpoint; a plain
+sentence-transformers name runs through sentence-transformers instead),
+normalized. Tests
 inject a deterministic `FakeEmbedder` instead (16-dim, hash-derived, no
 torch) so the full compile-and-query path runs in fast CI; the
 `compile.py` shim exposes the same via `DRT_FAKE_EMBEDDER=1` for smoke
@@ -220,19 +222,22 @@ are performed by a model. Which model, and how it's invoked, is the one
 pluggable seam, configured by `llm.provider` in `.deepresearch.yml` and
 resolved by `deep_research_toolkit.llm.backend.get_backend()`:
 
-- **`agent` (the default, also accepted as `anthropic`).** The in-session
-  agent — Claude Code or Codex, reading the relevant SKILL.md — *is* the
-  extraction step, exactly as ADR 0001 decision #4 established. There is
-  no programmatic model call; `AgentBackend.complete()` raising
-  `LLMBackendNotConfigured` is by design, because under this provider a
-  script asking a backend to extract claims is a usage error.
-- **`local` (opt-in).** An OpenAI-compatible endpoint — Ollama's
-  `:11434/v1`, vLLM's `:8000/v1` — serving a local reasoning model such as
-  `Ornith-1.0-9B`, configured under `llm.local` (`base_url`, `model`,
-  `api_key_env`, `temperature`, `top_p`, `top_k`, `max_tokens`). Responses
+- **`local` (the default).** An OpenAI-compatible endpoint — Ollama's
+  `:11434/v1`, vLLM's `:8000/v1` — serving the local model stack
+  configured under `llm.local` (`base_url`, `model`, `api_key_env`,
+  `temperature`, `top_p`, `top_k`, `max_tokens`) and, per role, under
+  `llm.roles`. The flat fallback model defaults to `qwen2.5:7b-instruct`;
+  the per-role defaults are the Qwen stack tabled below. Responses
   have the reasoning trace stripped before parsing (`strip_think` handles
   both a full `<think>...</think>` block and a template that primes the
   assistant turn with `<think>`, so only the closing tag comes back).
+- **`agent` (the opt-out, also accepted as `anthropic`).** No local models
+  at all: the in-session agent — Claude Code or Codex, reading the
+  relevant SKILL.md — *is* the extraction step, exactly as ADR 0001
+  decision #4 established. There is no programmatic model call;
+  `AgentBackend.complete()` raising `LLMBackendNotConfigured` is by
+  design, because under this provider a script asking a backend to
+  extract claims is a usage error.
 
 Under `local`, extraction runs programmatically: `extract_claims_to_run()`
 (exposed as `scripts/extract_claims.py` in both `research-knowledge-graph`
@@ -253,8 +258,9 @@ never corrupt the corpus with plausible-sounding paraphrases.
 how much of the reference extraction a given local model recovers, and how
 many of its proposals the gate dropped.
 
-**Serving a local reasoning model.** Reasoning models are the point of the
-`local` path, and two operational details decide whether one works at all.
+**Serving a local reasoning model.** Several roles (adjudication,
+synthesis, code-agent work) default to reasoning models, and two
+operational details decide whether one works at all.
 First, the model needs its real chat template. The stock
 `Ornith-1.0-9B-GGUF` on Hugging Face ships no template, so Ollama falls back
 to a raw passthrough that silences the model's `<think>` reasoning (and can
@@ -270,29 +276,36 @@ into repetition on this model family.
 **Role-routed model stack.** One model is rarely right for every phase, so
 the local provider routes each phase to its own model under `llm.roles`.
 `get_backend(config, role="extract")` resolves the model, sampling, thinking
-mode, and response format for that role; a call with no role (or a role left
-unconfigured) falls back to the flat `llm.local` model, so a single-model
-setup still works unchanged. The roles and their defaults:
+mode, and response format for that role. A role that doesn't name its own
+model falls back to the flat `llm.local.model` when the project set that key
+explicitly (single-model back-compat), and to the role's shipped default
+below otherwise; a call with no role uses the flat `llm.local` model. The
+roles and their shipped defaults (`ROLE_DEFAULTS` in `config.py`):
 
-| role | default mode | what it's for | fits |
-|---|---|---|---|
-| `extract` | non-thinking, `json` mode, `max_tokens` 3000, `temperature` 0 | high-volume claim/entity/relation extraction | a fast **instruct** model |
-| `wiki_write` | non-thinking, `max_tokens` 4096 | merge claims into OKF pages | a mid/large instruct model |
-| `conflict_adjudicate` | thinking, `max_tokens` 8192 | confirm real contradictions | a reasoning model |
-| `synthesize` | thinking, `max_tokens` 12000 | dossiers, theses, analysis | a reasoning model |
-| `code_agent` | thinking, `max_tokens` 16000 | repo/coding-agent work | an agentic-coding model (e.g. Ornith) |
+| role | default model | default mode | what it's for | fits |
+|---|---|---|---|---|
+| `extract` | `qwen2.5:7b-instruct` | non-thinking, `json` mode, `max_tokens` 3000, `temperature` 0 | high-volume claim/entity/relation extraction | a fast **instruct** model |
+| `wiki_write` | `qwen3.6:35b-a3b` | non-thinking, `max_tokens` 4096 | merge claims into OKF pages | a mid/large instruct model |
+| `conflict_adjudicate` | `qwen3.6:27b` | thinking, `max_tokens` 8192 | confirm real contradictions | a reasoning model |
+| `synthesize` | `qwen3.6:27b` | thinking, `max_tokens` 12000 | dossiers, theses, analysis | a reasoning model |
+| `code_agent` | `Ornith-1.0-9B` | thinking, `max_tokens` 16000 | repo/coding-agent work | an agentic-coding model (e.g. Ornith) |
+
+This stack is the default, and `drt init` writes the equivalent block into
+`.deepresearch.yml`:
 
 ```yaml
 llm:
   provider: local
-  embedding_model: qwen3-embedding:4b
-  roles:
-    extract:     {model: qwen2.5:7b-instruct}
-    wiki_write:  {model: qwen3.6:35b-a3b}
-    synthesize:  {model: qwen3.6:27b}
+  embedding_model: qwen3-embedding:8b
   local:
     base_url: http://localhost:11434/v1
-    model: ornith-9b-drt      # fallback / code_agent
+    model: qwen2.5:7b-instruct   # flat fallback
+  roles:
+    extract:             {model: qwen2.5:7b-instruct}
+    wiki_write:          {model: qwen3.6:35b-a3b}
+    conflict_adjudicate: {model: qwen3.6:27b}
+    synthesize:          {model: qwen3.6:27b}
+    code_agent:          {model: Ornith-1.0-9B}
 ```
 
 The split matters most at `extract`, which runs once per chunk-batch per
@@ -311,10 +324,11 @@ output can't be parsed is surfaced as `parse_failures` rather than silently
 counted as "no claims."
 
 **Embeddings** are configured separately (`llm.embedding_model`) and routed
-by name shape: a plain sentence-transformers name (`all-MiniLM-L6-v2`, the
-default) runs locally via sentence-transformers, while an Ollama model tag
-(`qwen3-embedding:4b`) embeds through the same `llm.local.base_url` endpoint —
-a materially stronger retrieval embedding. LanceDB infers the vector
-dimension from the model's output, so swapping MiniLM for a 4B/8B Qwen
-embedding (or 4B for 8B) needs only the config line and a recompile, no schema
-change. Embeddings are never routed through the generative LLM backend.
+by name shape: an Ollama model tag (`qwen3-embedding:8b`, the default) embeds
+through the same `llm.local.base_url` endpoint — a materially stronger
+retrieval embedding — while a plain sentence-transformers name
+(`all-MiniLM-L6-v2`, for example) runs locally via sentence-transformers.
+LanceDB infers the vector dimension from the model's output, so swapping the
+Qwen embedder for MiniLM (or 8B for 4B) needs only the config line and a
+recompile, no schema change. Embeddings are never routed through the
+generative LLM backend.
