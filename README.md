@@ -1201,12 +1201,14 @@ llm:
   provider: local
   embedding_model: qwen3-embedding:4b
   roles:
-    extract:     {model: qwen2.5:7b-instruct}  # the tested extract model
-    wiki_write:  {model: qwen3.6:35b-a3b}      # illustrative tag, not tested
-    synthesize:  {model: qwen3.6:27b}          # illustrative tag, not tested
+    extract:             {model: gemma4:e4b}   # validated: 100% gate pass on the reference fixture
+    wiki_write:          {model: gemma4:12b}
+    conflict_adjudicate: {model: gemma4:31b}
+    synthesize:          {model: gemma4:31b}
+    code_agent:          {model: qwen3.6:27b}
   local:
     base_url: http://localhost:11434/v1
-    model: ornith-9b-drt      # fallback / code_agent
+    model: gemma4:12b        # fallback for any role left unset
 ```
 
 One finding from testing is worth stating plainly: a model's
@@ -1217,6 +1219,14 @@ every attempt to disable thinking under the Ollama builds we tested,
 whether via the `think: false` request parameter or a `/no_think`
 prompt directive. Each reasoned until it hit the token ceiling and
 returned nothing.
+
+Gemma 4 sharpens this point: under Ollama its thinking mode is on by
+default, and on the OpenAI-compatible endpoint `think: false` is
+silently ignored (ollama/ollama#15288) -- the switch that works there
+is `reasoning_effort: "none"`, which the local backend now sends
+automatically whenever a role sets `thinking: false`. Measured on the
+hydra fixture, all Gemma 4 dense sizes pass the verbatim gate at 100%
+with reasoning suppressed, 4-5x faster than with it left on.
 
 That failure lands hardest on `extract`, the one role that runs at
 volume and wants an immediate JSON answer. The fix was not to wait for
