@@ -8,6 +8,7 @@ Run after appending each extraction batch to claims.jsonl:
 Exit 0: every claim's every quote is a verbatim substring of its chunk.
 Exit 1: failures listed as JSON on stdout -- fix or drop those claims
 before extracting the next batch. Deterministic; no model, no network."""
+import argparse
 import json
 import sys
 
@@ -15,9 +16,10 @@ from deep_research_toolkit.common.claims_check import check_claims_file
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    report = check_claims_file(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("run_dir", help="run directory containing claims.jsonl and chunks.jsonl")
+    args = parser.parse_args()
+    report = check_claims_file(args.run_dir)
     print(json.dumps(report, indent=2))
     return 1 if report["failures"] else 0
 

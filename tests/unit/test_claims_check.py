@@ -31,6 +31,30 @@ def test_corrupted_quote_is_flagged(tmp_path):
     assert "not a verbatim substring" in report["failures"][0]["reason"]
 
 
+def test_quote_from_wrong_chunk_is_flagged(tmp_path):
+    """A quote that is verbatim text elsewhere in the run but NOT in the chunk
+    named by the evidence's own node_id must still fail -- the gate is
+    chunk-scoped, not corpus-scoped."""
+    run = _copy_fixture(tmp_path)
+    rows = [json.loads(l) for l in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    chunks = [json.loads(l) for l in (run / "chunks.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    chunk_text = {c.get("node_id") or c.get("locator"): c.get("text", "") for c in chunks}
+
+    ev = rows[0]["supporting_evidence"][0]
+    cited_id = ev.get("node_id") or ev.get("locator")
+    other_text = next(
+        text for cid, text in chunk_text.items()
+        if cid != cited_id and text and text not in chunk_text[cited_id]
+    )
+    ev["quote"] = other_text  # verbatim in a different chunk, not in the cited one
+    (run / "claims.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+
+    report = check_claims_file(run)
+    assert len(report["failures"]) == 1
+    assert report["failures"][0]["claim_id"] == rows[0]["claim_id"]
+    assert "not a verbatim substring" in report["failures"][0]["reason"]
+
+
 def test_missing_evidence_is_flagged(tmp_path):
     run = _copy_fixture(tmp_path)
     rows = [json.loads(l) for l in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]

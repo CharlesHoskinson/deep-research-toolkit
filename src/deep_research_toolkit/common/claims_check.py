@@ -42,7 +42,7 @@ def check_claims_file(run_dir: Path | str) -> dict:
             continue
         bad = []
         for ev in evidence:
-            key = ev.get("locator") or ev.get("node_id") or ""
+            key = ev.get("node_id") or ev.get("locator") or ""
             quote = ev.get("quote") or ""
             if not quote:
                 bad.append(f"empty quote (locator {key!r})")
