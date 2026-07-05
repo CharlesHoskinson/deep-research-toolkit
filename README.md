@@ -600,10 +600,19 @@ eventually needs a second backend, the routing decision that justifies
 adding one is already sitting in `classification.json`, not something that
 has to be reverse-engineered later.
 
-Everything this stage decides gets written to `classification.json`, and a
-`manifest.json` gets started alongside it: the file every later stage
-reads `document_id` back out of, appending its own entry rather than ever
-overwriting what came before.
+Running it is one command, `python scripts/classify_pdf.py <pdf_path>`,
+and it's the only stage in the pipeline that takes a PDF path at all. The
+runs directory resolves from `.deepresearch.yml`'s
+`knowledge_base.pdf_runs_dir` unless `--runs-dir` overrides it, with a
+plain `pdf-runs/` fallback for zero-config exploration, and the script
+prints the run directory it created -- the one argument every later stage
+takes. Everything the stage decides lands in `classification.json`, and a
+`manifest.json` gets started alongside it with the `document_id`, the
+source path, and a content hash: the file every later stage reads
+`document_id` back out of, appending its own entry rather than ever
+overwriting what came before. One thing that never lands in the run
+directory is the PDF itself -- the manifest records its path and hash, not
+its bytes.
 
 ### pdf-to-canonical-markdown
 
@@ -615,6 +624,18 @@ want to read; `docling_raw.json` is what the next few stages actually
 parse, kept in Docling's own shape rather than reprocessed into something
 this toolkit invented, since downstream code already knows how to walk
 Docling's `texts`/`tables`/`pictures`/`pages` structure directly.
+
+Invocation is where the pipeline's one CLI convention starts:
+`python scripts/convert.py <run_dir>`, where the run directory is the path
+`classify_pdf.py` printed. The source PDF's location is never passed on
+the command line -- the script reads `source_file` back out of
+`manifest.json`, converts it with Docling (table structure recognition
+explicitly enabled), writes the two outputs, and appends its own `stages`
+entry to the manifest recording the parser name and version. That append
+goes through `common.manifest.update_stage`, which merges into the
+existing manifest rather than replacing it; a stage clobbering another
+stage's manifest entry was a real bug in the original prototype, and the
+fix is now pinned by a regression test.
 
 One piece of this stage is worth calling out specifically because it came
 from a real failure, not a hypothetical one: even a plain digital-text PDF
@@ -644,11 +665,22 @@ away exactly the information a citation needs: which page a sentence came
 from, which section it sits under, where on the page it physically is.
 This stage exists to recover that before anything downstream makes a
 factual claim it can't back up. It walks Docling's structured export in
-true document order, not headings first and tables afterward (that ordering
-matters: it's enough to attach a table to the wrong section if it happens to
-sit between two paragraphs), and emits one record per structural unit: heading,
+true document order, not headings first and tables afterward -- processing
+text and tables as separate passes is enough to attach a table to the wrong
+section when it sits between two paragraphs -- and emits one record per
+structural unit: heading,
 paragraph, table, figure, caption, or list item, each carrying its page
 number, its section path, its bounding box, and a content hash.
+
+The command is `python scripts/extract_provenance.py <run_dir>`, and it
+reads exactly two files: `docling_raw.json` for the structure and
+`manifest.json` for the document's identity. The document-order walk
+follows Docling's `body.children` list, resolving each `$ref` pointer to
+its `texts` or `tables` item, mapping Docling's `label` onto one of the
+six `unit_type` values, and maintaining a stack of active headings that
+becomes each unit's `section_path`. One JSON object per unit goes out to
+`provenance.jsonl`, each line carrying its `schema_version`, and the
+manifest gains a `unit_count`.
 
 Getting `section_path` right turned out to need a small heuristic, because
 Docling's own heading-level field isn't always trustworthy. In this
@@ -668,7 +700,10 @@ It's the layer that makes the difference between "the model said so" and
 why `confidence` is honestly recorded as `1.0` across the board right now:
 this pipeline doesn't run OCR yet, so there's no real per-element
 confidence score to report, and a fabricated one would be worse than an
-honest placeholder.
+honest placeholder. Table cell structure is the other deliberate
+exclusion: tables get flattened here into a pipe-separated text rendering,
+just enough to hash and locate them, because the real per-cell CSV
+extraction is `knowledge-extraction`'s job two stages later.
 
 ### canonical-markdown-to-llm-nodes
 
@@ -684,6 +719,19 @@ document's own structure instead: one node per heading section, one node
 per table, one node per figure, because `pdf-layout-provenance` already
 recovered exactly that structure in the previous stage. Nothing here is
 guessing where the meaningful boundaries are.
+
+`python scripts/chunk_nodes.py <run_dir>` is the whole invocation; the
+logic lives in `deep_research_toolkit.pdf.chunk.chunk_nodes`, so the same
+function is importable and unit-testable without going through a
+subprocess. The grouping rules are short. A heading opens a new `section`
+node, and the paragraphs and list items after it fold in until the next
+heading, table, or figure; tables and figures always get nodes of their
+own. Captions get particular treatment: a caption contributes its
+`unit_id` and page to whichever node it falls under, but its text is not
+spliced into the surrounding narrative, because a figure caption dropped
+mid-paragraph reads as a non-sequitur. Every node carries
+`links.previous` and `links.next`, chaining the whole file in document
+order.
 
 Long sections get a second pass. When a section's combined text runs past
 roughly 1,500 characters and was built from more than one paragraph, the
@@ -706,24 +754,38 @@ algorithm to fake with a keyword-frequency count.
 ### knowledge-extraction
 
 This is the stage where the pipeline stops being purely mechanical, and it
-says so plainly rather than pretending otherwise. Two of its six outputs
-come from scripts: pulling tables out of Docling's cell data into real CSV
-files, and pulling figures into PNGs alongside a caption record that never
-silently drops a figure just because Docling didn't capture usable pixel
-data for it. The other three outputs (`claims.jsonl`, `entities.jsonl`,
-`relations.jsonl`) are written directly by an LLM reading the previous
-stage's chunked nodes, because deciding whether a sentence expresses one
-real, checkable claim, or whether "Hydra" and "Hydra Head" refer to the
-same thing, isn't something a regex should be trusted to decide.
+says so plainly rather than pretending otherwise. Half of its six outputs
+come from scripts: tables pulled out of Docling's cell data into real CSV
+files, figures pulled into PNGs, and a caption record that never silently
+drops a figure just because Docling didn't capture usable pixel data for
+it. The other three (`claims.jsonl`, `entities.jsonl`, `relations.jsonl`)
+are written directly by an LLM reading the previous stage's chunked
+nodes, because deciding whether a sentence expresses one real, checkable
+claim, or whether "Hydra" and "Hydra Head" refer to the same thing, isn't
+something a regex should be trusted to decide.
+
+The deterministic half is two scripts, `extract_tables.py` and
+`extract_figures.py`, each taking the run directory and each reading
+`docling_raw.json` rather than the original PDF. The table script places
+every cell's text at its recorded row and column offset, leaving
+spanned-over cells blank instead of repeating a value, and writes one
+`tables/table_NN.csv` per table. The figure script tries to materialize
+`figures/figure_NN.png` from Docling's image data but always writes a row
+to `figures/captions.jsonl` regardless: a figure with a caption but no
+extractable pixels is recorded with `extracted: false` and a note, never
+dropped, because the eval harness downstream counts figure references,
+not just successful PNGs. Both scripts are idempotent, and each merges
+only its own counts into the manifest, so re-running one never wipes out
+the claim, entity, and relation counts the LLM half records.
 
 The rule that does the most work here is the evidence rule: every claim's
-supporting quote has to be copy-pasted verbatim from the source text on the
-page it cites, never paraphrased, never cleaned up for readability. That
-constraint is checked mechanically downstream by `rag-eval-harness`, and
-it's the single property that keeps this toolkit's claims audit-able rather
-than merely plausible-sounding. A claim with a quote that doesn't actually
-appear on the cited page is worse than no claim at all, because it looks
-verified when it isn't. The other rules that shape a good extraction pass
+supporting quote has to be copy-pasted verbatim from the cited node's own
+text, never paraphrased, never cleaned up for readability, always with the
+page it appears on. That constraint is checked mechanically downstream by
+`rag-eval-harness`, and it's the single property that keeps this toolkit's
+claims audit-able rather than merely plausible-sounding. A claim with a
+quote that doesn't actually appear in its cited source is worse than no
+claim at all, because it looks verified when it isn't. The other rules that shape a good extraction pass
 are almost as load-bearing: one checkable assertion per claim rather than a
 compound sentence trying to do two jobs, entity mentions merged under
 their most formal name with variants kept as aliases instead of spawning
@@ -749,6 +811,19 @@ into it and bumps its timestamp rather than creating a near-duplicate file.
 That's exactly the discipline `research-knowledge-graph` already applies to web
 research, applied here to PDF-derived content instead.
 
+The writing itself is the agent's judgment, but the bookkeeping runs
+through one script. New pages get scaffolded with
+`scripts/scaffold_wiki_page.py <run_dir> <knowledge_path> --type ...
+--title ... --status draft --source-docs <document_id>`, and the script
+refuses to overwrite an existing file without `--force` -- if a page
+already exists, the agent edits it by hand and then calls the script with
+`--record-updated` so the touched path still gets logged. The
+`<knowledge_path>` is relative to whatever `.deepresearch.yml`'s
+`knowledge_base.path` points at; there is no separate PDF-wiki directory,
+and this stage adds nothing to the page format beyond the two status
+values below and an optional `source_docs` frontmatter field listing
+which PDF runs a page draws on.
+
 New pages always start at `status: draft` (a value this pipeline adds on
 top of the existing `seed`/`researched`/`stale` set), because a page
 synthesized from a single document hasn't been cross-checked against
@@ -765,8 +840,9 @@ that's actually just a coin flip.
 Every page this stage touches, whether newly created or merged into, gets
 logged to `wiki_pages_written.json` in the run directory: the audit trail
 `rag-eval-harness` reads to know exactly which pages this run is
-responsible for. The stage finishes by running the knowledge base's
-lint check. A wiki-writer run that leaves the graph broken (an orphaned
+responsible for. The stage finishes by running
+`research-knowledge-graph`'s `lint_graph.py` over the whole knowledge
+base. A wiki-writer run that leaves the graph broken (an orphaned
 page, a dangling link) is treated as worse than one that wrote nothing at
 all.
 
@@ -780,18 +856,33 @@ all exist, and the corruption is only visible if someone reads every
 output by hand. This stage automates that read, every time, so a document
 doesn't get trusted just because the earlier stages didn't crash.
 
-Six mechanical checks run against whatever's in a run directory: whether
-every heading recovered from the canonical markdown made it into some
-chunk's section path, whether the table count in the provenance data
-matches the CSV count on disk, whether every claim's cited page actually
-exists, whether every claim's quote is genuinely verbatim on that page,
-whether every figure reference was either extracted or explicitly flagged
-as not extracted, and whether any page's text looks like OCR garbage. Each
-one is designed to fail loudly on the specific corruption it exists to
-catch, rather than passing by default. The harness is also safe to run
-against a half-finished pipeline: any check whose input files don't exist
-yet is marked skipped, not failed, so `pass_rate` always reflects only the
-checks that had something real to check.
+Six mechanical checks run against whatever's in a run directory:
+`headings_recovered` (every heading in the canonical markdown made it into
+some chunk's section path), `tables_present` (the table count in the
+provenance data matches the CSV count on disk), `page_citations_valid`
+(every claim's cited page actually exists), `evidence_quotes_verbatim`
+(every claim's supporting quote appears character for character in the
+chunk it cites), `figures_accounted_for` (every figure reference was
+either extracted or explicitly flagged as not extracted), and
+`no_ocr_garbage` (no page's text crosses a small non-printable/mojibake
+threshold). Each one is designed to fail loudly on the specific corruption
+it exists to catch, rather than passing by default. The verbatim check
+deserves a note: it is chunk-based, and it runs through the one shared
+gate in `common/verbatim.py` that claim extraction and dossier composition
+also apply. One definition of "the source text," enforced everywhere,
+means a quote admitted at extraction time can't be rejected here because
+two stages quietly disagreed about what to check it against.
+
+`python scripts/run_eval.py <run_dir>` runs everything and writes two
+reports back into the run directory: `eval_report.json`, the
+machine-readable version with a `pass_rate`, and `eval_report.md`, the
+same checks as a table a human can skim. It's safe to point at a
+half-finished pipeline. Any check whose input files don't exist yet is
+marked skipped, not failed, so a run that has only reached the chunking
+stage reports honestly on what could be checked instead of drowning in
+spurious failures. The flip side is that `pass_rate` only ever means
+"score out of the checks that could run" -- the per-check `detail` field
+is the thing to read, not just the number.
 
 One thing this stage deliberately leaves out of its automated score:
 question-and-answer retrieval probes, where you write questions a reader
