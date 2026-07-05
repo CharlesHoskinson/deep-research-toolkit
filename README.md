@@ -307,13 +307,25 @@ covers what gets fetched, where it lands, and how to pre-warm it -- worth
 five minutes before you start, rather than discovering a model download
 mid-pipeline on a flaky connection.
 
-`drt init` is a short interview: it asks what this project's research is
-actually about and where the knowledge base should live, then writes both
-answers into `.deepresearch.yml` at the project root. That file matters
-more than it looks. Every skill reads its topic and scope from there
-instead of hardcoding one, so "research X for the knowledge base" means
-your X, not some generic default. It also asks which tier you installed
-and sets the `features.*` flags to match.
+`drt init` asks no questions -- everything comes in as flags. `--tier`
+takes `web`, `pdf`, `compiler`, or `full` (the default) and sets the
+`features.*` flags in `.deepresearch.yml` to match, so pass the tier you
+actually installed. `--topic-name` and `--scope-hint` fill in the topic
+block, and `--knowledge-base` relocates the knowledge base from its
+default `knowledge_base/`. A realistic first run looks like:
+
+```bash
+drt init --tier pdf --topic-name "Perovskite stability" \
+  --scope-hint "Degradation mechanisms and encapsulation, not manufacturing economics"
+```
+
+A bare `drt init` still works, but it writes `topic.name: "(unnamed
+project)"` with a placeholder scope hint and every `features.*` flag set
+to true. Either way, the generated `.deepresearch.yml` is meant to be
+opened and edited afterward. That file matters more than it looks: every
+skill reads its topic and scope from there instead of hardcoding one, so
+"research X for the knowledge base" means your X, not some generic
+default.
 
 Beyond the config file, `drt init` scaffolds the knowledge base directory
 and copies each skill (its `SKILL.md` plus scripts) into both
@@ -361,11 +373,11 @@ reads your topic from `.deepresearch.yml`, checks what the knowledge base
 already has, fetches only what's missing, and writes or updates wiki
 pages.
 
-By hand, the same flow is four scripts and one judgment step. Fetch a page
-with `research-knowledge-graph/scripts/fetch.py <url> --out source.md`,
-then scaffold a run directory from it:
+By hand, the same flow is four scripts and one judgment step. Fetch a
+page, then scaffold a run directory from it:
 
 ```bash
+python .claude/skills/research-knowledge-graph/scripts/fetch.py <url> --out source.md
 python .claude/skills/research-knowledge-graph/scripts/start_research_run.py <url> --content-file source.md
 ```
 
