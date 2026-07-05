@@ -1399,12 +1399,14 @@ sampling defaults that suit each phase.
 ## Verification and testing
 
 CI runs in two tiers, split by dependency weight rather than by
-importance. The fast tier runs on every push and pull request, on both
-Ubuntu and Windows, and installs neither torch nor an embedding model:
-the compiler tests run against real DuckDB and LanceDB, but with an
-injected fake embedder (deterministic, hash-derived vectors) standing in
-for sentence-transformers, so the whole compile-and-query path is
-exercised end to end without a model download. The same job checks that
+importance. The fast tier runs on every push to main and every pull
+request, on both Ubuntu and Windows. It installs the `dev` and `pdf`
+extras plus DuckDB and LanceDB directly, but skips the `compiler` extra,
+so sentence-transformers never lands in the environment: the compiler
+tests run against real DuckDB and LanceDB, with an injected fake
+embedder (deterministic, hash-derived vectors) standing in for
+sentence-transformers, so the whole compile-and-query path is exercised
+end to end without downloading or loading an embedding model. The same job checks that
 the two plugin manifests and the skill templates are in sync, runs the
 fast suite -- dozens of unit and light integration tests -- with
 coverage, and lints with ruff; an advisory mypy job and a pip-audit job
