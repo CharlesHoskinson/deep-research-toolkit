@@ -1455,7 +1455,8 @@ version 0.2.0. Around all of it, the `drt` CLI (`init`, `upgrade`,
 `doctor`, `migrate`), the role-routed local backend (`llm.roles`, so
 each pipeline phase runs on a model suited to it), and the dual plugin
 manifests that serve Claude Code and Codex from one shared `skills/`
-tree. The fast suite covers this on every push, and the two heavy
+tree. The fast suite covers this on every push to main and every pull
+request, and the two heavy
 integration tests exercise exactly what the fast suite fakes: real
 Docling conversion of the fixture PDF with a perfect eval score
 required, and a real-embedding compile with every retrieval tool run
