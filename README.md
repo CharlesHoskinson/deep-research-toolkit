@@ -22,7 +22,8 @@ cite, and keep building on instead of starting over on every question.
 - [Configuration](#configuration)
 - [Verification and testing](#verification-and-testing)
 - [Status and roadmap](#status-and-roadmap)
-- [FAQ and glossary](#faq-and-glossary)
+- [FAQ](#faq)
+- [Glossary](#glossary)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -1485,8 +1486,170 @@ rather than forgotten. If one of them starts to matter for your corpus,
 the two ADRs are where the reasoning -- and the sketch of what would be
 built -- lives.
 
+## FAQ
+
+**How is this different from a generic RAG pipeline?**
+Mostly in what it refuses to trust. A claim only enters the corpus if
+its supporting quote survives the verbatim gate -- an exact substring
+check against the source -- so a model can under-produce but can't
+fabricate a citation. The corpus itself is plain files in git; the
+DuckDB + LanceDB index is just a rebuildable cache over them. And the
+two producers (PDF and web) feed one graph, their different evidence
+shapes normalized into a single `evidence_ref` at index time.
+
+**Do I need a GPU?**
+No. Under the default `agent` provider, the in-session agent does the
+extraction and synthesis, and every other stage is deterministic Python
+plus a small CPU-friendly embedding model at compile time. A GPU starts
+to matter only if you opt into the `local` provider and serve your own
+models -- see [Running local models](#running-local-models).
+
+**Which local model should I use?**
+No single model is right for every phase, which is what `llm.roles` is
+for. Use a genuinely non-reasoning instruct model (something like
+`qwen2.5:7b-instruct`) for `extract`, since that role runs at volume and
+wants immediate JSON, and a reasoning model for `synthesize` and
+`conflict_adjudicate`. `scripts/validate-local-llm.py` measures a
+candidate against the reference extraction fixture before you commit to
+it.
+
+**Is my data sent anywhere?**
+Not by default. The corpus, index, and embeddings all live on your
+machine, and no tier requires a hosted API key. Fetching a web source
+talks to that website, of course, but your corpus only leaves the
+machine if you point `llm.local.base_url` at a remote endpoint yourself.
+
+**Can I mix PDFs and web sources in one knowledge base?**
+Yes -- that's the normal case. Both producers write run directories with
+the same claims/entities/relations schemas, the compiler indexes both
+and normalizes their different evidence shapes at index time, and every
+retrieval tool works over the result without caring which side a claim
+came from.
+
+**Does it work in Codex as well as Claude Code?**
+Yes. There is one shared `skills/` tree serving both platforms through
+dual plugin manifests (`.claude-plugin/` and `.codex-plugin/`), and
+`drt init` copies the skills into both `.claude/skills/` and
+`.agents/skills/`. CI checks the two manifests never drift.
+
+**What happens when a model hallucinates a quote?**
+The claim is dropped. A paraphrased or invented quote fails the
+substring test no matter how plausible it reads, so it never reaches
+the corpus -- under the local backend it lands in an explicit `dropped`
+list, and `compose_dossier` re-checks every quote later and reports
+rejects with reasons rather than passing them through.
+
+**So everything in the corpus is true?**
+No. The gate guarantees fidelity to the source, not truth -- a source's
+own errors pass straight through as grounded claims, and a quote being
+present doesn't prove it supports the claim built around it. What you
+get is that "where did this come from?" always resolves to a named
+source and an exact quote instead of a model's say-so.
+
+## Glossary
+
+- **OKF (Open Knowledge Format)** -- the convention every knowledge-base
+  page follows: markdown with YAML frontmatter (required `type`,
+  `title`, `timestamp`; optional fields like `status` and `aliases`),
+  one concept per file, cross-linked with relative markdown links that
+  are the graph's edges. Defined in `docs/contracts/okf-frontmatter.md`.
+- **evidence_ref** -- the single producer-agnostic evidence shape
+  (`producer`, `source_id`, `locator`, `quote`, optional `page` and
+  `url`) the compiler normalizes each claim's evidence into at index
+  time. On-disk run files keep their native shapes; everything
+  downstream of the index sees only this one.
+- **dossier** -- the output of `compose_dossier`: the claims selected to
+  answer a query, split into `included` and `rejected`, where inclusion
+  requires at least one evidence row and every quote passing the
+  verbatim gate against its source text.
+- **RRF (Reciprocal Rank Fusion)** -- the rule hybrid search uses to
+  merge the lexical (BM25) and vector rankings: each result scores the
+  sum of `1 / (k + rank)` over the lists it appears in, with k = 60.
+  Rank-based, so the two incomparable score scales need no calibration.
+- **provenance** -- the layout facts markdown conversion throws away,
+  recovered into `provenance.jsonl`: one line per structural unit with
+  its page, section path, bounding box, and content hash. Page
+  citations are validated against this file.
+- **run directory** -- the per-source working set,
+  `pdf-runs/<document_id>/` or `research-runs/<source_id>/`: manifest,
+  chunks, claims, entities, relations, and eval output for one
+  document, git-tracked as the auditable record of how a conclusion was
+  reached.
+- **producer** -- which side wrote a run, `pdf` or `web`; the only
+  distinction `evidence_ref` preserves after normalization.
+- **chunk / node** -- one retrieval unit in `chunks.jsonl`, cut along
+  document structure (one node per heading section, tables and figures
+  as their own nodes), never a fixed token-count split. Each carries a
+  `node_id`, a type, a section path, and its source pages and units.
+- **claim** -- one factual assertion in `claims.jsonl`, with a type, a
+  confidence, and supporting evidence whose quote must be verbatim from
+  the cited source.
+- **the verbatim gate** -- the exact-substring check (`verbatim_ok` in
+  `common/verbatim.py`) a claim's quote must pass against its cited
+  source text; enforced at extraction, dossier composition, and eval,
+  with no normalization and no fuzzy matching.
+- **role (`llm.roles`)** -- a named pipeline phase (`extract`,
+  `wiki_write`, `conflict_adjudicate`, `synthesize`, `code_agent`) that
+  the local provider routes to its own model, sampling, thinking mode,
+  and response format. Unset roles fall back to the flat `llm.local`
+  model.
+- **the compiler** -- the `knowledge-compiler` stage: a full,
+  from-scratch rebuild of the git-ignored DuckDB + LanceDB index from
+  the corpus, normalizing evidence as it goes. If the index and the
+  files disagree, the files win -- you recompile.
+
 ## Contributing
 
-See `CONTRIBUTING.md` for the development setup, test tiers, and what to
-update when you change an on-disk format. `LICENSE` covers the terms:
-MIT, so build on it freely.
+Development happens against an editable install. Clone the repo, make a
+virtualenv, and install with the dev extras:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate   # Windows; source .venv/bin/activate on Linux/macOS
+pip install -e ".[dev,full]"
+```
+
+CI's fast tier installs a leaner set --
+`pip install -e ".[dev,pdf]" "duckdb>=1.0" "lancedb>=0.15"` -- on
+purpose, keeping the `compiler` extra (and with it
+sentence-transformers) out of the environment; use that line if you
+want to reproduce CI exactly. Either way, `docs/environment.md` covers
+the Python version floor and the assets Docling and Playwright download
+on first use, well after `pip install` has reported success.
+
+Tests come in two tiers, split by dependency weight. The fast suite,
+`pytest -m "not heavy"`, runs on every push and pull request on both
+Ubuntu and Windows, and it has to pass before you open a PR. Tests
+marked `heavy` make real Docling and embedding-model calls against
+`tests/fixtures/`; they run on a weekly cron and manual dispatch, not
+on your PR, so run `pytest -m heavy` locally only when you've touched
+the PDF core or the embedding path.
+
+The on-disk formats are the load-bearing part of this repo, and their
+contracts live in `docs/contracts/` -- manifest keys, JSONL row shapes,
+OKF frontmatter, the schema-version registry. If you change any of
+them, bump the relevant `schema_version` in
+`docs/contracts/schema-versions.md` and add a `CHANGELOG.md` entry
+under "Schema changes."
+
+Two sync guards run in CI, and both have a local command:
+
+- `python scripts/check-manifests-in-sync.py` verifies the two plugin
+  manifests (`.claude-plugin/plugin.json` and
+  `.codex-plugin/plugin.json`) agree on every shared field. Run it if
+  you touched either manifest.
+- `python scripts/check-skill-templates-in-sync.py` verifies
+  `src/deep_research_toolkit/skill_templates/` is a byte-for-byte copy
+  of the canonical `skills/` tree -- that copy is what ships inside the
+  wheel, compared by content hash so a stale tree can't slip through.
+  If you changed anything under `skills/`, regenerate it with
+  `python scripts/sync-skill-templates.py`; it's a one-way copy, so
+  never edit `skill_templates/` directly.
+
+`ruff check src/ skills/` lints, and CI runs mypy as an advisory job.
+`CONTRIBUTING.md` is the short authoritative version of all of the
+above.
+
+## License
+
+MIT -- see [`LICENSE`](LICENSE).
