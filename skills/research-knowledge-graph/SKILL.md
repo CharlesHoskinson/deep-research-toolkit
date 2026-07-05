@@ -68,17 +68,6 @@ content as fetched), `chunks.jsonl` (one node per heading section), and a
 `manifest.json` with `producer: web`. The runs dir defaults from
 `.deepresearch.yml` via `deep_research_toolkit.config`.
 
-**Work in batches; keep progress on disk.** Process `chunks.jsonl` in order,
-10–20 chunks at a time; append each batch's output before reading the next.
-After each gated batch, record the last chunk you finished in
-`manifest.json` under `stages.research-knowledge-graph.last_chunk`. If you
-are resuming (after compaction, a crash, or a new session), re-read this
-SKILL.md, read `last_chunk`, and continue from the next chunk — never
-restart a run that has gated output. If your environment supports parallel
-subagents, you may split the remaining chunks into contiguous ranges (one
-subagent per range, each returning claims JSONL for you to gate and merge)
-— an optimization, never a requirement.
-
 Then do the extraction yourself: read the run's `chunks.jsonl` and write
 `claims.jsonl`, `entities.jsonl`, and `relations.jsonl` into the same run
 directory, following `references/web-claim-extraction.md` — it gives the
@@ -87,6 +76,22 @@ exact schemas (web evidence is `{"locator": "<source_id>:cNN", "quote":
 quote must be a verbatim substring of `source.md`. Don't script this
 part; deciding what counts as an atomic, well-evidenced claim is a
 judgment call.
+
+**Work in batches; keep progress on disk.** Process `chunks.jsonl` in order,
+10–20 chunks at a time; append each batch's output before reading the next.
+After each gated batch, record the id of the last chunk you finished in
+`extraction-progress.json` in the run directory — e.g.
+`{"last_chunk": "<chunk id>"}`. This is your own scratch note for resuming;
+no other tooling reads it, and it never belongs in `manifest.json`, whose
+stage entries mark true one-time completion. Delete it when extraction
+finishes. If you are resuming (after compaction, a crash, or a new
+session), re-read this SKILL.md, read `last_chunk` from
+`extraction-progress.json`, and continue from the next chunk — never
+restart a run that has gated output. If your environment supports parallel
+subagents, you may split the remaining chunks into contiguous ranges (one
+subagent per range, each returning claims JSONL for you to gate and merge)
+— an optimization, never a requirement. Gate each returned range with
+`check_claims.py` before merging it; the merge inherits only gated claims.
 
 **Gate every batch before moving on.** After appending a batch of claims to
 `claims.jsonl`, run:
@@ -99,9 +104,10 @@ never paraphrase — and re-run until it exits 0. Do not extract the next
 batch over unfixed failures: the compile-time gate would reject them later
 anyway, after you have lost the context to repair them.
 
-These runs are indexed by the `knowledge-compiler` skill alongside PDF
-runs, so web-sourced and PDF-sourced claims about the same entity end up
-in one queryable graph.
+Once every chunk is extracted and gated, delete `extraction-progress.json`
+if present. These runs are indexed by the `knowledge-compiler` skill
+alongside PDF runs, so web-sourced and PDF-sourced claims about the same
+entity end up in one queryable graph.
 
 ## Writing to the knowledge base
 

@@ -62,17 +62,6 @@ because `rag-eval-harness`'s `figures_accounted_for` check counts figure
 
 ## Part 2 — claims, entities, relations (the agent does this directly)
 
-**Work in batches; keep progress on disk.** Process `chunks.jsonl` in order,
-10–20 chunks at a time; append each batch's output before reading the next.
-After each gated batch, record the last chunk you finished in
-`manifest.json` under `stages.knowledge-extraction.last_chunk`. If you are
-resuming (after compaction, a crash, or a new session), re-read this
-SKILL.md, read `last_chunk`, and continue from the next chunk — never
-restart a run that has gated output. If your environment supports parallel
-subagents, you may split the remaining chunks into contiguous ranges (one
-subagent per range, each returning claims JSONL for you to gate and merge)
-— an optimization, never a requirement.
-
 Read `chunks.jsonl` in the run directory, then write three JSONL files
 directly into the run directory, one JSON object per line, matching these
 schemas exactly (see the contract doc for the authoritative version):
@@ -88,6 +77,22 @@ schemas exactly (see the contract doc for the authoritative version):
 {"schema_version": "1.0", "relation_id": "r_0001", "subject": "hydra-head", "predicate": "serves_as", "object": "synchronous settlement layer", "supporting_claim": "c_0001", "document_id": "..."}
 ```
 
+**Work in batches; keep progress on disk.** Process `chunks.jsonl` in order,
+10–20 chunks at a time; append each batch's output before reading the next.
+After each gated batch, record the id of the last chunk you finished in
+`extraction-progress.json` in the run directory — e.g.
+`{"last_chunk": "<chunk id>"}`. This is your own scratch note for resuming;
+no other tooling reads it, and it never belongs in `manifest.json`, whose
+stage entries mark true one-time completion. Delete it when extraction
+finishes. If you are resuming (after compaction, a crash, or a new
+session), re-read this SKILL.md, read `last_chunk` from
+`extraction-progress.json`, and continue from the next chunk — never
+restart a run that has gated output. If your environment supports parallel
+subagents, you may split the remaining chunks into contiguous ranges (one
+subagent per range, each returning claims JSONL for you to gate and merge)
+— an optimization, never a requirement. Gate each returned range with
+`check_claims.py` before merging it; the merge inherits only gated claims.
+
 **Gate every batch before moving on.** After appending a batch of claims to
 `claims.jsonl`, run:
 
@@ -101,8 +106,9 @@ anyway, after you have lost the context to repair them.
 
 After writing all three, update `manifest.json` yourself (the scripts above
 only ever touch `table_count`/`figure_count`): merge `claim_count`,
-`entity_count`, and `relation_count` into `stages.knowledge-extraction`, and
-set/refresh `completed_at`. Use `deep_research_toolkit.common.manifest.
+`entity_count`, and `relation_count` into `stages.knowledge-extraction`,
+set/refresh `completed_at`, and delete `extraction-progress.json` if
+present. Use `deep_research_toolkit.common.manifest.
 update_stage(run_dir, "knowledge-extraction", claim_count=..., entity_count=...,
 relation_count=...)` — it merges into the existing stage entry rather than
 replacing it, so the table/figure counts already recorded there survive.
