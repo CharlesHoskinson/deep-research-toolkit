@@ -61,6 +61,131 @@ knowledge base, using the same format, so it doesn't matter whether a fact
 came from a webpage or a whitepaper: it ends up in one place, checkable
 the same way, and the compiler indexes both sides into one graph.
 
+## Core ideas
+
+Most of this toolkit follows from a small number of ideas. Once you have
+them, each of the ten skills described later reads as a consequence rather
+than a separate thing to learn -- of course the chunker doesn't guess at
+summaries, of course a weak local model can't corrupt the corpus. This
+section defines the vocabulary the
+rest of the README reuses -- the three layers, the verbatim-quote gate,
+evidence_ref, OKF, producer, run directory -- so that when a later section
+says "the gate rejects it," you already know which gate and why it exists.
+
+### The three layers
+
+The first layer is the durable corpus: markdown wiki pages plus per-run
+JSONL files, all kept in git. This is the audit trail. Every claim, entity,
+and relation the system knows lives here as a plain file, each claim
+carrying a verbatim quote from a named source, and "how do we know this?"
+is answered by opening the file and reading, not by querying anything. If
+every other layer were deleted, the corpus alone would still be a complete
+and inspectable record.
+
+The second layer is the derived index: DuckDB for full-text and graph
+queries, LanceDB for vectors. It's git-ignored, and it's rebuilt from
+scratch on every compile -- never patched incrementally. That sounds
+wasteful until you notice what it buys: there is no state in which the
+index and the files can silently disagree. The index is either current or
+stale, and stale is fixed by recompiling, which takes seconds at the
+per-project scale this toolkit serves. Nothing ever has to patch the index
+to match a changed file, so a whole class of cache-invalidation bugs
+can't exist here.
+
+The third layer is the judgment layer: an LLM, whether the in-session
+agent reading a SKILL.md or a local model behind an OpenAI-compatible
+endpoint. It's trusted to do exactly one kind of work -- propose. It
+proposes claims, proposes entity merges, proposes wiki prose. It is never
+trusted to certify its own output, because certification is a mechanical
+check that no model gets to perform on itself. That division is what the
+next idea enforces.
+
+```
++---------------------------------------------------------------+
+|  JUDGMENT LAYER     agent (in-session)  or  local model       |
+|  proposes claims; never certifies them                        |
++-------------------------------+-------------------------------+
+                                |  writes (only if gated)
+                                v
++---------------------------------------------------------------+
+|  DURABLE CORPUS   (git-tracked -- the audit trail)            |
+|  knowledge_base/*.md   pdf-runs/<id>/   research-runs/<id>/    |
+|  claims + entities + relations, each with a verbatim quote    |
++-------------------------------+-------------------------------+
+                                |  compiled (full rebuild)
+                                v
++---------------------------------------------------------------+
+|  DERIVED INDEX    (git-ignored -- a rebuildable cache)        |
+|  DuckDB (full-text + graph)   +   LanceDB (vectors)           |
++-------------------------------+-------------------------------+
+                                |  queried by
+                                v
+                8 cheap, deterministic retrieval tools
+```
+
+### The verbatim-quote gate
+
+The one hard invariant: a claim is admitted only if its supporting quote is
+an exact substring of the source text it cites -- character for character,
+contiguous, no normalization. The check is deliberately dumb. It's a Python
+`in` test, it runs identically no matter which model produced the claim,
+and it's enforced at three points -- claim extraction, dossier composition,
+and the eval harness -- all calling the same `verbatim_ok` function in
+`common/verbatim.py`. One shared function matters more than it might seem:
+because every stage resolves the source text the same way (re-read from the
+run directory's `chunks.jsonl` on disk, independent of the compiled index),
+a claim admitted at extraction can never be rejected later because two
+stages disagreed about what "the source" was.
+
+The consequence is what makes the whole design safe to operate. A weak or
+hallucinating model can only under-produce -- fewer of its proposed claims
+survive the gate -- but it cannot fabricate a citation that looks real,
+because a paraphrased or invented quote fails the substring test no matter
+how plausible it reads. That's why the optional local-model backend exists
+at all: swapping a frontier model for a 9B one changes how much gets
+extracted, not whether what's extracted can be trusted.
+
+### evidence_ref: two producers, one shape
+
+Claims arrive from two producers, and their evidence is genuinely
+different in shape. A PDF claim cites a `node_id`, a quote, and a page
+number; a web claim cites a chunk `locator`, a quote, and a URL. Rather
+than forcing both producers to write some invented common format to disk,
+the compiler absorbs the asymmetry in one function, `normalize_evidence()`,
+at index time only. On-disk files keep their native shapes untouched, and
+everything downstream reads one uniform record: the `EvidenceRef`, with
+fields `producer`, `source_id`, `locator`, `quote`, and optional `page`
+and `url`. Every retrieval tool, and every dossier the toolkit composes,
+handles evidence through that one shape and never needs to know or care
+which producer a claim came from.
+
+```
+   PDF claim evidence              WEB claim evidence
+   { node_id, quote, page }        { locator, quote, url }
+            \                            /
+             \   normalize_evidence()   /   at index time only;
+              \      (the compiler)    /    on-disk files untouched
+               v                      v
+         EvidenceRef { producer, source_id, locator,
+                       quote, page?, url? }
+                          |
+                          v
+              one uniform shape every retrieval tool reads
+```
+
+### OKF and run directories
+
+Three more terms round out the vocabulary. OKF is the Open Knowledge
+Format: every knowledge-base page is markdown with YAML frontmatter, one
+concept per file, cross-linked with ordinary relative markdown links --
+and those links are the graph's edges, checked by lint, not decoration. A
+run directory (`pdf-runs/<id>/` or `research-runs/<id>/`) is the per-source
+working set: everything one document's ingestion produced, from raw
+conversion output through chunks to extracted claims, git-tracked on
+purpose as the auditable record of how a conclusion was reached. And a
+producer is simply which side wrote a run -- `pdf` or `web` -- the only
+distinction `EvidenceRef` needs to preserve after normalization.
+
 ## How it fits together
 
 ```
