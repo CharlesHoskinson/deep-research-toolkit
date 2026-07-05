@@ -1045,6 +1045,102 @@ details -- the chat template a reasoning model needs, generous token
 budgets, the `llm.roles` map that routes each phase to a model suited to
 it -- all covered in [Running local models](#running-local-models) below.
 
+## The retrieval tools
+
+Everything above this point spends effort: fetching, converting,
+extracting, compiling. Retrieval spends almost none. The eight tools in
+`src/deep_research_toolkit/compiler/tools.py` are plain Python over the
+compiled DuckDB and LanceDB tables, and none of them makes an LLM call
+at query time. That is a design rule (ADR 0001), not a current
+limitation: a tool with a model call inside has unpredictable cost and
+output that varies between runs, while these behave like database
+queries. Ask twice, get the same answer twice.
+
+Cheap and deterministic is also what makes the tools composable. An
+agent answering a question does not need to budget its calls: it can
+search claims, read the pages that surfaced, pull an entity, walk its
+neighbors, then compose a dossier from the claim ids it collected, all
+in one conversation. The judgment that makes those answers worth
+trusting happened upstream -- extraction decided what counts as a claim
+and pinned each one to a verbatim quote, the wiki writer merged sources
+and flagged conflicts, the compiler froze the result into tables. Query
+time only reads.
+
+When a tool takes a query string, retrieval is hybrid. The query runs
+through both engines, and the two rankings are fused with reciprocal
+rank fusion (`compiler/search.py`, the standard k=60), so a hit that
+only one engine finds still competes for a spot in the final list:
+
+```
+                        query string
+                             |
+             +---------------+---------------+
+             v                               v
+      DuckDB FTS / BM25              LanceDB vector search
+      (lexical, keyword)             (semantic, embeddings)
+             |                               |
+             v                               v
+        ranked list A                   ranked list B
+              \                             /
+               v   reciprocal rank fusion  v   (k = 60)
+                      fused ranking
+                             |
+      +---------+-----------+-----------+------------------+
+      v         v           v           v                  v
+  search_    search_    get_entity   neighbors    compose_dossier
+   wiki      claims                              (verbatim gate:
+                                                  included / rejected)
+```
+
+The eight tools, as implemented in `tools.py`. The retrieval-planner CLI
+(`skills/retrieval-planner/scripts/query.py`) exposes each one as a
+kebab-case subcommand that prints JSON.
+
+| Tool | Arguments | Returns |
+|------|-----------|---------|
+| `search_wiki` | `query, k=8` | Fused-ranked wiki pages: path, title, type, status, and a 200-char snippet each |
+| `read_page` | `path` | One full wiki page: body plus parsed frontmatter |
+| `search_claims` | `query, k=8, producer=None` | Fused-ranked claims with their evidence rows; `producer` filters to `pdf` or `web` |
+| `get_entity` | `name_or_id` | The entity's id, name, type, aliases, mentions, and every relation it appears in |
+| `neighbors` | `entity, depth=1` | Graph neighbors, from a depth-bounded walk over the relation table |
+| `get_sources` | `page=` or `claim=` | Provenance: a page's source frontmatter, or the distinct sources behind a claim |
+| `find_contradictions` | none | Contradiction candidates: conflicting relation triples plus `conflicted` pages |
+| `compose_dossier` | `query=None, claim_ids=None, k=12` | An evidence dossier split into `included` and `rejected` claim lists |
+
+`compose_dossier` is the tool the rest of the pipeline exists to feed.
+Given a query it takes the top `k` claim hits (default 12); given
+explicit `claim_ids` it skips search entirely. For each claim it gathers
+the evidence rows and applies the verbatim gate: every supporting quote
+must appear character for character in the chunk it cites, where the
+chunk text is re-read from the run directory's `chunks.jsonl` and
+matched by the evidence's locator -- the same shared check in
+`common/verbatim.py` that extraction and the eval harness apply. A claim
+with no evidence, or with even one quote that fails the substring test,
+lands in `rejected` with an explicit reason; only claims whose every
+quote survives reach `included`. Note what the gate checks against: the
+chunk the extractor was actually shown, not a rendered PDF page or a
+whole `source.md`. Quote and source text are resolved the same way at
+every stage, so a claim admitted at extraction time is never silently
+rejected here because two stages disagreed on what "the source" means.
+
+The JSON shape is for agents; `--format md` on the CLI's
+`compose-dossier` subcommand is for deliverables. It renders `included`
+as a self-citing markdown dossier: each claim numbered, its verbatim
+quotes as blockquotes with source and locator inline, and a closing note
+counting anything omitted as not verbatim-verifiable. The document
+carries its own audit trail, so a reader can check any line against the
+cited source without ever opening a run directory.
+
+`find_contradictions` returns candidates, not verdicts. Mechanically, it
+reports two things: relation rows where a single `(subject, predicate)`
+pair maps to more than one distinct object, and wiki pages whose status
+is `conflicted`. Plenty of candidates are innocent -- a person can hold
+two titles, a project can have two funders -- and deciding which ones
+are real contradictions takes judgment. That confirmation is an agent
+step, run as one batched pass over the whole candidate list (the
+retrieval-planner SKILL.md drives it), never a model call hidden inside
+the tool.
+
 ## Configuration
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at your
