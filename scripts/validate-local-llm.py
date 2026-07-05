@@ -110,7 +110,10 @@ def main() -> int:
         config = dataclasses.replace(config, research_runs_path=tmp)
 
     try:
-        backend = get_backend(config)
+        # role="extract" mirrors the production call in extract_claims.py, so
+        # the harness exercises the same roles.extract config (non-thinking,
+        # temp 0, json response format) that a real run would use.
+        backend = get_backend(config, role="extract")
         result = extract_claims_to_run(work_run, args.producer, config, backend)
     except LLMBackendNotConfigured as e:
         sys.exit(str(e))
@@ -123,6 +126,8 @@ def main() -> int:
           f"{len(result['dropped'])} dropped")
     if result["dropped"]:
         print(f"dropped claim_ids (non-verbatim or missing evidence): {result['dropped']}")
+    if result.get("parse_failures"):
+        print(f"parse failures (batches that never yielded parseable JSON): {result['parse_failures']}")
 
     if reference:
         hit, missed = _recovered(reference, produced)

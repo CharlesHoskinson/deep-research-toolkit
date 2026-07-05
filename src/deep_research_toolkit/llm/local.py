@@ -65,7 +65,14 @@ class LocalOpenAIBackend:
 
     def _client_complete(self, system: str, user: str, **kw):
         client = self._load_client()
-        extra_body = {"top_k": kw.get("top_k", self.top_k), "think": kw.get("thinking", self.thinking)}
+        think = kw.get("thinking", self.thinking)
+        extra_body = {"top_k": kw.get("top_k", self.top_k), "think": think}
+        if not think:
+            # Ollama's OpenAI-compatible endpoint ignores `think: false` for
+            # some model families (Gemma 4: ollama/ollama#15288) but honors
+            # `reasoning_effort: "none"`. Send both; stacks that ignore one
+            # respect the other, and vLLM disables Gemma 4 thinking by default.
+            extra_body["reasoning_effort"] = "none"
         kwargs = dict(
             model=self.model,
             messages=[
