@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import deque
 from pathlib import Path
 
 from ..compiler.dossier import verbatim_ok
@@ -172,6 +173,10 @@ def _write_jsonl(path: Path, rows: list[dict], stamp: dict) -> None:
 #: enough that even a verbose reasoning pass fits comfortably under max_tokens.
 DEFAULT_BATCH_SIZE = 6
 
+#: How many times a failed (unparseable) batch may be halved and retried before
+#: it's counted as a parse failure. 6 -> 3 -> 1 covers the default batch size.
+_MAX_RETRY_DEPTH = 2
+
 
 def _batches(items: list, size: int):
     for i in range(0, len(items), size):
@@ -196,15 +201,18 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
 
     def _resolve(emitted: str) -> str | None:
         # A reasoning model often "cleans up" a long chunk id (emits "n002" for
-        # "<document_id>:n002"). Accept an exact key, else a chunk id that ends
-        # with the emitted label, so the claim isn't dropped over id cosmetics.
+        # "<document_id>:n002"). Accept an exact key, then a ":"-delimited suffix
+        # (the real id shape), then a bare suffix only if it's unambiguous -- so a
+        # short label can't silently resolve to the wrong chunk.
         if emitted in chunk_text_by_id:
             return emitted
-        if len(emitted) >= 2:
-            for cid in chunk_ids:
-                if cid.endswith(":" + emitted) or cid.endswith(emitted):
-                    return cid
-        return None
+        if len(emitted) < 2:
+            return None
+        delimited = [cid for cid in chunk_ids if cid.endswith(":" + emitted)]
+        if delimited:
+            return delimited[0] if len(delimited) == 1 else None
+        bare = [cid for cid in chunk_ids if cid.endswith(emitted)]
+        return bare[0] if len(bare) == 1 else None
 
     id_key = "node_id" if producer == "pdf" else "locator"
     kept, dropped = [], []
@@ -212,18 +220,32 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     relations: list[dict] = []
     parse_failures = 0
     batch_list = list(_batches(chunks, max(1, batch_size)))
+    multi = len(batch_list) > 1
 
     thinking = getattr(backend, "thinking", True)
-    for i, batch in enumerate(batch_list):
+    # A work queue rather than a fixed loop, so a batch whose output can't be
+    # parsed (usually token truncation) is retried as smaller halves instead of
+    # silently lost -- bounded by depth so it terminates.
+    queue: deque[tuple[list[dict], int]] = deque((b, 0) for b in batch_list)
+    batch_no = 0
+    while queue:
+        batch, depth = queue.popleft()
         system, user = build_extraction_prompt(batch, producer, thinking=thinking)
         parsed = parse_extraction_response(backend.complete(system, user))
         if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
-            parse_failures += 1
+            if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
+                mid = len(batch) // 2
+                queue.appendleft((batch[mid:], depth + 1))
+                queue.appendleft((batch[:mid], depth + 1))
+                multi = True  # splitting a lone batch means ids now need a prefix
+            else:
+                parse_failures += 1
             continue
 
         # Give ids a batch prefix (only when batched) so they stay unique across
         # batches while keeping each relation's supporting_claim reference valid.
-        prefix = f"b{i:02d}_" if len(batch_list) > 1 else ""
+        prefix = f"b{batch_no:02d}_" if multi else ""
+        batch_no += 1
         for claim in parsed["claims"]:
             if not isinstance(claim, dict):
                 continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
@@ -263,6 +285,12 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                 rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
             relations.append(rel)
 
+    # Drop relations whose supporting_claim was gate-dropped (or never existed),
+    # so no relation points at a claim_id that isn't in claims.jsonl. A relation
+    # with no supporting_claim is kept as-is.
+    kept_ids = {c["claim_id"] for c in kept}
+    relations = [r for r in relations if not r.get("supporting_claim") or r["supporting_claim"] in kept_ids]
+
     _write_jsonl(run_dir / "claims.jsonl", kept, {"document_id": source_id})
     _write_jsonl(run_dir / "entities.jsonl", list(entities_by_id.values()), {})
     _write_jsonl(run_dir / "relations.jsonl", relations, {"document_id": source_id})
@@ -272,6 +300,6 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         "dropped": [c.get("claim_id") for c in dropped],
         "entities": len(entities_by_id),
         "relations": len(relations),
-        "batches": len(batch_list),
+        "batches": batch_no,
         "parse_failures": parse_failures,
     }

@@ -135,6 +135,72 @@ def test_extract_resolves_abbreviated_entity_mentions(tmp_path):
     assert result["written"] == 1                         # claim's abbreviated locator also resolved
 
 
+def test_extract_drops_relations_referencing_dropped_claims(tmp_path):
+    run = tmp_path / "research-runs" / "src-r"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Alpha is real.", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-r:c01", "text": "Alpha is real."}) + "\n",
+                                      encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps({
+        "claims": [
+            {"claim_id": "good", "claim": "Alpha is real.",
+             "supporting_evidence": [{"locator": "src-r:c01", "quote": "Alpha is real", "url": None}]},
+            {"claim_id": "bad", "claim": "x",  # non-verbatim -> dropped
+             "supporting_evidence": [{"locator": "src-r:c01", "quote": "paraphrase not present", "url": None}]},
+        ],
+        "entities": [],
+        "relations": [
+            {"relation_id": "r1", "subject": "a", "predicate": "p", "object": "b", "supporting_claim": "good"},
+            {"relation_id": "r2", "subject": "a", "predicate": "p", "object": "c", "supporting_claim": "bad"},
+            {"relation_id": "r3", "subject": "a", "predicate": "p", "object": "d"},  # no supporting_claim
+        ],
+    })
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
+    ids = {json.loads(x)["relation_id"] for x in (run / "relations.jsonl").read_text(encoding="utf-8").splitlines() if x}
+    assert ids == {"r1", "r3"}  # r2 pointed at the dropped claim
+    assert result["relations"] == 2
+
+
+def test_extract_retries_failed_batch_by_splitting(tmp_path):
+    run = tmp_path / "research-runs" / "src-rt"
+    run.mkdir(parents=True)
+    with open(run / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps({"node_id": "src-rt:c01", "text": "Alpha fact."}) + "\n")
+        f.write(json.dumps({"node_id": "src-rt:c02", "text": "Beta fact."}) + "\n")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+
+    class _Splitty:  # full 2-chunk batch fails to parse; each 1-chunk half succeeds
+        def complete(self, system, user, **kw):
+            has1, has2 = "src-rt:c01" in user, "src-rt:c02" in user
+            if has1 and has2:
+                return "garbage, no json object at all"
+            cid, q = ("src-rt:c01", "Alpha fact") if has1 else ("src-rt:c02", "Beta fact")
+            return "<output>" + json.dumps({
+                "claims": [{"claim_id": "c1", "claim": q,
+                            "supporting_evidence": [{"locator": cid, "quote": q, "url": None}]}],
+                "entities": [], "relations": []}) + "</output>"
+
+    result = extract_claims_to_run(run, "web", cfg, _Splitty(), batch_size=2)
+    assert result["written"] == 2 and result["parse_failures"] == 0  # the split recovered both
+
+
+def test_extract_ambiguous_abbreviated_id_is_not_resolved(tmp_path):
+    run = tmp_path / "research-runs" / "src-am"
+    run.mkdir(parents=True)
+    with open(run / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps({"node_id": "src-am:axn5", "text": "Alpha fact here."}) + "\n")
+        f.write(json.dumps({"node_id": "src-am:byn5", "text": "Beta fact here."}) + "\n")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    # "n5" is a bare suffix of BOTH chunk ids -> ambiguous -> must not resolve -> claim dropped
+    payload = "<output>" + json.dumps({
+        "claims": [{"claim_id": "c1", "claim": "x",
+                    "supporting_evidence": [{"locator": "n5", "quote": "Alpha fact here", "url": None}]}],
+        "entities": [], "relations": []}) + "</output>"
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload), batch_size=6)
+    assert result["written"] == 0 and result["dropped"] == ["c1"]
+
+
 def test_extract_tolerates_bare_string_claims(tmp_path):
     # Some instruct models emit claims as bare strings ({"claims": ["text"]})
     # instead of objects. Those have no evidence and must be skipped, not crash.
