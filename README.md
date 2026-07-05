@@ -1141,6 +1141,114 @@ step, run as one batched pass over the whole candidate list (the
 retrieval-planner SKILL.md drives it), never a model call hidden inside
 the tool.
 
+## Running local models
+
+The pipeline calls an LLM in only a few places, and those places want
+different models. Claim extraction runs once per chunk-batch per source
+-- hundreds of calls over a real corpus -- and wants a fast instruct
+model that emits JSON and stops. Synthesis is a single judgment call at
+the end of a run and benefits from a model that reasons before it
+answers. Contradiction review sits with synthesis; wiki writing sits
+closer to extraction. Serving all of them with one model is
+systematically wrong for at least one of them.
+
+So under `provider: local` the config routes each phase to its own
+model. `llm.roles` maps a role name to a model, sampling settings, a
+thinking mode, and a response format, and
+`get_backend(config, role="extract")` resolves the backend for that
+phase. Any role you leave unset -- or all of them -- falls back to the
+flat `llm.local` model, so a single-model setup keeps working
+unchanged. The routing is additive, not required.
+
+```
+  PHASE                     ROLE (llm.roles)      MODEL KIND
+  ----------------------    ------------------    -----------------
+  extract  (high volume)    extract               fast instruct
+  wiki-write                wiki_write            mid/large instruct
+  contradiction review      conflict_adjudicate   reasoning
+  synthesize / thesis       synthesize            reasoning
+  code-agent work           code_agent            agentic-coding
+  ----------------------    ------------------    -----------------
+  embeddings                llm.embedding_model   Ollama or sentence-
+                                                  transformers
+
+  get_backend(config, role="extract") -> the model for that phase
+  any role left unset      -> falls back to the flat llm.local model
+```
+
+The per-role defaults (`ROLE_DEFAULTS` in `config.py`) encode what each
+phase needs:
+
+| Role | Thinking | `temperature` | `max_tokens` | `response_format` |
+|------|----------|---------------|--------------|-------------------|
+| `extract` | off | 0.0 | 3000 | `json` |
+| `wiki_write` | off | 0.2 | 4096 | -- |
+| `conflict_adjudicate` | on | 0.2 | 8192 | -- |
+| `synthesize` | on | 0.4 | 12000 | -- |
+| `code_agent` | on | 0.6 | 16000 | -- |
+
+`top_p` (0.95) and `top_k` (20) come from `llm.local` unless a role
+overrides them, as do the model, `base_url`, and `api_key_env`. A
+minimal stack overrides just the models:
+
+```yaml
+llm:
+  provider: local
+  embedding_model: qwen3-embedding:4b
+  roles:
+    extract:     {model: qwen2.5:7b-instruct}
+    wiki_write:  {model: qwen3.6:35b-a3b}
+    synthesize:  {model: qwen3.6:27b}
+  local:
+    base_url: http://localhost:11434/v1
+    model: ornith-9b-drt      # fallback / code_agent
+```
+
+One finding from testing is worth stating plainly: a model's
+"non-thinking" switch is a promise about the model, not about your
+serving stack. Two model families that advertise one -- the reasoning
+model Ornith-1.0-9B and the hybrid model `qwen3.5:9b` -- both ignored
+every attempt to disable thinking under the Ollama builds we tested,
+whether via the `think: false` request parameter or a `/no_think`
+prompt directive. Each reasoned until it hit the token ceiling and
+returned nothing.
+
+That failure lands hardest on `extract`, the one role that runs at
+volume and wants an immediate JSON answer. The fix was not to wait for
+the switch to start working; it was to stop depending on a switch. A
+true instruct model such as `qwen2.5:7b-instruct` has no reasoning path
+to suppress, so there is nothing for the serving layer to get wrong.
+The question to ask is never "does this model support non-thinking
+mode" but "does this serving stack, at this version, honor that
+switch" -- and the only way to answer it is to test the exact
+(model, server, version) triple you intend to run.
+
+Getting a reasoning model to work at all involves two more serving
+details. First, the model needs its real chat template: the stock
+`Ornith-1.0-9B-GGUF` on Hugging Face ships without one, so Ollama falls
+back to a raw passthrough that silences the model's `<think>` reasoning
+and can degenerate into repetition loops. Build a local model from it
+with a proper ChatML `TEMPLATE` (`ollama create <name> -f Modelfile`)
+and point `llm.local.model` at that name. Second, budget tokens
+generously -- `max_tokens` defaults to 16000 because a reasoning model
+spends thousands of tokens thinking before it answers, and a low cap
+truncates it mid-thought -- and keep the documented sampling
+(`temperature` 0.6, `top_p` 0.95, `top_k` 20): lowering the temperature
+for "determinism" backfires into repetition on this model family.
+
+Embeddings are a separate axis, set by `llm.embedding_model` and routed
+by the shape of the name: a plain sentence-transformers name
+(`all-MiniLM-L6-v2`, the default) runs through sentence-transformers,
+while an Ollama tag -- anything with a `:`, like `qwen3-embedding:4b`
+-- embeds through the same local endpoint. LanceDB infers the vector
+dimension from the model's output, so swapping embedding models is a
+one-line config change and a recompile, with no schema migration. To
+judge whether a candidate generative model is good enough,
+`scripts/validate-local-llm.py` runs it against the reference
+extraction fixture and reports how much of the reference it recovers
+and how many of its proposals the verbatim gate dropped. It is a manual
+harness, not part of CI.
+
 ## Configuration
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at your
