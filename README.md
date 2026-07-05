@@ -473,73 +473,98 @@ through:
 
 ## The skills
 
-Ten skills ship today. Seven of them form the PDF ingestion pipeline, one
-handles web research, and two form the knowledge-compiler layer that
-indexes and queries what the other eight produce. Every one of them is
-deliberately small. That's not an accident. A single monolithic "research
-skill" would load its entire instruction set into context on every use,
-whether you needed the PDF-parsing details or not. Splitting the work into
-ten focused skills means Claude or Codex only pulls in the instructions
-for the stage actually running, which keeps any single conversation's
-context usage proportional to what it's actually doing.
+Ten skills ship today. Seven form the PDF ingestion pipeline, one handles
+web research, and two form the knowledge-compiler layer that indexes and
+queries what the other eight produce. Every one of them is deliberately
+small. A single monolithic "research skill" would drag its whole
+instruction set into context on every use, whether the task at hand needed
+the PDF-parsing details or not; splitting the work into ten focused skills
+means the agent loads only the instructions for the stage actually
+running. This is the progressive-disclosure model both Claude Code and
+Codex use for skill discovery, and it keeps a conversation's context usage
+proportional to the work being done rather than to the size of the
+toolkit.
+
+The skills can stay small because they don't carry state or topic
+knowledge. Every hand-off between stages is a file with a documented
+schema -- a manifest, a JSONL record, an OKF page -- so each skill only has
+to explain its own stage, never the whole pipeline. Deterministic work
+(fetching, chunking, hashing, linting, index building) lives in scripts
+the skills call, while the two genuinely judgment-based stages, claim
+extraction and wiki synthesis, are the agent itself reasoning over those
+files with the skill supplying the rules -- the split
+`docs/decisions/0001-architecture.md` commits to. And nothing
+topic-specific is baked in anywhere: per-project scope lives in
+`.deepresearch.yml`, which is what lets one shared `skills/` tree serve
+both platforms and any research topic without editing a skill.
 
 ### research-knowledge-graph
 
 This is the web-research half of the toolkit, and the one meant to be used
-directly and repeatedly, not just once per document. It wraps
-[Scrapling](https://github.com/d4vinci/Scrapling) for retrieval (plain
-HTTP by default, a stealth mode when a site returns a bot-detection
-challenge or a flat 403) and stores everything it finds as Open Knowledge
-Format pages: markdown files with YAML frontmatter, one concept per file,
-cross-linked to each other with ordinary relative markdown links. Those
-links aren't decoration; they're the graph's edges, and the skill's lint
-step treats them as load-bearing.
+directly and repeatedly, not once per document. It wraps
+[Scrapling](https://github.com/d4vinci/Scrapling) for retrieval through
+its `fetch.py` script: plain HTTP by default, with a stealth mode reserved
+for when a plain fetch gets blocked by an anti-bot challenge or a flat 403
+-- stealth gets past things an ordinary web-fetch tool cannot. Findings
+are stored as Open Knowledge Format pages: markdown files with YAML
+frontmatter, one concept per file, cross-linked with ordinary relative
+markdown links. Those links aren't decoration; they are the graph's edges,
+and the lint step treats them as load-bearing.
 
-The operational discipline here comes from Andrej Karpathy's LLM-wiki
-pattern, and it shows up as three named operations: `ingest`, `query`, and
-`lint`. `ingest` doesn't just append a new file for every fetch. It
-checks the knowledge base first, and if a concept already has a page, it
-merges new findings into that existing page and bumps its timestamp rather
-than creating a near-duplicate. `query` searches the existing graph and
-walks its links before doing any live scraping at all, on the theory that
-re-deriving an answer you've already written down is wasted work. `lint`
-is the health check: it walks every page looking for orphans (pages
-nothing links to), broken links, missing or malformed frontmatter, and
-entries marked `researched` that have gone stale past a configurable
-threshold.
+The maintenance discipline comes from Andrej Karpathy's LLM-wiki pattern,
+and it shows up as three named operations: `ingest`, `query`, and `lint`.
+`ingest` doesn't append a new file for every fetch. It searches the
+knowledge base first, fetches only what's missing, records the source as a
+`src-XXXX` row in the knowledge base's sources index, and then -- if the
+concept already has a page -- merges the new findings into that page and
+bumps its timestamp instead of creating a near-duplicate. `query` searches
+the existing graph and walks its links before doing any live scraping at
+all, on the theory that re-deriving an answer you've already written down
+is wasted work. `lint` is the health check: `lint_graph.py` walks every
+page looking for orphans nothing links to, broken relative links, missing
+or malformed frontmatter, and `researched` pages whose timestamp has
+passed a staleness threshold (180 days by default).
 
-Every page's frontmatter carries a `status`: `seed` for a placeholder that
-exists but hasn't been researched yet, `researched` once it has real
-content, `stale` once lint flags it as overdue for a refresh, plus two more
-values the PDF pipeline adds (`draft` and `conflicted`, covered under
-`llm-wiki-writer` below). That status field is what lets `query` decide
-whether an existing page is good enough to answer from, or whether it needs
-a fresh `ingest` first.
+Every page's frontmatter carries a `status` field with five possible
+values: `seed` for a placeholder that exists but hasn't been researched
+yet, `researched` once it has real content, `stale` once lint flags it as
+overdue for a refresh, and two written by the PDF pipeline's
+`llm-wiki-writer` stage (covered below) -- `draft` for a page synthesized
+from a single ingested source and not yet cross-checked, and `conflicted`
+for a page where two sources directly disagree. The status field is what
+lets `query` decide whether an existing page can answer a question as-is,
+or whether a `seed` or `stale` marking means a fresh `ingest` has to
+happen first.
 
-In practice, using this skill looks like asking an agent to "research X for
-the knowledge base." It reads `.deepresearch.yml` to find out what this
-project's research scope actually is (never guessing from its own generic
-description), searches what's already there, fetches only what's missing,
-and writes or updates a page. Nothing about the skill itself is tied to any
-particular topic; the topic lives entirely in that one config file.
+None of this is tied to a topic. The skill's first instruction is to read
+`.deepresearch.yml` (found by walking up from the current directory, the
+same way git finds `.git`): `topic.scope_hint` says what this project's
+research is actually about, and `knowledge_base.path` says where the pages
+live. If the file doesn't exist, the skill tells the user to run `drt
+init` rather than inventing a scope or a directory to write into. So
+asking an agent to "research X for the knowledge base" means: read the
+config, search what's already there, fetch only the gaps, write or update
+a page.
 
-Web research also does what PDF ingestion has done from the start: turn a
-substantial source into evidence-backed claims, not just wiki prose. When
-a fetched page is worth mining, `start_research_run.py` scaffolds a
-`research-runs/<source_id>/` directory that deliberately mirrors a PDF
+Web research doesn't stop at wiki prose. It also produces claims -- the
+same evidence-backed records the PDF pipeline has emitted from the start.
+When
+a fetched source is substantial enough to mine, `start_research_run.py`
+scaffolds a `research-runs/<source_id>/` directory that mirrors a PDF
 run: the fetched content saved verbatim as `source.md`, one chunk per
 heading section in `chunks.jsonl`, and a `manifest.json` marking the
-producer as `web`. The agent then extracts `claims.jsonl`,
-`entities.jsonl`, and `relations.jsonl` into that same directory, under
-the same rules the PDF pipeline enforces, chiefly that every supporting
-quote must be a verbatim substring of `source.md`. That symmetry is the
-point: the knowledge compiler indexes web runs and PDF runs into one
-table, so a claim about some entity from a webpage and a claim about the
-same entity from a whitepaper end up in the same queryable graph, checked
-by the same evidence gate. Only the evidence shape differs (a web claim
-cites a chunk locator and a URL; a PDF claim cites a node id and a page
-number), and the compiler normalizes that difference away at index time
-without touching either producer's files on disk.
+producer as `web`. The agent then writes `claims.jsonl`,
+`entities.jsonl`, and `relations.jsonl` into that same directory itself --
+the skill leaves extraction unscripted on purpose, since deciding what
+counts as an atomic, well-evidenced claim is a judgment call -- under the
+rule that every supporting quote must be a verbatim substring of
+`source.md`. That symmetry is the point. The knowledge compiler indexes
+web runs and PDF runs into one table, so a claim about an entity from a
+webpage and a claim about the same entity from a whitepaper land in the
+same queryable graph, checked by the same evidence gate. Only the evidence
+shape differs (a web claim cites a chunk locator and a URL, a PDF claim a
+node id and a page number), and the compiler normalizes that difference
+away at index time without touching either producer's files on disk.
 
 ### pdf-ingest-router
 
