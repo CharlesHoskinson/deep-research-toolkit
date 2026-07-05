@@ -1,6 +1,6 @@
 ---
 name: llm-wiki-writer
-description: Sixth of seven pdf-ingestion pipeline stages -- runs after knowledge-extraction (which produces claims.jsonl/entities.jsonl) and before rag-eval-harness. Reads a pdf-runs/<document_id> run directory and synthesizes its claims and entities into stable Open Knowledge Format wiki pages inside the configured knowledge base, merging into existing pages where a concept is already covered and flagging genuine cross-document conflicts (status: conflicted) instead of silently picking a side. Use whenever claims.jsonl/entities.jsonl exist for a run and haven't been written into the knowledge base yet.
+description: Sixth of seven pdf-ingestion pipeline stages -- runs after knowledge-extraction and before rag-eval-harness. Reads a pdf-runs/<document_id> run directory and synthesizes its claims/entities into Open Knowledge Format wiki pages, merging into existing pages and flagging cross-document conflicts (status: conflicted) instead of silently picking a side. Use whenever claims.jsonl/entities.jsonl exist for a run and haven't been written into the knowledge base yet.
 ---
 
 # LLM Wiki Writer
@@ -76,6 +76,12 @@ From `<run_dir>` (a `pdf-runs/<document_id>/` directory, or wherever
      etc.) exactly as the existing graph does. If this introduces a new
      top-level concept, add it to the knowledge base's `index.md` under the
      right section, per `wiki-operations.md`'s `ingest` step 5.
+
+   Under `provider: local`, `scripts/write_wiki_page.py` drafts a
+   citation-gated body with the `wiki_write` model instead of you writing
+   the prose by hand; review the draft page like any other before treating
+   it as done -- it still needs the same query-first, merge-not-duplicate,
+   and conflict checks above.
 
 4. **Conflicts.** If two claims -- from different `document_id`s, whether
    both landing in this run or one already on an existing page -- directly
