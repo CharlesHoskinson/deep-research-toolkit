@@ -47,18 +47,34 @@ features:
   knowledge_compiler: {knowledge_compiler}
 
 llm:
-  provider: anthropic
-  model: claude-sonnet-4-5
-  api_key_env: ANTHROPIC_API_KEY
-  embedding_model: all-MiniLM-L6-v2
+  # Local, role-routed Qwen stack served by Ollama is the default. It needs a
+  # running Ollama endpoint (see llm.local.base_url) with the models below
+  # pulled. To run without local models -- letting the in-session agent do the
+  # extraction by hand instead -- set: provider: agent
+  provider: local
+  embedding_model: qwen3-embedding:8b
   local:
     base_url: http://localhost:11434/v1
-    model: Ornith-1.0-9B
+    model: qwen2.5:7b-instruct   # flat fallback (role=None, and any role below without its own model)
     api_key_env: OPENAI_API_KEY
     temperature: 0.6
     top_p: 0.95
     top_k: 20
     max_tokens: 16000
+  # Per-phase models. extract stays a true instruct model (qwen2.5:7b-instruct),
+  # NOT qwen3.5:9b -- under the Ollama builds tested it ignored non-thinking mode
+  # and produced nothing on extraction.
+  roles:
+    extract:
+      model: qwen2.5:7b-instruct
+    wiki_write:
+      model: qwen3.6:35b-a3b
+    conflict_adjudicate:
+      model: qwen3.6:27b
+    synthesize:
+      model: qwen3.6:27b
+    code_agent:
+      model: Ornith-1.0-9B
 
 scrapling:
   default_mode: http

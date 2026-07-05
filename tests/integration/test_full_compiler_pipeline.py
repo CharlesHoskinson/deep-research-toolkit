@@ -18,9 +18,12 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 @pytest.mark.heavy
 def test_full_pipeline_with_real_embeddings(tmp_path):
     # Assemble a project from the shipped fixtures.
+    # Pin the sentence-transformers embedder so this stays hermetic -- the
+    # shipped default (qwen3-embedding:8b) would route to a live Ollama endpoint.
     (tmp_path / ".deepresearch.yml").write_text(
         "version: 1\nknowledge_base:\n  path: kb\n  pdf_runs_dir: pdf-runs\n"
-        "  research_runs_dir: research-runs\n  index_dir: idx\n", encoding="utf-8")
+        "  research_runs_dir: research-runs\n  index_dir: idx\n"
+        "llm:\n  embedding_model: all-MiniLM-L6-v2\n", encoding="utf-8")
     shutil.copytree(FIXTURES / "reference-kb", tmp_path / "kb")
     shutil.copytree(FIXTURES / "reference-run-hydra-settlement",
                     tmp_path / "pdf-runs" / "hydra-settlement-test-fixture-4edb3c3c")

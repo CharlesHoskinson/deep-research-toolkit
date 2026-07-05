@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from deep_research_toolkit.config import find_config, load_config
 
 
@@ -32,6 +30,33 @@ def test_load_config_zero_config_default(tmp_path):
     assert cfg.knowledge_base_path == isolated / "knowledge_base"
 
 
+def test_defaults_are_the_local_qwen_stack(tmp_path):
+    # Zero-config: the shipped default is the local, role-routed Qwen stack --
+    # provider local, qwen embeddings, and each phase on its own Qwen model.
+    isolated = tmp_path / "project"
+    isolated.mkdir()
+    cfg = load_config(isolated)
+    assert cfg.llm_provider == "local"
+    assert cfg.embedding_model == "qwen3-embedding:8b"
+    assert cfg.llm_local["model"] == "qwen2.5:7b-instruct"
+    assert cfg.llm_roles["extract"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg.llm_roles["wiki_write"]["model"] == "qwen3.6:35b-a3b"
+    assert cfg.llm_roles["conflict_adjudicate"]["model"] == "qwen3.6:27b"
+    assert cfg.llm_roles["synthesize"]["model"] == "qwen3.6:27b"
+    assert cfg.llm_roles["code_agent"]["model"] == "Ornith-1.0-9B"
+
+
+def test_minimal_local_config_gets_per_role_qwen_models(tmp_path):
+    # A project that opts into local but names no flat model and no roles still
+    # gets the full per-phase Qwen stack (not one model for everything).
+    (tmp_path / ".deepresearch.yml").write_text(
+        "version: 1\nllm:\n  provider: local\n", encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.llm_roles["extract"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg.llm_roles["synthesize"]["model"] == "qwen3.6:27b"
+
+
 def test_load_config_resolves_paths_relative_to_config_file(tmp_path):
     (tmp_path / ".deepresearch.yml").write_text(
         "version: 1\n"
@@ -61,7 +86,7 @@ def test_index_dir_defaults_and_resolves(tmp_path):
     )
     cfg = load_config(tmp_path)
     assert cfg.index_dir == (tmp_path / ".deepresearch/index").resolve()
-    assert cfg.embedding_model == "all-MiniLM-L6-v2"
+    assert cfg.embedding_model == "qwen3-embedding:8b"
 
 
 def test_llm_local_block_parsed(tmp_path):

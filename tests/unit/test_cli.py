@@ -37,6 +37,21 @@ def test_init_writes_valid_config_matching_tier(tmp_path, monkeypatch):
     assert cfg.features == TIER_FEATURES["pdf"]
 
 
+def test_init_writes_the_local_qwen_stack(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["init", "--tier", "full", "--topic-name", "T", "--scope-hint", "S"]) == 0
+
+    cfg = load_config(tmp_path)
+    assert cfg.llm_provider == "local"
+    assert cfg.embedding_model == "qwen3-embedding:8b"
+    assert cfg.llm_local["model"] == "qwen2.5:7b-instruct"
+    assert cfg.llm_roles["extract"]["model"] == "qwen2.5:7b-instruct"
+    assert cfg.llm_roles["wiki_write"]["model"] == "qwen3.6:35b-a3b"
+    assert cfg.llm_roles["synthesize"]["model"] == "qwen3.6:27b"
+    assert cfg.llm_roles["code_agent"]["model"] == "Ornith-1.0-9B"
+
+
 def test_init_scaffolds_knowledge_base(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 

@@ -18,29 +18,50 @@ DEFAULT_KNOWLEDGE_BASE_PATH = "knowledge_base"
 DEFAULT_PDF_RUNS_PATH = "pdf-runs"
 DEFAULT_RESEARCH_RUNS_PATH = "research-runs"
 DEFAULT_INDEX_DIR = ".deepresearch/index"
-DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+#: qwen3-embedding served through Ollama -- a materially stronger retrieval
+#: embedder than the old sentence-transformers default. Has a "name:tag" shape,
+#: so compiler.embed routes it to the Ollama endpoint automatically.
+DEFAULT_EMBEDDING_MODEL = "qwen3-embedding:8b"
+#: Flat fallback model (role=None, and the base for any role without its own
+#: model). A true instruct model, deliberately NOT a reasoning/hybrid one:
+#: under the Ollama builds tested, qwen3.5:9b and Ornith ignored non-thinking
+#: requests and reasoned to the token ceiling with no output on extraction.
+DEFAULT_LOCAL_MODEL = "qwen2.5:7b-instruct"
 
-#: Per-phase model roles for a local model stack -- extraction wants a fast,
-#: non-thinking, schema-constrained model; synthesis/adjudication want a
-#: reasoning model. Each role is overridable under `llm.roles.<role>` in
-#: .deepresearch.yml; any field left unset falls back to the flat `llm.local`
-#: model, so a single-model setup still works (back-compat) while a real stack
-#: routes each phase to the right model.
+#: Per-phase model roles for the local Qwen stack. Extraction is high-volume
+#: and wants a fast, non-thinking, schema-constrained instruct model; wiki
+#: writing wants a larger instruct model; adjudication and synthesis want a
+#: reasoning model; code-agent work wants an agentic-coding model. Each role's
+#: `model` ships as a default here; every field is overridable per role under
+#: `llm.roles.<role>` in .deepresearch.yml. If a project sets a flat
+#: `llm.local.model`, that wins for any role it doesn't name (single-model
+#: back-compat); otherwise each role uses its shipped model below.
 ROLE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "extract":             {"thinking": False, "temperature": 0.0, "max_tokens": 3000,  "response_format": "json"},
-    "wiki_write":          {"thinking": False, "temperature": 0.2, "max_tokens": 4096,  "response_format": None},
-    "conflict_adjudicate": {"thinking": True,  "temperature": 0.2, "max_tokens": 8192,  "response_format": None},
-    "synthesize":          {"thinking": True,  "temperature": 0.4, "max_tokens": 12000, "response_format": None},
-    "code_agent":          {"thinking": True,  "temperature": 0.6, "max_tokens": 16000, "response_format": None},
+    "extract":             {"model": "qwen2.5:7b-instruct", "thinking": False, "temperature": 0.0, "max_tokens": 3000,  "response_format": "json"},
+    "wiki_write":          {"model": "qwen3.6:35b-a3b",     "thinking": False, "temperature": 0.2, "max_tokens": 4096,  "response_format": None},
+    "conflict_adjudicate": {"model": "qwen3.6:27b",         "thinking": True,  "temperature": 0.2, "max_tokens": 8192,  "response_format": None},
+    "synthesize":          {"model": "qwen3.6:27b",         "thinking": True,  "temperature": 0.4, "max_tokens": 12000, "response_format": None},
+    "code_agent":          {"model": "Ornith-1.0-9B",       "thinking": True,  "temperature": 0.6, "max_tokens": 16000, "response_format": None},
 }
 
 
-def _resolve_roles(roles_raw: dict[str, Any], local: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _resolve_roles(
+    roles_raw: dict[str, Any], local: dict[str, Any], flat_model_explicit: bool = True
+) -> dict[str, dict[str, Any]]:
+    """Resolve each role's full spec. Model precedence for a role that does not
+    name its own model: the flat `llm.local.model` when the project set one
+    explicitly (`flat_model_explicit`, single-model back-compat), otherwise the
+    role's shipped `ROLE_DEFAULTS` model (the Qwen stack). Non-model fields
+    always fall back to `ROLE_DEFAULTS`, then the flat local block.
+    """
     resolved: dict[str, dict[str, Any]] = {}
     for name, d in ROLE_DEFAULTS.items():
         r = roles_raw.get(name) or {}
+        model = r.get("model")
+        if model is None:
+            model = local["model"] if flat_model_explicit else d.get("model", local["model"])
         resolved[name] = {
-            "model": r.get("model", local["model"]),
+            "model": model,
             "base_url": r.get("base_url", local["base_url"]),
             "api_key_env": r.get("api_key_env", local["api_key_env"]),
             "thinking": bool(r.get("thinking", d["thinking"])),
@@ -115,15 +136,16 @@ def _default_config(project_root: Path) -> Config:
         research_runs_path=project_root / DEFAULT_RESEARCH_RUNS_PATH,
         index_dir=project_root / DEFAULT_INDEX_DIR,
         embedding_model=DEFAULT_EMBEDDING_MODEL,
-        llm_local=(_default_local := {"base_url": "http://localhost:11434/v1", "model": "Ornith-1.0-9B",
+        llm_local=(_default_local := {"base_url": "http://localhost:11434/v1", "model": DEFAULT_LOCAL_MODEL,
                    "api_key_env": "OPENAI_API_KEY", "temperature": 0.6, "top_p": 0.95, "top_k": 20,
                    "max_tokens": 16000}),
-        llm_roles=_resolve_roles({}, _default_local),
+        # No flat model set by a project here, so each role uses its shipped Qwen model.
+        llm_roles=_resolve_roles({}, _default_local, flat_model_explicit=False),
         topic_name="(unconfigured project)",
         scope_hint="No .deepresearch.yml found -- run `drt init` to configure this project's research scope.",
         tags=[],
         features={"web_research": False, "pdf_ingestion": False, "knowledge_compiler": False},
-        llm_provider="anthropic",
+        llm_provider="local",
         llm_model="claude-sonnet-4-5",
         llm_api_key_env="ANTHROPIC_API_KEY",
         scrapling_default_mode="http",
@@ -154,14 +176,16 @@ def load_config(start: Path | None = None) -> Config:
     local = (llm.get("local") or {})
     llm_local = {
         "base_url": local.get("base_url", "http://localhost:11434/v1"),
-        "model": local.get("model", "Ornith-1.0-9B"),
+        "model": local.get("model", DEFAULT_LOCAL_MODEL),
         "api_key_env": local.get("api_key_env", "OPENAI_API_KEY"),
         "temperature": float(local.get("temperature", 0.6)),
         "top_p": float(local.get("top_p", 0.95)),
         "top_k": int(local.get("top_k", 20)),
         "max_tokens": int(local.get("max_tokens", 16000)),
     }
-    llm_roles = _resolve_roles(llm.get("roles") or {}, llm_local)
+    # If the project pins a flat llm.local.model, it wins for roles it doesn't
+    # name (single-model back-compat); otherwise each role uses its Qwen default.
+    llm_roles = _resolve_roles(llm.get("roles") or {}, llm_local, flat_model_explicit="model" in local)
 
     return Config(
         config_path=path,
@@ -181,7 +205,7 @@ def load_config(start: Path | None = None) -> Config:
             "pdf_ingestion": bool(features.get("pdf_ingestion", False)),
             "knowledge_compiler": bool(features.get("knowledge_compiler", False)),
         },
-        llm_provider=llm.get("provider", "anthropic"),
+        llm_provider=llm.get("provider", "local"),
         llm_model=llm.get("model", "claude-sonnet-4-5"),
         llm_api_key_env=llm.get("api_key_env", "ANTHROPIC_API_KEY"),
         scrapling_default_mode=scrapling.get("default_mode", "http"),
