@@ -14,7 +14,7 @@ cite, and keep building on instead of starting over on every question.
 - [Core ideas](#core-ideas)
 - [How it fits together](#how-it-fits-together)
 - [Quick start](#quick-start)
-- [A worked example](#a-worked-example)
+- [A worked example](#a-worked-example-end-to-end)
 - [The skills](#the-skills)
 - [The retrieval tools](#the-retrieval-tools)
 - [Running local models](#running-local-models)
@@ -398,7 +398,78 @@ retrieval tools on the command line (`search-claims` is one; `search-wiki`,
 `get-entity`, and `compose-dossier` are covered under
 [retrieval-planner](#retrieval-planner)). For this whole loop run
 end-to-end on a real document, with real output at each stage, see
-[A worked example](#a-worked-example).
+[A worked example](#a-worked-example-end-to-end).
+
+## A worked example, end to end
+
+The quick start gives you the commands; this section shows what they
+actually produce. What follows is one real run: five Wikipedia articles
+on proof-of-stake, fetched, extracted, compiled into a queryable
+knowledge base, and then queried to write a grounded thesis -- all of it
+on a fully local model stack, with no hosted API anywhere in the loop.
+The numbers below come from that single run. Read them for a sense of
+scale, not as a benchmark.
+
+The run started with `research-knowledge-graph` fetching the five
+articles. Each one became a `research-runs/<id>/` directory holding the
+page as `source.md` and its structure-aware chunking as `chunks.jsonl`,
+one node per heading section. Five sources came to roughly 105 chunks,
+and the chunk is the unit everything downstream speaks in: claims cite
+chunks, chunks cite sources.
+
+Extraction is the judgment step. `knowledge-extraction` read those
+chunks on a local instruct model and wrote `claims.jsonl`,
+`entities.jsonl`, and `relations.jsonl` into each run directory. What
+survived the verbatim gate: 103 claims, 61 entities, and 66 relations.
+"Survived" is the right word -- any claim whose quote was not an exact
+substring of its cited source got dropped, which is exactly where a
+local model's habit of paraphrasing gets caught. The pass took minutes
+on a fast instruct model; rerunning the same extraction on a reasoning
+model was far slower. That gap is the practical case for routing each
+pipeline role to a model suited to it, which [Running local
+models](#running-local-models) covers.
+
+Compiling was one command. `compile.py`, from the `knowledge-compiler`
+skill, rebuilt the DuckDB + LanceDB index from the five runs, embedding
+claims and chunks with a local Qwen embedding model so lexical and
+vector search work against the same corpus. The index is always rebuilt
+from the files on disk, so this step is safe to rerun whenever the
+corpus changes.
+
+Then the questions. `query.py search-claims`, from `retrieval-planner`,
+answered ad-hoc queries with claims that each carried their verbatim
+quote and source attribution, and `compose-dossier` gathered everything
+relevant to a broader question into a single evidence dossier -- the
+package a writing model actually consumes.
+
+Last, synthesis. A reasoning model took the dossier and wrote a thesis
+on proof-of-stake. Because every claim in the dossier carries an exact
+quote, the draft was checkable line by line: every number that got
+spot-checked traced back to a verbatim quote in a named source. The
+model can still be wrong, but "where did this come from?" now has a
+mechanical answer instead of a plausible one.
+
+Compressed to one picture, here is the lifecycle that run walked
+through:
+
+```
+  a source (a URL or a PDF)
+        |  fetch / convert
+        v
+  source.md  /  canonical.md
+        |  chunk (structure-aware: one node per heading, table, figure)
+        v
+  chunks.jsonl
+        |  extract   [JUDGMENT + verbatim gate]
+        v
+  claims.jsonl   entities.jsonl   relations.jsonl
+        |  compile (+ embed)
+        v
+  DuckDB + LanceDB index
+        |  query -> compose_dossier
+        v
+  an evidence dossier -> a grounded, cited deliverable
+```
 
 ## The skills
 
