@@ -1396,31 +1396,92 @@ sets. A single-model setup still needs no `roles` block at all: every
 role then runs on the `llm.local` model, with per-phase reasoning and
 sampling defaults that suit each phase.
 
+## Verification and testing
+
+CI runs in two tiers, split by dependency weight rather than by
+importance. The fast tier runs on every push and pull request, on both
+Ubuntu and Windows, and installs neither torch nor an embedding model:
+the compiler tests run against real DuckDB and LanceDB, but with an
+injected fake embedder (deterministic, hash-derived vectors) standing in
+for sentence-transformers, so the whole compile-and-query path is
+exercised end to end without a model download. The same job checks that
+the two plugin manifests and the skill templates are in sync, runs the
+fast suite -- dozens of unit and light integration tests -- with
+coverage, and lints with ruff; an advisory mypy job and a pip-audit job
+run alongside it. This tier is the gate every change has to pass.
+
+The heavy tier is the one that touches real models, and it never runs on
+an ordinary push: its triggers are a weekly cron (Monday mornings, UTC)
+and manual dispatch. It installs the full `[compiler]` extra and runs
+the tests marked `heavy`: one drives the entire PDF pipeline through a
+real Docling conversion and requires a perfect score on every eval
+check, the other compiles a real corpus with the real `all-MiniLM-L6-v2`
+embedding model and exercises every retrieval tool against the result.
+It reports rather than blocks, because its first run downloads models
+and can fail for reasons that have nothing to do with the code. Both
+tiers measure against the reference material in `tests/fixtures/`: a
+small generated PDF (with the script that generates it), a complete
+reference run directory for that PDF holding every stage's output from
+classification through the eval reports, a matching web-run directory,
+and a small reference knowledge base.
+
+The same checks work outside CI. To verify a run you just produced,
+point the eval harness at its run directory
+(`python .claude/skills/rag-eval-harness/scripts/run_eval.py <run_dir>`)
+and read the six mechanical checks it reports -- verbatim quotes, valid
+page citations, recovered headings, accounted-for tables and figures --
+rather than settling for "nothing crashed." To judge whether a local
+model is up to extraction duty, `scripts/validate-local-llm.py` runs it
+against the reference extraction fixture and reports how much of the
+reference it recovers and how many of its proposals the verbatim gate
+had to drop. That one is a manual harness for when you are choosing a
+model, not part of CI.
+
 ## Status and roadmap
 
-**Built and tested:** all three layers above — web research, the
-seven-stage PDF pipeline, and the knowledge-compiler layer (the
-`knowledge-compiler` and `retrieval-planner` skills, suite version
-0.2.0) — including the `drt` CLI, the dual Claude Code/Codex plugin
-manifests, a fast unit-test suite that runs on every push, and two heavy
-integration tests: one that
-runs the entire PDF pipeline through real Docling conversion against a
-test fixture and checks for a perfect score on every eval check, and one
-that compiles a real corpus into the DuckDB + LanceDB index with the real
-embedding model and exercises every retrieval tool against it. All of it
-has been verified against a real installed package, not just a
-development checkout, so what's described above is what actually runs.
+**Built and tested:** both producer stacks and everything downstream of
+them. On the producer side, the web-research skill
+(`research-knowledge-graph`, including its claim-extraction step) and
+the seven-stage PDF pipeline. On the consumer side, the compiler layer:
+the `knowledge-compiler` and `retrieval-planner` skills, at suite
+version 0.2.0. Around all of it, the `drt` CLI (`init`, `upgrade`,
+`doctor`, `migrate`), the role-routed local backend (`llm.roles`, so
+each pipeline phase runs on a model suited to it), and the dual plugin
+manifests that serve Claude Code and Codex from one shared `skills/`
+tree. The fast suite covers this on every push, and the two heavy
+integration tests exercise exactly what the fast suite fakes: real
+Docling conversion of the fixture PDF with a perfect eval score
+required, and a real-embedding compile with every retrieval tool run
+against the result. All of it has been verified against a real installed
+package, not just a development checkout, so what's described above is
+what actually runs.
 
-**Deferred on purpose:** incremental index compilation (the compiler does
-a full rebuild each run, which is seconds at the scale this toolkit
-serves), an MCP query server over the finished knowledge base,
-GraphRAG-style community detection, and a learned reranker — each judged
-premature at per-project, single-machine scale rather than forgotten. The
-reasoning for the original architecture is in
-`docs/decisions/0001-architecture.md`; the decisions made while building
-the compiler layer (the injectable test embedder, the index-time
-evidence normalization, the opt-in local LLM backend) are in
-`docs/decisions/0002-knowledge-compiler.md`.
+**Designed, not yet built:** five items, each deferred deliberately,
+with the reasoning recorded in
+`docs/decisions/0002-knowledge-compiler.md` (and, for the older ones, in
+`docs/decisions/0001-architecture.md`):
+
+- **Incremental compilation.** The compiler rebuilds the index from
+  scratch on every run. At per-project scale a rebuild is seconds, and
+  it removes cache-invalidation bugs as a category; re-embedding only
+  changed pages waits until a real corpus makes rebuild time hurt.
+- **A learned reranker stage.** Retrieval today fuses lexical and vector
+  rankings with RRF, which is cheap and deterministic. A reranker sits
+  on ADR 0001's deferred list, not in the code.
+- **GraphRAG-style community detection.** Flagged in ADR 0001 as
+  premature at per-project, single-machine scale, and nothing since has
+  changed that judgment.
+- **An MCP query server.** The retrieval tools are CLI-first on purpose;
+  ADR 0001 calls a read-only MCP layer over the finished knowledge base
+  a reasonable later addition, once a corpus outgrows file-scan search.
+- **A multi-package split.** One package with extras (`web`, `pdf`,
+  `compiler`, `full`) ships today; independent per-tier PyPI packages
+  are explicitly deferred past v1.
+
+Each of these was judged premature at the scale this toolkit serves,
+rather than forgotten. If one of them starts to matter for your corpus,
+the two ADRs are where the reasoning -- and the sketch of what would be
+built -- lives.
 
 ## Contributing
 
