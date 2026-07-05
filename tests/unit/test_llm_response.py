@@ -25,3 +25,22 @@ def test_parse_json_block_falls_back_to_bracket_slice():
 
 def test_parse_json_block_returns_none_on_garbage():
     assert parse_json_block("no json here") is None
+
+
+def test_parse_json_block_object_wrapping_array_returns_object():
+    text = 'Here is the result: {"summary": "ok", "citations": [1, 2, 3]} done.'
+    assert parse_json_block(text) == {"summary": "ok", "citations": [1, 2, 3]}
+
+
+def test_parse_json_block_fenced_output_block():
+    text = 'Plan: notes. <output>```json\n{"marker": "REAL", "items": [1, 2]}\n```</output>'
+    assert parse_json_block(text) == {"marker": "REAL", "items": [1, 2]}
+
+
+def test_parse_json_block_object_only_fallback():
+    assert parse_json_block('x {"a": 1} y') == {"a": 1}
+
+
+def test_parse_json_block_output_block_is_authoritative():
+    # Garbage inside <output> must NOT fall back to JSON outside it.
+    assert parse_json_block('<output>garbage</output> {"a": 1}') is None

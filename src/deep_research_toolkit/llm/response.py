@@ -33,16 +33,35 @@ def validate_citations(text: str, allowed_ids: list[str]) -> dict:
     }
 
 
-def parse_json_block(text: str):
-    """JSON from a model reply: prefer the last <output>...</output> block,
-    else the widest [...] or {...} slice. None if nothing parses."""
-    blocks = _OUTPUT_RE.findall(text)
-    candidates = [blocks[-1]] if blocks else []
+def _fence_stripped(text: str) -> str:
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.strip("`\n")
+        if t[:4].lower() == "json":
+            t = t[4:]
+    return t.strip()
+
+
+def _bracket_slices(text: str) -> list[str]:
+    # Widest [...] and {...} slices, ordered by whichever bracket opens first
+    # in the text -- same first-bracket-wins rule as extract._loads_lenient,
+    # so a top-level object with an array field parses as the object.
+    slices = []
     for opener, closer in ("[]", "{}"):
         start, end = text.find(opener), text.rfind(closer)
         if start != -1 and end > start:
-            candidates.append(text[start:end + 1])
-    for cand in candidates:
+            slices.append((start, text[start:end + 1]))
+    return [s for _, s in sorted(slices, key=lambda p: p[0])]
+
+
+def parse_json_block(text: str):
+    """JSON from a model reply. An <output>...</output> block, when present,
+    is authoritative: only its content is considered (fences stripped, then
+    bracket-sliced) -- surrounding prose can never leak into the result.
+    Without one, the widest bracket slice opening earliest in the reply wins."""
+    blocks = _OUTPUT_RE.findall(text)
+    scope = _fence_stripped(blocks[-1]) if blocks else _fence_stripped(text)
+    for cand in [scope, *_bracket_slices(scope)]:
         try:
             return json.loads(cand)
         except json.JSONDecodeError:
