@@ -129,6 +129,12 @@ def main() -> int:
     if result.get("parse_failures"):
         print(f"parse failures (batches that never yielded parseable JSON): {result['parse_failures']}")
 
+    stats = getattr(backend, "stats", None)
+    if stats and stats.get("calls"):
+        print(f"backend stats: {stats['calls']} call(s), "
+              f"{stats['prompt_tokens']} prompt + {stats['completion_tokens']} completion tokens, "
+              f"{stats['seconds']:.1f}s total ({stats['seconds']/stats['calls']:.1f}s/call)")
+
     if reference:
         hit, missed = _recovered(reference, produced)
         print(f"reference diff: recovered {len(hit)}/{len(reference)} reference claim(s) "

@@ -49,6 +49,9 @@ class LocalOpenAIBackend:
         # dict is passed through as a full response_format (e.g. json_schema).
         self.response_format = response_format
         self._client = None
+        # Cumulative usage over this backend's lifetime; read by the eval
+        # harness to report cost/latency per model. Never reset internally.
+        self.stats = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
 
     def _load_client(self):
         if self._client is None:
@@ -92,5 +95,13 @@ class LocalOpenAIBackend:
         return client.chat.completions.create(**kwargs)
 
     def complete(self, system: str, user: str, **sampling) -> str:
+        import time
+        t0 = time.perf_counter()
         resp = self._client_complete(system, user, **sampling)
+        self.stats["calls"] += 1
+        self.stats["seconds"] += time.perf_counter() - t0
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            self.stats["prompt_tokens"] += getattr(usage, "prompt_tokens", 0) or 0
+            self.stats["completion_tokens"] += getattr(usage, "completion_tokens", 0) or 0
         return strip_think(resp.choices[0].message.content or "")
