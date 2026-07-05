@@ -3,10 +3,28 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![CI](https://github.com/CharlesHoskinson/deep-research-toolkit/actions/workflows/ci.yml/badge.svg)
 
-A deep-research skill suite for **Claude Code** and **Codex**: web
-retrieval, PDF ingestion, and knowledge compilation into an evidence-backed
-knowledge base an agent can query, cite, and keep building on, instead of
-starting over on every question.
+A deep-research skill suite for **Claude Code** and **Codex**, at version
+0.2.0: ten skills for web retrieval, PDF ingestion, and knowledge
+compilation into an evidence-backed knowledge base an agent can query,
+cite, and keep building on instead of starting over on every question.
+
+**Contents**
+
+- [Why this exists](#why-this-exists)
+- [Core ideas](#core-ideas)
+- [How it fits together](#how-it-fits-together)
+- [Quick start](#quick-start)
+- [A worked example](#a-worked-example)
+- [The skills](#the-skills)
+- [The retrieval tools](#the-retrieval-tools)
+- [Running local models](#running-local-models)
+- [What the pipeline guarantees](#what-the-pipeline-guarantees)
+- [Configuration](#configuration)
+- [Verification and testing](#verification-and-testing)
+- [Status and roadmap](#status-and-roadmap)
+- [FAQ and glossary](#faq-and-glossary)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Why this exists
 
@@ -17,12 +35,23 @@ around. That's fine for a one-off question. It's a bad foundation for
 anything that compounds: a research project, an internal knowledge base, a
 standards comparison that gets revisited for months.
 
-This toolkit exists to fix that specific problem: every fetch, every PDF,
-every claim gets written down once, in a durable format, with the evidence
-attached, so the tenth question about a topic is answered by reading what's
-already there instead of re-scraping the internet. The wiki isn't the
-knowledge. It's the source corpus. The claims and citations built from it
-are what an agent actually reasons over.
+This toolkit fixes that specific problem. Every fetch, every PDF, every
+claim gets written down once, in a durable format, with the evidence
+attached, so the tenth question about a topic is answered by reading
+what's already there instead of re-scraping the internet. Durable means
+plain files: markdown wiki pages and per-run JSONL records, kept in git,
+treated as the audit trail. The search index built from them (DuckDB for
+text and graph queries, LanceDB for vectors) is disposable and always
+rebuilt from scratch, so there is no state in which the index and the
+files can silently disagree.
+
+The wiki isn't the knowledge, though. It's the source corpus. What an
+agent actually reasons over is the layer built on top of it: claims, each
+one tied to a verbatim quote from a named source. A claim is admitted only
+if its quote is an exact substring of the source it cites, and that check
+is mechanical -- a dumb substring comparison, not a model grading its own
+work. So the question "where did this come from?" always has an answer you
+can verify by looking, rather than a model's say-so.
 
 All three layers of this are built and tested today: a web-research skill,
 a seven-stage PDF ingestion pipeline, and a knowledge compiler that turns
