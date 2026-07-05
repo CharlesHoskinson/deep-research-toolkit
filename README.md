@@ -188,99 +188,90 @@ distinction `EvidenceRef` needs to preserve after normalization.
 
 ## How it fits together
 
+Every skill in this toolkit is a phase of one pipeline: acquire, chunk,
+extract, compile, retrieve, synthesize. What's worth noticing is how
+little of it
+an LLM touches. Extraction, wiki-writing, and the final answer composed
+from a dossier are judgment work, marked [JUDGMENT: LLM] in the diagram.
+Everything else -- fetching, Docling conversion, provenance recovery,
+chunking, index compilation, all eight retrieval tools -- is deterministic
+Python, plus one local embedding model at compile time. Rerun a
+deterministic stage and you get the same files. Swap the model behind a
+judgment stage and the verbatim-quote gate still decides what gets in.
+
+Each source gets a run directory: `<pdf_runs_dir>/<document_id>/` for a
+PDF, `research-runs/<source_id>/` for a web source worth mining. These are
+git-tracked on purpose. A run directory holds everything the pipeline
+produced for one document -- the raw conversion output, the chunks, the
+claims with their citations, the eval report -- and it's the auditable
+record of how a conclusion was reached, not scratch space you'd
+`.gitignore`. The three layers map onto the diagram directly: run
+directories and `knowledge_base/` are the durable corpus, the two marked
+stages are the judgment layer, and the compiler's output is the derived
+index, the one thing kept out of git because any checkout can rebuild it.
+
 ```
-+---------------------------------------------------------+
-|                    .deepresearch.yml                    |
-|             (topic, kb path, feature flags)             |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| research-knowledge-graph  (web)                         |
-| Scrapling fetch -- http or stealth                      |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| pdf-ingest-router                                       |
-| classify (digital-text/scanned/form/...) + route        |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| pdf-to-canonical-markdown                               |
-| Docling conversion -> canonical.md + raw JSON           |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| pdf-layout-provenance                                   |
-| page / section_path / bbox per structural unit          |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| canonical-markdown-to-llm-nodes                         |
-| structure-aware chunking -> chunks.jsonl                |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| knowledge-extraction                                    |
-| tables/figures (code) + claims/entities (LLM)           |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| llm-wiki-writer                                         |
-| merge into the knowledge base, flag conflicts           |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| knowledge_base/  (Open Knowledge Format)                |
-| markdown + YAML frontmatter, cross-linked,              |
-| one file per concept, git-tracked                       |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| rag-eval-harness                                        |
-| headings recovered? citations verbatim?                 |
-| figures accounted for?  -> eval_report.json             |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| knowledge compiler                                      |
-| DuckDB (full-text + graph) + LanceDB (vectors)          |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| retrieval-planner tools (8)                             |
-| search_wiki / read_page / search_claims / get_entity    |
-| neighbors / get_sources / find_contradictions /         |
-| compose_dossier                                         |
-+---------------------------------------------------------+
-                            |
-                            v
-+---------------------------------------------------------+
-| evidence dossier                                        |
-| claims + citations, ready to answer from                |
-+---------------------------------------------------------+
+                       .deepresearch.yml
+             (topic, paths, features, llm.roles)
+                              |
+          +-------------------+-------------------+
+          | WEB                               PDF |
+          v                                       v
+  research-knowledge-graph              pdf-ingest-router
+  fetch + chunk (Scrapling)             classify + route
+          |                    pdf-to-canonical-markdown (Docling)
+          |                    pdf-layout-provenance
+          |                    canonical-markdown-to-llm-nodes
+          v                                       v
+   research-runs/<id>/                     pdf-runs/<id>/
+          |            chunks.jsonl (structure-aware)
+          +-------------------+-------------------+
+                              v
+              knowledge-extraction        [JUDGMENT: LLM]
+        claims + entities + relations, verbatim-gated
+                              v
+              llm-wiki-writer             [JUDGMENT: LLM]
+           merge into knowledge_base/ (OKF pages)
+                              v
+              knowledge-compiler          [deterministic]
+        DuckDB (FTS + graph)  +  LanceDB (vectors)
+                              v
+              retrieval-planner           [deterministic]
+      8 tools, RRF fusion, compose_dossier (verbatim gate)
+                              v
+                     evidence dossier
+             claims + citations, ready to answer from
 ```
 
-Every PDF gets its own working directory,
-`<pdf_runs_dir>/<document_id>/`, holding everything the seven stages
-produced: the raw Docling export, the chunked nodes, the claims with their
-page citations, the eval report. Web sources substantial enough to mine
-for claims get the same treatment in `research-runs/<source_id>/`: the
-fetched content, its chunks, and the claims extracted from it. Both kinds
-of run directory are git-tracked on purpose: they're meant to be the
-auditable record of how a conclusion was reached, not scratch space you'd
-`.gitignore`. The compiled index is the one exception — it's a derived
-cache, rebuilt from the run directories on demand, and stays out of git.
+Sources come in on two sides. On the web side, `research-knowledge-graph`
+fetches with Scrapling and chunks the fetched page by heading section. The
+PDF side takes four stages to reach the same point: `pdf-ingest-router`
+classifies the file and creates its run directory,
+`pdf-to-canonical-markdown` runs the one Docling conversion,
+`pdf-layout-provenance` recovers what markdown throws away (page, section
+path, bounding box), and `canonical-markdown-to-llm-nodes` chunks along
+that recovered structure. Both sides hand the same thing to the next
+phase: a run directory with a structure-aware `chunks.jsonl`. From here
+on, the only trace of which side a source came from is its producer field.
+
+The two judgment stages sit in the middle. `knowledge-extraction` has an
+LLM read the chunks and write claims, entities, and relations, and every
+claim's quote passes the verbatim-quote gate before it counts.
+`llm-wiki-writer` merges those claims into `knowledge_base/` as OKF pages,
+updating an existing page where one exists and marking pages `conflicted`
+where two sources disagree. (`rag-eval-harness` then re-checks the whole
+run directory mechanically; it isn't drawn above because it gates a run
+rather than handing anything downstream.)
+
+The last two stages are deterministic again. `knowledge-compiler` rebuilds
+the index from scratch -- DuckDB for full-text and graph queries, LanceDB
+for vectors -- and normalizes each producer's evidence into one
+`evidence_ref` shape as it goes. `retrieval-planner` puts eight tools over
+that index, fusing keyword and vector rankings with RRF. The last of them,
+`compose_dossier`, re-applies the verbatim-quote gate against the run
+directory's source text and emits the evidence dossier. What an agent does
+with that dossier -- synthesize an answer -- is the third and final place
+an LLM appears.
 
 ## Quick start
 
