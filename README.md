@@ -275,19 +275,58 @@ an LLM appears.
 
 ## Quick start
 
+### Install a tier, then `drt init`
+
 ```bash
 pip install "deep-research-toolkit[pdf]"   # or [web], [compiler], [full]
 drt init                                    # scaffold .deepresearch.yml + a knowledge base
 ```
 
-`drt init` asks what this project's research is about and writes that
-into `.deepresearch.yml`, alongside where the knowledge base should live.
-It also copies the skill files into `.claude/skills/` and `.agents/skills/`
-so both Claude Code and Codex can find them in this project. From there,
-open the project in either one and ask it to research something, or point
-it at a PDF. The relevant skill's `SKILL.md` takes it from there.
+The base package is deliberately tiny (PyYAML and the `drt` CLI, nothing
+else), and the four extras map onto the three pipeline layers, so you
+install only the machinery you'll actually run:
 
-To ingest a PDF by hand instead of through an agent session:
+- **`web`** pulls in [Scrapling](https://github.com/d4vinci/Scrapling),
+  the retrieval library behind `research-knowledge-graph`. Its stealth
+  mode drives a real browser, so after installing run `scrapling install`
+  once to download Playwright's browser binaries -- that's a separate step
+  `pip` doesn't do for you.
+- **`pdf`** pulls in Docling (the conversion engine), plus `pypdf` and
+  `pdfplumber` (the classification signals `pdf-ingest-router` computes).
+  Docling fetches its OCR and layout models on first use, not at install
+  time.
+- **`compiler`** pulls in DuckDB, LanceDB, sentence-transformers (the
+  local embedding model), and the `openai` client, which exists solely so
+  the optional local-LLM backend can talk to any OpenAI-compatible
+  endpoint. No hosted API key is required for anything in this tier.
+- **`full`** is the union of the other three.
+
+Both Docling and Playwright download sizable assets the first time they
+run, well after `pip install` has reported success. `docs/environment.md`
+covers what gets fetched, where it lands, and how to pre-warm it -- worth
+five minutes before you start, rather than discovering a model download
+mid-pipeline on a flaky connection.
+
+`drt init` is a short interview: it asks what this project's research is
+actually about and where the knowledge base should live, then writes both
+answers into `.deepresearch.yml` at the project root. That file matters
+more than it looks. Every skill reads its topic and scope from there
+instead of hardcoding one, so "research X for the knowledge base" means
+your X, not some generic default. It also asks which tier you installed
+and sets the `features.*` flags to match.
+
+Beyond the config file, `drt init` scaffolds the knowledge base directory
+and copies each skill (its `SKILL.md` plus scripts) into both
+`.claude/skills/` and `.agents/skills/` -- the first is where Claude Code
+looks for skills, the second is where Codex does. After that, open the project in either
+agent and ask it to research something, or point it at a PDF; the relevant
+skill's `SKILL.md` takes it from there. The by-hand sequences below are
+for when you want to see each stage individually, or script them.
+
+### First PDF, by hand
+
+The seven-stage PDF pipeline can be driven one script at a time. The first
+four stages are deterministic Python:
 
 ```bash
 python .claude/skills/pdf-ingest-router/scripts/classify_pdf.py your-file.pdf
@@ -295,14 +334,59 @@ python .claude/skills/pdf-ingest-router/scripts/classify_pdf.py your-file.pdf
 python .claude/skills/pdf-to-canonical-markdown/scripts/convert.py pdf-runs/your-file-a1b2c3d4
 python .claude/skills/pdf-layout-provenance/scripts/extract_provenance.py pdf-runs/your-file-a1b2c3d4
 python .claude/skills/canonical-markdown-to-llm-nodes/scripts/chunk_nodes.py pdf-runs/your-file-a1b2c3d4
-# claims.jsonl / entities.jsonl / relations.jsonl need an LLM reading chunks.jsonl --
-# that's what knowledge-extraction's SKILL.md is for, inside an actual agent session
+```
+
+At this point the run directory holds `chunks.jsonl`, and the pipeline
+needs judgment: an LLM has to read those chunks and write `claims.jsonl`,
+`entities.jsonl`, and `relations.jsonl`. That's the `knowledge-extraction`
+stage, done inside an agent session (its `SKILL.md` carries the rules,
+chiefly that every claim's quote must be verbatim from the cited page), or
+programmatically via the local-LLM backend if you've configured one. Then
+the eval harness re-checks the whole run mechanically:
+
+```bash
 python .claude/skills/rag-eval-harness/scripts/run_eval.py pdf-runs/your-file-a1b2c3d4
 ```
 
-See `docs/environment.md` before you start on Docling/Playwright's
-first-run downloads: they're separate from `pip install` and worth
-knowing about ahead of time rather than mid-pipeline.
+A passing eval means the run survived six mechanical checks -- every quote
+really is a substring of its cited page, every table made it to disk, no
+heading got lost in chunking, and so on. "Nothing crashed" is a much lower
+bar, and it's not the one this stage sets.
+
+### First web source, and the first query
+
+The web side is meant to be agent-driven: open the project in Claude Code
+or Codex and ask it to "research X for the knowledge base." The agent
+reads your topic from `.deepresearch.yml`, checks what the knowledge base
+already has, fetches only what's missing, and writes or updates wiki
+pages.
+
+By hand, the same flow is four scripts and one judgment step. Fetch a page
+with `research-knowledge-graph/scripts/fetch.py <url> --out source.md`,
+then scaffold a run directory from it:
+
+```bash
+python .claude/skills/research-knowledge-graph/scripts/start_research_run.py <url> --content-file source.md
+```
+
+That creates `research-runs/<source_id>/` with the content chunked by
+heading section -- the web-side mirror of a PDF run. Extraction is the
+same judgment step as above (an agent, or the local backend), writing
+verbatim-gated claims into the run directory. Then compile everything into
+the index and ask it something:
+
+```bash
+python .claude/skills/knowledge-compiler/scripts/compile.py
+python .claude/skills/retrieval-planner/scripts/query.py search-claims "your first question"
+```
+
+`compile.py` rebuilds the DuckDB + LanceDB index from whatever the corpus
+holds, PDF runs and web runs alike, and `query.py` puts all eight
+retrieval tools on the command line (`search-claims` is one; `search-wiki`,
+`get-entity`, and `compose-dossier` are covered under
+[retrieval-planner](#retrieval-planner)). For this whole loop run
+end-to-end on a real document, with real output at each stage, see
+[A worked example](#a-worked-example).
 
 ## The skills
 
