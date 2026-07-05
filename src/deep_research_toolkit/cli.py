@@ -60,10 +60,11 @@ llm:
     top_k: 20
     max_tokens: 16000
 #   roles:                      # optional per-phase model routing (provider: local)
-#     extract:     {{model: gemma4:e4b}}     # high-volume JSON; non-thinking
-#     wiki_write:  {{model: gemma4:12b}}
+#     extract:             {{model: gemma4:e4b}}    # high-volume JSON; non-thinking
+#     wiki_write:          {{model: gemma4:12b}}
 #     conflict_adjudicate: {{model: gemma4:31b}}
-#     synthesize:  {{model: gemma4:31b}}
+#     synthesize:          {{model: gemma4:31b}}
+#     code_agent:          {{model: qwen3.6:27b}}
 
 scrapling:
   default_mode: http

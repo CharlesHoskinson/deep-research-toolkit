@@ -1228,15 +1228,16 @@ automatically whenever a role sets `thinking: false`. Measured on the
 hydra fixture, all Gemma 4 dense sizes pass the verbatim gate at 100%
 with reasoning suppressed, 4-5x faster than with it left on.
 
-That failure lands hardest on `extract`, the one role that runs at
-volume and wants an immediate JSON answer. The fix was not to wait for
-the switch to start working; it was to stop depending on a switch. A
-true instruct model such as `qwen2.5:7b-instruct` has no reasoning path
-to suppress, so there is nothing for the serving layer to get wrong.
-"Does this model support non-thinking mode" turns out to be the wrong
-question. The right one is "does this serving stack, at this version,
-honor that switch" -- and the only way to answer it is to test the exact
-(model, server, version) triple you intend to run.
+When the switch cannot be trusted -- an older Ollama, a model family
+whose toggle the serving stack ignores, or a triple you have not yet
+tested -- the fallback is not to wait for a fix; it is to stop
+depending on a switch at all. A true instruct model such as
+`qwen2.5:7b-instruct` has no reasoning path to suppress, so there is
+nothing for the serving layer to get wrong. "Does this model support
+non-thinking mode" turns out to be the wrong question. The right one
+is "does this serving stack, at this version, honor that switch" --
+and the only way to answer it is to test the exact (model, server,
+version) triple you intend to run.
 
 Getting a reasoning model to work at all involves two more serving
 details. First, the model needs its real chat template: the stock
@@ -1361,15 +1362,15 @@ llm:
   # top_k falls back to llm.local; an unset thinking, temperature,
   # max_tokens, or response_format uses that role's ROLE_DEFAULTS entry.
   # roles:
-  #   extract:             {model: qwen2.5:7b-instruct}  # thinking off, temp 0.0, JSON out
-  #   wiki_write:          {model: ...}                  # thinking off, temp 0.2
-  #   conflict_adjudicate: {model: ...}                  # thinking on,  temp 0.2
-  #   synthesize:          {model: ...}                  # thinking on,  temp 0.4
-  #   code_agent:          {model: ...}                  # thinking on,  temp 0.6
+  #   extract:             {model: gemma4:e4b}   # thinking off, temp 0.0, JSON out
+  #   wiki_write:          {model: gemma4:12b}   # thinking off, temp 0.2
+  #   conflict_adjudicate: {model: gemma4:31b}   # thinking on,  temp 0.2
+  #   synthesize:          {model: gemma4:31b}   # thinking on,  temp 0.4
+  #   code_agent:          {model: qwen3.6:27b}  # thinking on,  temp 0.6
 
   local:                             # only read when provider: local
     base_url: http://localhost:11434/v1  # any OpenAI-compatible endpoint (Ollama, vLLM, ...)
-    model: Ornith-1.0-9B             # fallback model for any role not routed above
+    model: Ornith-1.0-9B             # drt init default; see Running local models for the validated map
     api_key_env: OPENAI_API_KEY      # local servers usually ignore the key; the var can stay unset
     temperature: 0.6                 # flat defaults; roles override these per phase
     top_p: 0.95
