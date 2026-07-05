@@ -196,3 +196,36 @@ None of these changes the thesis of the system. They tighten the places where
 its per-part correctness does not yet compose into end-to-end correctness — and
 finding them is exactly what running the pipeline on a real, messy corpus was
 for.
+
+## Update: gaps closed
+
+Every gap above has since been fixed, each with tests:
+
+1. **The three verbatim gates are now one.** Extraction, dossier composition,
+   and the eval harness all call a single `common.verbatim` check against the
+   exact chunk a claim cites; a regression test asserts the three agree on a
+   quote that spans two provenance units — the case that used to be admitted by
+   one gate and silently rejected by the others.
+2. **Dangling references are dropped.** A relation whose supporting claim was
+   gate-dropped is no longer written, so nothing points at a claim id that isn't
+   in `claims.jsonl`.
+3. **Deliverables can self-cite.** `compose_dossier` renders to markdown
+   (`compose-dossier --format md`) with each claim's verbatim quote and source
+   inline, so the audit trail travels with the document.
+4. **Entities merge across sources at compile time.** The compiler collapses a
+   shared `entity_id` into one row — union of aliases, a deterministic canonical
+   name, the most common type — instead of letting `get_entity` pick a source
+   arbitrarily.
+5. **The fast tier now covers the PDF core and the CLI.** Fixture-replay unit
+   tests exercise `pdf/provenance`, `pdf/chunk`, `pdf/eval`, and `pdf/extract`
+   on every push (no Docling needed), and the `drt` CLI has real tests; the
+   heavy PDF test no longer flakes on a fixture-metadata hash drift.
+6. **Failed batches are retried, not lost.** A batch whose output can't be
+   parsed is split into smaller halves and retried before it counts as a parse
+   failure, and abbreviated chunk ids resolve only when unambiguous.
+
+Also closed along the way: the skill-template sync guard now compares by content
+hash rather than size/mtime, CI reports coverage and runs an advisory mypy pass,
+and the id-resolution and bare-output edge cases surfaced by the snail run are
+guarded. The suite went from a fast tier of ~90 tests to ~160, and both heavy
+integration tests (real Docling, real embeddings) pass.
