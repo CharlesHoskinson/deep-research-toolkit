@@ -109,7 +109,7 @@ next idea enforces.
                                 v
 +---------------------------------------------------------------+
 |  DURABLE CORPUS   (git-tracked -- the audit trail)            |
-|  knowledge_base/*.md   pdf-runs/<id>/   research-runs/<id>/    |
+|  knowledge_base/*.md   pdf-runs/<id>/   research-runs/<id>/   |
 |  claims + entities + relations, each with a verbatim quote    |
 +-------------------------------+-------------------------------+
                                 |  compiled (full rebuild)
