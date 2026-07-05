@@ -172,12 +172,17 @@ only the `/v1` path — the one the toolkit uses — needs `reasoning_effort`.
 |---|---|---|---|---|
 | gemma4:e4b | 14 | 0 | 0 | 5/5 |
 | gemma4:12b | 11 | 0 | 0 | 5/5 |
+| gemma4:26b (MoE) | 12 | 1 | 0 | 5/5 |
 | gemma4:31b | 21 | 0 | 0 | 5/5 |
 | qwen3:30b-a3b-instruct (baseline) | 14 | 0 | 0 | 5/5 |
 
-All Gemma 4 candidates match or beat the Qwen baseline on this fixture, at
-100% gate integrity, within the extract role's 3,000-token budget (which
-itself confirms reasoning suppression worked end-to-end).
+All Gemma 4 candidates match or beat the Qwen baseline on this fixture
+within the extract role's 3,000-token budget (which itself confirms
+reasoning suppression worked end-to-end). The dense models hit 100% gate
+integrity; the 26B MoE was the only candidate to lose a claim to the gate
+(slightly weaker verbatim exactness — the failure mode the gate exists
+for), though it showed no sign of the constrained-JSON repetition bug at
+json_object level.
 
 Also probed: `diffusiongemma-26B-A4B` GGUF — HTTP 500 under Ollama 0.31.1
 (arch unsupported); dropped from candidacy until Ollama supports it.
@@ -222,9 +227,10 @@ If tuning is warranted (or for the quality ceiling):
 
 ## 9. Open questions / next steps
 
-1. Pull and harness-test `gemma4:26b` (MoE) — likely the best
-   quality-per-token extract/wiki model if the constrained-JSON loop bug
-   doesn't bite at json_object level.
+1. ~~Pull and harness-test `gemma4:26b`~~ — done (see §6.2): 12 written /
+   1 gate-dropped / 5/5 recall; viable but the only candidate with a gate
+   drop, so it slots behind the dense models for extract until the
+   200-chunk run says otherwise.
 2. Scale the eval: build a ~200-chunk reference corpus (the tuning
    go/no-go gate) and add per-model latency/tokens to the harness output.
 3. Implement Track A hardening (de-Claude wording, `check_claims.py`
