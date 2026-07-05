@@ -1304,54 +1304,89 @@ means what the claim says it means, still takes a reader.
 
 ## Configuration
 
-Everything project-specific lives in one file, `.deepresearch.yml`, at your
-project's root, discovered by walking up from wherever a command is run,
-the same way `.git` is found. Nothing in any skill hardcodes a topic, a
-directory name, or a research scope; all of that comes from here.
+Everything project-specific lives in one file, `.deepresearch.yml`, at
+your project's root. Here it is in full, annotated. The shape below is
+exactly what `drt init` writes, plus the optional `llm.roles` block that
+the config loader also reads:
 
 ```yaml
-version: 1
+# .deepresearch.yml -- deep-research-toolkit project configuration
+version: 1                           # format version of this config file itself
 
 knowledge_base:
-  path: knowledge_base/
-  pdf_runs_dir: pdf-runs/
-  research_runs_dir: research-runs/
-  index_dir: .deepresearch/index/
+  path: knowledge_base               # the compiled wiki (OKF markdown) lives here
+  pdf_runs_dir: pdf-runs             # one run directory per ingested PDF
+  research_runs_dir: research-runs   # one run directory per web-research source
+  index_dir: .deepresearch/index     # DuckDB + LanceDB index; git-ignored, rebuilt on demand
 
 topic:
-  name: "Your project's research topic"
-  scope_hint: >
-    A short description of what's in scope, so a skill reading this
-    knows what it's actually researching instead of guessing.
-  tags: []
+  name: "Perovskite stability"       # what "research X for the knowledge base" resolves X to
+  scope_hint: >                      # read by every skill so it knows what is in scope
+    Degradation mechanisms and encapsulation,
+    not manufacturing economics.
+  tags: []                           # free-form labels; empty is fine
 
-features:
-  web_research: true
-  pdf_ingestion: true
-  knowledge_compiler: false
+features:                            # written by `drt init` from --tier; edit freely later
+  web_research: false                # research-knowledge-graph (--tier web or full)
+  pdf_ingestion: true                # the seven-stage PDF pipeline (--tier pdf or full)
+  knowledge_compiler: false          # index + retrieval layer (--tier compiler or full)
 
 llm:
-  provider: anthropic          # "anthropic"/"agent": the in-session agent
-  model: claude-sonnet-4-5     # does extraction; "local": an OpenAI-compatible
-  api_key_env: ANTHROPIC_API_KEY   # endpoint does it (see llm.local below)
-  embedding_model: all-MiniLM-L6-v2
-  local:                       # only read when provider: local
-    base_url: http://localhost:11434/v1
-    model: Ornith-1.0-9B
-    api_key_env: OPENAI_API_KEY
+  provider: anthropic                # agent | anthropic | local. "agent" and its
+                                     # synonym "anthropic" mean the in-session agent
+                                     # does the LLM work (the default); "local"
+                                     # routes to the endpoint under llm.local
+  model: claude-sonnet-4-5           # model name when a hosted API is called directly
+  api_key_env: ANTHROPIC_API_KEY     # name of the env var holding the key -- never the key
+  embedding_model: all-MiniLM-L6-v2  # sentence-transformers or Ollama embedding model
 
-scrapling:
-  default_mode: http
-  rate_limit_seconds: 1.0
+  # Optional, only read under provider: local -- per-phase model routing.
+  # `drt init` does not write this block; add only the roles (and fields)
+  # you want to override. Everything unset falls back to llm.local.
+  # roles:
+  #   extract:             {model: qwen2.5:7b-instruct}  # thinking off, temp 0.0, JSON out
+  #   wiki_write:          {model: ...}                  # thinking off, temp 0.2
+  #   conflict_adjudicate: {model: ...}                  # thinking on,  temp 0.2
+  #   synthesize:          {model: ...}                  # thinking on,  temp 0.4
+  #   code_agent:          {model: ...}                  # thinking on,  temp 0.6
+
+  local:                             # only read when provider: local
+    base_url: http://localhost:11434/v1  # any OpenAI-compatible endpoint (Ollama, vLLM, ...)
+    model: Ornith-1.0-9B             # fallback model for any role not routed above
+    api_key_env: OPENAI_API_KEY      # local servers accept any value; the var must exist
+    temperature: 0.6                 # flat defaults; roles override these per phase
+    top_p: 0.95
+    top_k: 20
+    max_tokens: 16000
+
+scrapling:                           # web retrieval behavior (web tier)
+  default_mode: http                 # http | stealth; stealth drives a real browser
+  rate_limit_seconds: 1.0            # minimum delay between fetches
 ```
 
-`drt init` writes a starter version of this file and asks what tier you
-need (`web`, `pdf`, `compiler`, or `full`), which sets the `features.*`
-flags accordingly. See `docs/contracts/pdf-ingestion-pipeline.md`,
-`docs/contracts/okf-frontmatter.md`, and
-`docs/contracts/knowledge-compiler.md` for the full schema every artifact
-in this toolkit follows, including the `schema_version` fields that make
-future changes to these formats detectable rather than silent.
+Discovery mirrors `.git`: every skill script calls `load_config()`, which
+walks upward from the current directory until it finds a
+`.deepresearch.yml`, so commands work from any subdirectory of the
+project. Nothing in any skill hardcodes a topic, a directory name, or a
+research scope; if it is project-specific, it comes from this file. `drt
+init` writes the starter non-interactively, entirely from flags --
+`--tier` sets the `features.*` block (`web`, `pdf`, `compiler`, or
+`full`), and `--topic-name`, `--scope-hint`, and `--knowledge-base` fill
+in the rest. The `version: 1` at the top covers only this config file.
+The artifacts the pipeline writes -- manifests, chunks, claim files, OKF
+frontmatter -- each carry their own `schema_version` field, and
+`docs/contracts/schema-versions.md` is the registry mapping suite
+versions to the schema versions they produce and accept.
+
+The `llm.roles` block deserves the extra explanation it gets in [Running
+local models](#running-local-models): different pipeline phases want
+different models, so under `provider: local` each of the five roles --
+`extract`, `wiki_write`, `conflict_adjudicate`, `synthesize`,
+`code_agent` -- can point at its own model with its own sampling
+settings, thinking mode, and response format. The defaults live in
+`ROLE_DEFAULTS` in `config.py`. A role you never mention, or a field you
+leave out of one, falls back to the flat `llm.local` entry, which is why
+a single-model setup needs no `roles` block at all.
 
 ## Status and roadmap
 
