@@ -1249,6 +1249,59 @@ extraction fixture and reports how much of the reference it recovers
 and how many of its proposals the verbatim gate dropped. It is a manual
 harness, not part of CI.
 
+## What the pipeline guarantees
+
+### The gate, in depth
+
+One function decides whether a quote counts as evidence: `verbatim_ok`
+in `common/verbatim.py`, an exact-substring check with no
+normalization. The quote must appear in the cited chunk's text
+character for character, contiguously, or the claim is dropped. That
+check runs at three points in the pipeline -- when the extractor
+proposes a claim (`llm/extract.py`), when the dossier is composed
+(`compiler/dossier.py`), and in the eval harness (`pdf/eval.py`) -- and
+all three import the same function. Each stage also re-derives the text
+it checks against from disk, reading the chunk out of the run
+directory's `chunks.jsonl` rather than trusting the compiled index or
+whatever an earlier stage recorded.
+
+That redundancy is deliberate. Because every checkpoint resolves the
+source text independently, a bug in one stage -- or a hand-edit to an
+intermediate file -- cannot launder an unverified claim into the final
+output; the next gate re-checks the quote from scratch. The three
+checkpoints used to be three separately written checks, and they had
+drifted on one detail: what "the source text" means for a quote that
+spans two structural units within a chunk. A claim could pass
+extraction and then be silently rejected downstream, purely because the
+gates disagreed by construction. They were unified into the one
+`common.verbatim` function with one definition of the chunk text, and a
+regression test pins the spanning case, so a quote that passes one gate
+passes all three.
+
+### What it does and doesn't protect against
+
+The guarantee is narrow, and worth stating exactly: every claim in the
+record carries at least one quote that appears verbatim in the chunk it
+cites. That is a hard bound on fabrication. Put a weak local model
+through the pipeline and its failure mode is fewer claims -- proposals
+with bad quotes die at the gate -- rather than invented facts sitting
+in the record. A weak model can only under-produce; it cannot corrupt
+what gets admitted.
+
+The gate does not judge meaning. A model can attach a perfectly real
+quote to a conclusion the quote does not actually support, and the
+substring check will pass, because relevance is a judgment call and the
+gate is mechanical on purpose. Nor does the gate make a source right:
+it guarantees fidelity to the source, not truth, so a source's own
+errors pass straight through as grounded claims, exact quote and all. A
+verbatim quote is also not necessarily a clean one -- a fragment cut
+off mid-sentence is still an exact substring.
+
+So read "verified" as "traceable." The pipeline makes "where did this
+come from?" mechanically answerable, down to an exact quote in an
+archived source. Whether that source is correct, and whether the quote
+means what the claim says it means, still takes a reader.
+
 ## Configuration
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at your
