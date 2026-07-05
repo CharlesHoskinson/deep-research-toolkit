@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 
-from .response import validate_citations
-from .wiki import CitationError, _unfenced
+from .response import unfence, validate_citations
+from .wiki import CitationError
 
 _SYSTEM = """You write the synthesis section of an evidence dossier.
 
@@ -44,10 +44,10 @@ def synthesize_thesis(question: str, dossier: dict, backend,
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
     user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
-    thesis = _unfenced(backend.complete(_SYSTEM, user))
+    thesis = unfence(backend.complete(_SYSTEM, user))
     report = validate_citations(thesis, allowed)
     if report["unknown"]:
-        thesis = _unfenced(backend.complete(
+        thesis = unfence(backend.complete(
             _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"]))))
         report = validate_citations(thesis, allowed)
         if report["unknown"]:

@@ -1,4 +1,4 @@
-from deep_research_toolkit.llm.response import extract_claim_ids, parse_json_block, validate_citations
+from deep_research_toolkit.llm.response import extract_claim_ids, parse_json_block, unfence, validate_citations
 
 
 def test_extract_claim_ids_in_order_with_dupes_removed():
@@ -44,3 +44,17 @@ def test_parse_json_block_object_only_fallback():
 def test_parse_json_block_output_block_is_authoritative():
     # Garbage inside <output> must NOT fall back to JSON outside it.
     assert parse_json_block('<output>garbage</output> {"a": 1}') is None
+
+
+def test_unfence_unwraps_whole_reply_fence():
+    assert unfence("```markdown\nbody [claim:c1]\n```") == "body [claim:c1]"
+
+
+def test_unfence_passthrough_when_not_fenced():
+    text = "plain body\n"
+    assert unfence(text) == text
+
+
+def test_unfence_leaves_mid_body_fences_alone():
+    text = "intro\n```python\ncode\n```\noutro"
+    assert unfence(text) == text

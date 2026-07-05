@@ -12,6 +12,15 @@ import re
 
 CLAIM_MARKER_RE = re.compile(r"\[claim:([A-Za-z0-9_\-\.]+)\]")
 _OUTPUT_RE = re.compile(r"<output>(.*?)</output>", re.DOTALL)
+_FENCE_RE = re.compile(r"\A\s*```[a-zA-Z]*\s*\n(.*?)\n?```\s*\Z", re.DOTALL)
+
+
+def unfence(text: str) -> str:
+    """Unwrap a whole-reply code fence -- a formatting reflex, not content.
+    Prose roles apply this mechanically before the citation gate rather than
+    trusting the prompt's 'no fences' rule. Mid-body fences are untouched."""
+    m = _FENCE_RE.match(text)
+    return m.group(1) if m else text
 
 
 def extract_claim_ids(text: str) -> list[str]:

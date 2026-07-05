@@ -31,6 +31,8 @@ def main():
         dossier = json.loads(raw)
     except json.JSONDecodeError as e:
         sys.exit(f"invalid JSON in {args.dossier}: {e}")
+    if not (dossier.get("included") or []):
+        sys.exit("dossier has no included claims -- nothing to synthesize")
     try:
         backend = get_backend(load_config(), role="synthesize")
         out = synthesize_thesis(args.question, dossier, backend)
@@ -41,7 +43,7 @@ def main():
            + render_dossier_markdown(dossier))
     if args.out:
         Path(args.out).write_text(doc, encoding="utf-8")
-        print(f"wrote {args.out} (coverage {out['citations']['coverage']:.2f})")
+        print(f"wrote {args.out} ({len(out['citations']['cited'])} claim(s) cited, coverage {out['citations']['coverage']:.2f})")
     else:
         print(doc)
 

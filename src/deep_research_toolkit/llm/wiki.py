@@ -7,18 +7,8 @@ agent writes wiki pages itself per the llm-wiki-writer SKILL.md."""
 from __future__ import annotations
 
 import json
-import re
 
-from .response import validate_citations
-
-_FENCE_RE = re.compile(r"\A\s*```[a-zA-Z]*\s*\n(.*?)\n?```\s*\Z", re.DOTALL)
-
-
-def _unfenced(text: str) -> str:
-    """A whole-reply code fence is a formatting reflex, not content -- unwrap
-    it mechanically rather than trusting the prompt's 'no fences' rule."""
-    m = _FENCE_RE.match(text)
-    return m.group(1) if m else text
+from .response import unfence, validate_citations
 
 _SYSTEM = """You write one wiki page body for a research knowledge base.
 
@@ -68,10 +58,10 @@ def write_wiki_body(title: str, page_type: str, claims: list[dict], backend,
         raise ValueError("write_wiki_body needs at least one gate-passed claim")
     allowed = [c.get("claim_id") for c in claims]
     user = _task(title, page_type, claims)
-    body = _unfenced(backend.complete(_SYSTEM, user))
+    body = unfence(backend.complete(_SYSTEM, user))
     report = validate_citations(body, allowed)
     if report["unknown"]:
-        body = _unfenced(backend.complete(_SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"]))))
+        body = unfence(backend.complete(_SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"]))))
         report = validate_citations(body, allowed)
         if report["unknown"]:
             raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")
