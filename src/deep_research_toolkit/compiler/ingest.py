@@ -106,6 +106,48 @@ def iter_run_relations(run_dir: Path, producer: str) -> list[dict]:
     return rows
 
 
+def merge_entities(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse entity rows that share an entity_id across runs into one row.
+
+    Different sources independently emit the same entity_id (the model picks the
+    same slug), each with its own name/aliases/type. Without merging, the
+    ``entities`` table has several rows per id and ``get_entity`` picks one
+    arbitrarily. This unions aliases (folding in the non-canonical names), picks a
+    deterministic canonical name (longest, then lexically smallest) and the most
+    common type. ``entity_mentions`` already aggregate by entity_id, so only the
+    ``entities`` table needs this.
+    """
+    from collections import Counter
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        eid = r.get("entity_id")
+        if not eid:
+            continue
+        g = grouped.setdefault(eid, {"names": set(), "aliases": set(), "types": [],
+                                     "producer": r.get("producer"), "source_id": r.get("source_id")})
+        if r.get("name"):
+            g["names"].add(r["name"])
+        g["aliases"] |= set(json.loads(r.get("aliases_json") or "[]"))
+        if r.get("type"):
+            g["types"].append(r["type"])
+
+    out = []
+    for eid, g in grouped.items():
+        names = g["names"]
+        canonical = min(names, key=lambda n: (-len(n), n)) if names else ""
+        aliases = sorted((g["aliases"] | names) - {canonical})
+        typ = None
+        if g["types"]:
+            counts = Counter(g["types"])
+            top = max(counts.values())
+            typ = sorted(t for t, c in counts.items() if c == top)[0]
+        out.append({"entity_id": eid, "name": canonical, "type": typ,
+                    "aliases_json": json.dumps(aliases),
+                    "producer": g["producer"], "source_id": g["source_id"]})
+    return sorted(out, key=lambda r: r["entity_id"])
+
+
 def discover_runs(runs_root: Path) -> list[Path]:
     runs_root = Path(runs_root)
     if not runs_root.is_dir():

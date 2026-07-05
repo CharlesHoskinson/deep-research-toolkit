@@ -31,3 +31,21 @@ def test_discover_runs_finds_only_dirs_with_claims(tmp_path):
     (tmp_path / "a").mkdir(); (tmp_path / "a" / "claims.jsonl").write_text("", encoding="utf-8")
     (tmp_path / "b").mkdir()
     assert [p.name for p in ingest.discover_runs(tmp_path)] == ["a"]
+
+
+def test_merge_entities_collapses_same_id_across_sources():
+    from deep_research_toolkit.compiler.ingest import merge_entities
+    rows = [
+        {"entity_id": "ows", "name": "OWS", "type": "standard",
+         "aliases_json": json.dumps(["Open Wallet"]), "producer": "pdf", "source_id": "d1"},
+        {"entity_id": "ows", "name": "Open Wallet Standard", "type": "standard",
+         "aliases_json": "[]", "producer": "web", "source_id": "d2"},
+        {"entity_id": "hydra", "name": "Hydra", "type": "protocol",
+         "aliases_json": "[]", "producer": "pdf", "source_id": "d1"},
+    ]
+    merged = {e["entity_id"]: e for e in merge_entities(rows)}
+    assert set(merged) == {"ows", "hydra"}                       # ows collapsed to one row
+    assert merged["ows"]["name"] == "Open Wallet Standard"       # longest name is canonical
+    aliases = json.loads(merged["ows"]["aliases_json"])
+    assert "OWS" in aliases and "Open Wallet" in aliases         # non-canonical name + aliases folded in
+    assert merged["ows"]["type"] == "standard"

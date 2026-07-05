@@ -81,7 +81,8 @@ def compile_index(config, embedder: Embedder | None = None) -> dict:
         _insert(con, "claims", claims, ["claim_id", "producer", "source_id", "claim", "claim_type", "confidence"])
         _insert(con, "claim_evidence", evidence,
                 ["claim_id", "producer", "source_id", "locator", "page", "url", "quote"])
-        _insert(con, "entities", entities, ["entity_id", "name", "type", "aliases_json", "producer", "source_id"])
+        _insert(con, "entities", ingest.merge_entities(entities),
+                ["entity_id", "name", "type", "aliases_json", "producer", "source_id"])
         _insert(con, "entity_mentions", mentions, ["entity_id", "locator", "producer", "source_id"])
         _insert(con, "relations", relations,
                 ["relation_id", "subject", "predicate", "object", "supporting_claim", "producer", "source_id"])
