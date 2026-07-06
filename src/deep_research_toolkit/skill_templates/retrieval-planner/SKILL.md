@@ -33,6 +33,12 @@ only if **every** supporting quote is a verbatim substring of its source
 with a reason -- never silently included. Trust `included`; treat `rejected`
 as a signal that an extraction pass needs fixing.
 
+Under `provider: local`, `scripts/synthesize_dossier.py` takes a composed
+dossier and drafts a cited thesis with the `synthesize` model instead of
+you writing the synthesis by hand. Its thesis is a proposal, not a
+finished answer -- review it against the dossier's `included` claims the
+same way you would your own draft before handing it onward.
+
 ## find-contradictions is candidates, not verdicts
 
 `find-contradictions` lists *mechanical* candidates (same subject+predicate
@@ -40,3 +46,9 @@ with different objects; `status: conflicted` pages). Confirming a candidate
 is a real contradiction is your job as the agent: read the two claims and
 their quotes via `search-claims`/`compose-dossier` and decide. Do this in a
 single batched pass over all candidates, not one model call each.
+
+Under `provider: local`, `scripts/adjudicate_contradictions.py` runs that
+same batched pass through the `conflict_adjudicate` model, taking
+`find-contradictions` candidates in and writing a verdicts JSONL out.
+Verdicts are proposals with rationales, not final rulings -- review each
+one against the underlying claims before acting on the corpus.

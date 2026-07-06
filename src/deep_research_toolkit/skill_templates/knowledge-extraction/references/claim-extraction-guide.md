@@ -1,7 +1,7 @@
 # Claim / Entity / Relation Extraction Guide
 
-This is the part of `knowledge-extraction` that needs Claude's judgment, not
-a script (see `SKILL.md` — same split `research-knowledge-graph` makes
+This is the part of `knowledge-extraction` that needs the agent's judgment,
+not a script (see `SKILL.md` — same split `research-knowledge-graph` makes
 between `scripts/fetch.py` and the human-judgment merge step described in
 its `references/wiki-operations.md`). This guide works through
 `tests/fixtures/hydra-settlement-test-fixture.pdf`'s own content — read
@@ -67,7 +67,7 @@ evidence is a CSV-rendered table row (`quote` is the raw
 `"Hydra Head (small),3,\"1,000\",<1s"` cell text, not prose), so the claim
 is paraphrasing structured data into a sentence. That paraphrase step is
 exactly why this one gets `medium` instead of `high`: the *claim* wording
-is Claude's, even though the *quote* is verbatim.
+is the agent's own, even though the *quote* is verbatim.
 
 **Paraphrasing the quote.** Never write a quote like `"Hydra achieves high
 throughput"` when the source says `"1,000 TPS"` — that's not a substring

@@ -3,7 +3,7 @@
 `classify_pdf.py` computes five signals (see SKILL.md) and picks exactly one
 `route` by checking conditions **in priority order** — the first one that
 matches wins. This doc explains why that order and those thresholds, so a
-human (or a later Claude session) can tune them without re-deriving the
+human (or a later agent session) can tune them without re-deriving the
 reasoning from scratch.
 
 ## Priority order

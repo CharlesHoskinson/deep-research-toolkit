@@ -1,6 +1,6 @@
 ---
 name: pdf-ingest-router
-description: Use this FIRST, before any other step, whenever a PDF needs to enter the knowledge pipeline — a whitepaper, spec, research paper, financial/legal document, form, slide deck, or scanned document. Computes a stable document_id, classifies the PDF (digital-text/scanned/scientific-math/form/financial-legal/slide-like) from real extractable-text/table/math/form signals, and starts the pdf-runs/<document_id>/ working directory (classification.json + manifest.json) that every later pipeline stage (pdf-to-canonical-markdown, pdf-layout-provenance, canonical-markdown-to-llm-nodes, knowledge-extraction, llm-wiki-writer, rag-eval-harness) reads from.
+description: Use this FIRST, before any other step, whenever a PDF needs to enter the knowledge pipeline — a whitepaper, spec, research paper, financial/legal document, form, slide deck, or scanned document. Computes a stable document_id, classifies the PDF (digital-text/scanned/scientific-math/form/financial-legal/slide-like), and starts the pdf-runs/<document_id>/ working directory (classification.json + manifest.json) that every later pipeline stage reads from.
 ---
 
 # PDF Ingest Router

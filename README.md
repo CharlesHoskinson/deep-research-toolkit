@@ -1043,12 +1043,20 @@ proposals the gate had to drop.
 What this backend deliberately is not: a switch that moves the whole
 toolkit onto a local model. Claim extraction is the main programmatic
 caller, because it is the one high-volume step whose output is
-mechanically checkable; wiki synthesis, conflict adjudication, and
-research planning remain agent work even under `provider: local`. Getting
-a local model to perform well at extraction has its own operational
-details -- the chat template a reasoning model needs, generous token
-budgets, the `llm.roles` map that routes each phase to a model suited to
-it -- all covered in [Running local models](#running-local-models) below.
+mechanically checkable. The other judgment phases now have optional
+programmatic callers too -- `write_wiki_page.py` (llm-wiki-writer, the
+`wiki_write` role), `adjudicate_contradictions.py` and
+`synthesize_dossier.py` (retrieval-planner, the `conflict_adjudicate`
+and `synthesize` roles) -- but each is gated by its own mechanical check
+(citation markers must resolve to gate-passed claims; verdicts are
+schema-validated against their candidates), each produces a proposal
+for review rather than a finished artifact, and the in-session agent
+remains the default worker for all of them. Research planning stays
+agent work outright. Getting a local model to perform well at these
+roles has its own operational details -- the chat template a reasoning
+model needs, generous token budgets, the `llm.roles` map that routes
+each phase to a model suited to it -- all covered in
+[Running local models](#running-local-models) below.
 
 ## The retrieval tools
 
@@ -1201,12 +1209,14 @@ llm:
   provider: local
   embedding_model: qwen3-embedding:4b
   roles:
-    extract:     {model: qwen2.5:7b-instruct}  # the tested extract model
-    wiki_write:  {model: qwen3.6:35b-a3b}      # illustrative tag, not tested
-    synthesize:  {model: qwen3.6:27b}          # illustrative tag, not tested
+    extract:             {model: gemma4:e4b}   # validated: 100% gate pass on the reference fixture
+    wiki_write:          {model: gemma4:12b}
+    conflict_adjudicate: {model: gemma4:31b}
+    synthesize:          {model: gemma4:31b}
+    code_agent:          {model: qwen3.6:27b}
   local:
     base_url: http://localhost:11434/v1
-    model: ornith-9b-drt      # fallback / code_agent
+    model: gemma4:12b        # fallback for any role left unset
 ```
 
 One finding from testing is worth stating plainly: a model's
@@ -1218,15 +1228,24 @@ whether via the `think: false` request parameter or a `/no_think`
 prompt directive. Each reasoned until it hit the token ceiling and
 returned nothing.
 
-That failure lands hardest on `extract`, the one role that runs at
-volume and wants an immediate JSON answer. The fix was not to wait for
-the switch to start working; it was to stop depending on a switch. A
-true instruct model such as `qwen2.5:7b-instruct` has no reasoning path
-to suppress, so there is nothing for the serving layer to get wrong.
-"Does this model support non-thinking mode" turns out to be the wrong
-question. The right one is "does this serving stack, at this version,
-honor that switch" -- and the only way to answer it is to test the exact
-(model, server, version) triple you intend to run.
+Gemma 4 sharpens this point: under Ollama its thinking mode is on by
+default, and on the OpenAI-compatible endpoint `think: false` is
+silently ignored (ollama/ollama#15288) -- the switch that works there
+is `reasoning_effort: "none"`, which the local backend now sends
+automatically whenever a role sets `thinking: false`. Measured on the
+hydra fixture, all Gemma 4 dense sizes pass the verbatim gate at 100%
+with reasoning suppressed, 4-5x faster than with it left on.
+
+When the switch cannot be trusted -- an older Ollama, a model family
+whose toggle the serving stack ignores, or a triple you have not yet
+tested -- the fallback is not to wait for a fix; it is to stop
+depending on a switch at all. A true instruct model such as
+`qwen2.5:7b-instruct` has no reasoning path to suppress, so there is
+nothing for the serving layer to get wrong. "Does this model support
+non-thinking mode" turns out to be the wrong question. The right one
+is "does this serving stack, at this version, honor that switch" --
+and the only way to answer it is to test the exact (model, server,
+version) triple you intend to run.
 
 Getting a reasoning model to work at all involves two more serving
 details. First, the model needs its real chat template: the stock
@@ -1311,8 +1330,9 @@ means what the claim says it means, still takes a reader.
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at
 your project's root. Here it is in full, annotated. The shape below is
-exactly what `drt init` writes, plus the optional `llm.roles` block that
-the config loader also reads:
+what `drt init` writes -- annotated more fully here for reference --
+with the `llm.roles` block shown the way init emits it: commented out
+until you opt in.
 
 ```yaml
 # .deepresearch.yml -- deep-research-toolkit project configuration
@@ -1346,20 +1366,21 @@ llm:
   embedding_model: all-MiniLM-L6-v2  # sentence-transformers or Ollama embedding model
 
   # Optional, only read under provider: local -- per-phase model routing.
-  # `drt init` does not write this block; add only the roles (and fields)
-  # you want to override. An unset model, base_url, api_key_env, top_p, or
-  # top_k falls back to llm.local; an unset thinking, temperature,
-  # max_tokens, or response_format uses that role's ROLE_DEFAULTS entry.
+  # `drt init` writes this block commented out; uncomment only the roles
+  # (and fields) you want to override. An unset model, base_url,
+  # api_key_env, top_p, or top_k falls back to llm.local; an unset
+  # thinking, temperature, max_tokens, or response_format uses that
+  # role's ROLE_DEFAULTS entry.
   # roles:
-  #   extract:             {model: qwen2.5:7b-instruct}  # thinking off, temp 0.0, JSON out
-  #   wiki_write:          {model: ...}                  # thinking off, temp 0.2
-  #   conflict_adjudicate: {model: ...}                  # thinking on,  temp 0.2
-  #   synthesize:          {model: ...}                  # thinking on,  temp 0.4
-  #   code_agent:          {model: ...}                  # thinking on,  temp 0.6
+  #   extract:             {model: gemma4:e4b}   # thinking off, temp 0.0, JSON out
+  #   wiki_write:          {model: gemma4:12b}   # thinking off, temp 0.2
+  #   conflict_adjudicate: {model: gemma4:31b}   # thinking on,  temp 0.2
+  #   synthesize:          {model: gemma4:31b}   # thinking on,  temp 0.4
+  #   code_agent:          {model: qwen3.6:27b}  # thinking on,  temp 0.6
 
   local:                             # only read when provider: local
     base_url: http://localhost:11434/v1  # any OpenAI-compatible endpoint (Ollama, vLLM, ...)
-    model: Ornith-1.0-9B             # fallback model for any role not routed above
+    model: Ornith-1.0-9B             # drt init default; see Running local models for the validated map
     api_key_env: OPENAI_API_KEY      # local servers usually ignore the key; the var can stay unset
     temperature: 0.6                 # flat defaults; roles override these per phase
     top_p: 0.95

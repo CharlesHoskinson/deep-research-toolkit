@@ -1,6 +1,6 @@
 ---
 name: knowledge-extraction
-description: Fifth stage of the PDF ingestion pipeline — pulls tables and figures out of Docling's raw export, and has Claude read chunks.jsonl to write claims.jsonl/entities.jsonl/relations.jsonl by hand. Runs after canonical-markdown-to-llm-nodes and before llm-wiki-writer. Use when a run directory has chunks.jsonl but no claims.jsonl yet.
+description: Fifth stage of the PDF ingestion pipeline — pulls tables and figures out of Docling's raw export, and has the agent read chunks.jsonl to write claims.jsonl/entities.jsonl/relations.jsonl by hand. Runs after canonical-markdown-to-llm-nodes and before llm-wiki-writer. Use when a run directory has chunks.jsonl but no claims.jsonl yet.
 ---
 
 # Knowledge Extraction
@@ -14,9 +14,9 @@ outputs, and they split cleanly into two kinds of work:
 |---|---|
 | `tables/table_NN.csv` | `scripts/extract_tables.py` — deterministic |
 | `figures/figure_NN.png` + `figures/captions.jsonl` | `scripts/extract_figures.py` — deterministic |
-| `claims.jsonl` | **Claude, reading chunks.jsonl, following this file** |
-| `entities.jsonl` | **Claude, reading chunks.jsonl, following this file** |
-| `relations.jsonl` | **Claude, reading chunks.jsonl, following this file** |
+| `claims.jsonl` | **the agent, reading chunks.jsonl, following this file** |
+| `entities.jsonl` | **the agent, reading chunks.jsonl, following this file** |
+| `relations.jsonl` | **the agent, reading chunks.jsonl, following this file** |
 
 Don't try to script the second half. Deciding whether a sentence is a real,
 atomic claim, or whether "Hydra" and "Hydra Head" are the same entity, is a
@@ -43,7 +43,7 @@ fallback — see the contract doc). Both scripts:
 - Are idempotent: re-running overwrites their own output files and merges
   their own key into `manifest.json`'s `stages.knowledge-extraction` without
   touching the other script's keys or the claim/entity/relation counts
-  Claude fills in later.
+  the agent fills in later.
 
 `extract_tables.py` walks `tables[].data.table_cells`, placing each cell's
 text at its `start_row_offset_idx`/`start_col_offset_idx` (spanned-over
@@ -60,7 +60,7 @@ or a picture element Docling didn't capture pixel data for) is recorded with
 because `rag-eval-harness`'s `figures_accounted_for` check counts figure
 *references*, not just successfully-extracted PNGs.
 
-## Part 2 — claims, entities, relations (Claude does this directly)
+## Part 2 — claims, entities, relations (the agent does this directly)
 
 Read `chunks.jsonl` in the run directory, then write three JSONL files
 directly into the run directory, one JSON object per line, matching these
@@ -77,10 +77,38 @@ schemas exactly (see the contract doc for the authoritative version):
 {"schema_version": "1.0", "relation_id": "r_0001", "subject": "hydra-head", "predicate": "serves_as", "object": "synchronous settlement layer", "supporting_claim": "c_0001", "document_id": "..."}
 ```
 
+**Work in batches; keep progress on disk.** Process `chunks.jsonl` in order,
+10–20 chunks at a time; append each batch's output before reading the next.
+After each gated batch, record the id of the last chunk you finished in
+`extraction-progress.json` in the run directory — e.g.
+`{"last_chunk": "<chunk id>"}`. This is your own scratch note for resuming;
+no other tooling reads it, and it never belongs in `manifest.json`, whose
+stage entries mark true one-time completion. Delete it when extraction
+finishes. If you are resuming (after compaction, a crash, or a new
+session), re-read this SKILL.md, read `last_chunk` from
+`extraction-progress.json`, and continue from the next chunk — never
+restart a run that has gated output. If your environment supports parallel
+subagents, you may split the remaining chunks into contiguous ranges (one
+subagent per range, each returning claims JSONL for you to gate and merge)
+— an optimization, never a requirement. Gate each returned range with
+`check_claims.py` before merging it; the merge inherits only gated claims.
+
+**Gate every batch before moving on.** After appending a batch of claims to
+`claims.jsonl`, run:
+
+    python scripts/check_claims.py <run_dir>
+
+Exit 1 lists each failing claim and why (non-verbatim quote, missing
+evidence). Fix or drop those claims now — re-quote from the chunk text,
+never paraphrase — and re-run until it exits 0. Do not extract the next
+batch over unfixed failures: the compile-time gate would reject them later
+anyway, after you have lost the context to repair them.
+
 After writing all three, update `manifest.json` yourself (the scripts above
 only ever touch `table_count`/`figure_count`): merge `claim_count`,
-`entity_count`, and `relation_count` into `stages.knowledge-extraction`, and
-set/refresh `completed_at`. Use `deep_research_toolkit.common.manifest.
+`entity_count`, and `relation_count` into `stages.knowledge-extraction`,
+set/refresh `completed_at`, and delete `extraction-progress.json` if
+present. Use `deep_research_toolkit.common.manifest.
 update_stage(run_dir, "knowledge-extraction", claim_count=..., entity_count=...,
 relation_count=...)` — it merges into the existing stage entry rather than
 replacing it, so the table/figure counts already recorded there survive.
@@ -138,5 +166,5 @@ fixture for the whole pipeline. The real, verified reference outputs for
 this stage are `tests/fixtures/reference-run-hydra-settlement/claims.jsonl`,
 `entities.jsonl`, and `relations.jsonl` — produced by chaining all 7 skills
 together end-to-end, not a hand-derived approximation. They show what
-Claude, following this file, should produce from that document's
+the agent, following this file, should produce from that document's
 `chunks.jsonl`.

@@ -14,8 +14,8 @@ Two modes:
        --type Concept --title "..." --status draft \\
        --source-docs doc-id-a1b2c3d4 [--description ...] [--tags ...] [--body ...]
 
-2. --record-updated -- the page already exists and Claude merged new claims
-   into it directly (Read + Edit), following the same "edit it directly,
+2. --record-updated -- the page already exists and the agent merged new
+   claims into it directly (Read + Edit), following the same "edit it directly,
    merge into the body, bump timestamp" convention research-knowledge-graph
    uses. This mode does not touch the file's content at all; it only logs
    the path into wiki_pages_written.json (and manifest.json) so the audit
