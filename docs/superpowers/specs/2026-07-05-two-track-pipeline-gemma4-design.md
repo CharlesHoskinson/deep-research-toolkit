@@ -189,6 +189,29 @@ json_object level.
 Also probed: `diffusiongemma-26B-A4B` GGUF — HTTP 500 under Ollama 0.31.1
 (arch unsupported); dropped from candidacy until Ollama supports it.
 
+### 6.3 End-to-end Track B run (post-implementation, 2026-07-05)
+
+Full pipeline in a fresh `drt init` workspace on the validated role map,
+all judgment and embeddings local:
+
+| Stage | Model | Result |
+|---|---|---|
+| extract | gemma4:e4b | 14 claims, 0 dropped, 0 parse failures (34.9s) |
+| write-time gate | mechanical | 14/14 ok |
+| compile | qwen3-embedding:4b (Ollama route) | 14 claims + 9 entities + 14 relations + wiki indexed (6.2s) |
+| wiki page | gemma4:12b | 14/14 cited, coverage 1.00 (after marker fix below) |
+| contradictions | gemma4:31b | no candidates on single-source corpus (expected) |
+| dossier + synthesis | gemma4:31b | 8/8 included; cited synthesis, no invented ids |
+
+The run surfaced one real Gemma 4 weakness: the models sometimes cite
+correct claim ids while dropping the literal `claim:` prefix
+(`[b00_c_0001]` instead of `[claim:b00_c_0001]`), zeroing citation
+coverage. Fixed mechanically — `normalize_claim_markers` rewrites a bare
+`[<known-id>]` against the closed allowed-id set before the gate (the
+prose analogue of `unfence`), and the prompts now state the prefix
+requirement explicitly. The previously failing wiki stage passes at
+coverage 1.00 after the fix.
+
 ## 7. Fine-tuning: decision rule and recipes
 
 **Rule:** constrained decoding guarantees JSON shape but cannot guarantee
