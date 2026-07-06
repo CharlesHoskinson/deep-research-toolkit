@@ -75,6 +75,26 @@ def _bracket_slices(text: str) -> list[str]:
     return [s for _, s in sorted(slices, key=lambda p: p[0])]
 
 
+def has_repetition_loop(text: str, max_pattern: int = 20, min_repeats: int = 4,
+                        min_words: int = 40) -> bool:
+    """True when the text's tail is one phrase repeated over and over --
+    the constrained-decoding failure mode Gemma 4 exhibits (ollama#15502).
+    Word-level check: for pattern lengths 1..max_pattern, test whether the
+    last (pattern * min_repeats) words are the same pattern repeated."""
+    words = text.split()
+    if len(words) < min_words:
+        return False
+    for size in range(1, max_pattern + 1):
+        window = size * min_repeats
+        if window > len(words):
+            break
+        tail = words[-window:]
+        pattern = tail[:size]
+        if all(tail[i] == pattern[i % size] for i in range(window)):
+            return True
+    return False
+
+
 def parse_json_block(text: str):
     """JSON from a model reply. An <output>...</output> block, when present,
     is authoritative: only its content is considered (fences stripped, then

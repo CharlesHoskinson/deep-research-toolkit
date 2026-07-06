@@ -86,6 +86,13 @@ def test_object_wrapped_array_is_unwrapped():
     assert len(out["verdicts"]) == 1
 
 
+def test_repetition_loop_reply_counts_as_parse_failure():
+    reply = "the same phrase " * 40  # >=40 words, tail is one phrase repeated
+    out = adjudicate_candidates(CANDS, StubBackend(reply))
+    assert out["parse_failures"] == 1
+    assert out["verdicts"] == []
+
+
 def test_batching_isolates_parse_failures():
     class PerCallBackend:
         def __init__(self, replies):

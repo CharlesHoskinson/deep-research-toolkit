@@ -1,5 +1,6 @@
 from deep_research_toolkit.llm.response import (
     extract_claim_ids,
+    has_repetition_loop,
     normalize_claim_markers,
     parse_json_block,
     unfence,
@@ -83,3 +84,19 @@ def test_normalize_claim_markers_leaves_unknown_and_prefixed_alone():
 def test_normalize_claim_markers_empty_allowed_is_identity():
     text = "Anything [c1] at all."
     assert normalize_claim_markers(text, []) == text
+
+
+def test_repetition_loop_detected_on_repeated_phrase():
+    text = "The ledger records " + ("the same value " * 30)
+    assert has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_normal_prose():
+    text = ("Hydra is a family of Layer-2 protocols. Transactions settle "
+            "instantly among participants. The main chain reconciles state "
+            "when the head closes. Four phases structure the lifecycle.")
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_short_texts():
+    assert not has_repetition_loop("yes yes yes")

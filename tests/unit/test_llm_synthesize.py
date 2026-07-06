@@ -60,3 +60,20 @@ def test_bare_marker_reply_is_normalized_and_passes():
     out = synthesize_thesis("q", DOSSIER, StubBackend([reply]))
     assert out["citations"]["coverage"] == 1.0
     assert "[claim:c1]" in out["thesis"]
+
+
+def test_repetition_loop_reply_raises_after_retry_also_loops():
+    looping = "the same phrase " * 40  # >=40 words, tail is one phrase repeated
+    backend = StubBackend([looping, looping])
+    with pytest.raises(ValueError, match="repetition"):
+        synthesize_thesis("q", DOSSIER, backend)
+    assert len(backend.calls) == 2
+
+
+def test_repetition_loop_then_good_reply_succeeds():
+    looping = "the same phrase " * 40
+    good = "Praos, introduced in 2018 [claim:c1], tolerates delays [claim:c2]."
+    backend = StubBackend([looping, good])
+    out = synthesize_thesis("q", DOSSIER, backend)
+    assert out["thesis"] == good
+    assert out["citations"]["coverage"] == 1.0

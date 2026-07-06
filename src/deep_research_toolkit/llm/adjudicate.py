@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from .response import parse_json_block
+from .response import has_repetition_loop, parse_json_block
 
 VERDICTS = ("contradiction", "not_contradiction", "insufficient_evidence")
 
@@ -57,6 +57,9 @@ def adjudicate_candidates(candidates: list[dict], backend,
         batch = relation_cands[i:i + batch_size]
         user = "CANDIDATES:\n" + json.dumps(batch, ensure_ascii=False, indent=1)
         reply = backend.complete(_SYSTEM, user)
+        if has_repetition_loop(reply):
+            parse_failures += 1
+            continue
         data = parse_json_block(reply)
         if isinstance(data, dict):
             # Reasoning models like wrapping the array in an object; accept a

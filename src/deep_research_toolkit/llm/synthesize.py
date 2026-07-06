@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import normalize_claim_markers, unfence, validate_citations
+from .response import has_repetition_loop, normalize_claim_markers, unfence, validate_citations
 from .wiki import CitationError
 
 _SYSTEM = """You write the synthesis section of an evidence dossier.
@@ -29,6 +29,10 @@ _CORRECTION = (
     "claim_ids may appear in [claim:...] markers. Rewrite the full synthesis."
 )
 
+_REPETITION_CORRECTION = (
+    "Your previous reply degenerated into repetition. Write the synthesis normally."
+)
+
 
 def synthesize_thesis(question: str, dossier: dict, backend,
                       min_coverage: float = 0.3) -> dict:
@@ -45,7 +49,12 @@ def synthesize_thesis(question: str, dossier: dict, backend,
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
     user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
-    thesis = normalize_claim_markers(unfence(backend.complete(_SYSTEM, user)), allowed)
+    raw = backend.complete(_SYSTEM, user)
+    if has_repetition_loop(raw):
+        raw = backend.complete(_SYSTEM, user + "\n\n" + _REPETITION_CORRECTION)
+        if has_repetition_loop(raw):
+            raise ValueError("model reply degenerated into repetition")
+    thesis = normalize_claim_markers(unfence(raw), allowed)
     report = validate_citations(thesis, allowed)
     if report["unknown"]:
         thesis = normalize_claim_markers(
