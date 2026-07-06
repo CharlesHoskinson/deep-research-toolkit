@@ -75,23 +75,44 @@ def _bracket_slices(text: str) -> list[str]:
     return [s for _, s in sorted(slices, key=lambda p: p[0])]
 
 
-def has_repetition_loop(text: str, max_pattern: int = 20, min_repeats: int = 4,
-                        min_words: int = 40) -> bool:
-    """True when the text's tail is one phrase repeated over and over --
-    the constrained-decoding failure mode Gemma 4 exhibits (ollama#15502).
-    Word-level check: for pattern lengths 1..max_pattern, test whether the
-    last (pattern * min_repeats) words are the same pattern repeated."""
-    words = text.split()
-    if len(words) < min_words:
+_TOKEN_TRIM = ".,;:!?|`*_-—()[]{}\"'"
+
+
+def _normalized_words(text: str) -> list[str]:
+    words = []
+    for raw in text.split():
+        w = raw.strip(_TOKEN_TRIM).lower()
+        if w:
+            words.append(w)
+    return words
+
+
+def has_repetition_loop(text: str, max_pattern: int = 20, min_repeats: int = 6,
+                        min_region_words: int = 40) -> bool:
+    """True when anywhere in the text one short phrase repeats consecutively
+    enough to cover a long region -- the constrained-decoding degeneration
+    Gemma 4 exhibits (ollama#15502), including inside JSON string values.
+    Tokens are lowercased and punctuation-trimmed so sampler jitter cannot
+    hide a loop, and markdown table furniture ('|', '---') normalizes away.
+    Thresholds are conservative: real loops run for many dozens of words,
+    while legitimate repetition (separator rows, n/a cells) stays short.
+    Patterns longer than max_pattern words are out of scope by design."""
+    words = _normalized_words(text)
+    n = len(words)
+    if n < min_region_words:
         return False
     for size in range(1, max_pattern + 1):
-        window = size * min_repeats
-        if window > len(words):
+        if size * min_repeats > n:
             break
-        tail = words[-window:]
-        pattern = tail[:size]
-        if all(tail[i] == pattern[i % size] for i in range(window)):
-            return True
+        i = 0
+        while i + size <= n:
+            j = i + size
+            while j + size <= n and words[j:j + size] == words[i:i + size]:
+                j += size
+            repeats = (j - i) // size
+            if repeats >= min_repeats and repeats * size >= min_region_words:
+                return True
+            i += max(1, (repeats - 1) * size)
     return False
 
 

@@ -63,7 +63,7 @@ def test_bare_marker_reply_is_normalized_and_passes():
 
 
 def test_repetition_loop_reply_raises_after_retry_also_loops():
-    looping = "the same phrase " * 40  # >=40 words, tail is one phrase repeated
+    looping = "the same phrase " * 40  # 120 words of one repeated phrase
     backend = StubBackend([looping, looping])
     with pytest.raises(ValueError, match="repetition"):
         synthesize_thesis("q", DOSSIER, backend)
@@ -77,3 +77,15 @@ def test_repetition_loop_then_good_reply_succeeds():
     out = synthesize_thesis("q", DOSSIER, backend)
     assert out["thesis"] == good
     assert out["citations"]["coverage"] == 1.0
+    assert len(backend.calls) == 2
+
+
+def test_repetition_loop_on_citation_retry_reply_raises():
+    # Call 1: unknown marker (no loop) -> marker retry. Call 2: the retry
+    # loops -> repetition correction. Call 3: still loops -> ValueError.
+    bad_marker = "Praos is quantum-safe [claim:c9]."
+    looping = "the same phrase " * 40
+    backend = StubBackend([bad_marker, looping, looping])
+    with pytest.raises(ValueError, match="repetition"):
+        synthesize_thesis("q", DOSSIER, backend)
+    assert len(backend.calls) == 3

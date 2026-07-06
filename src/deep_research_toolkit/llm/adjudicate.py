@@ -57,9 +57,6 @@ def adjudicate_candidates(candidates: list[dict], backend,
         batch = relation_cands[i:i + batch_size]
         user = "CANDIDATES:\n" + json.dumps(batch, ensure_ascii=False, indent=1)
         reply = backend.complete(_SYSTEM, user)
-        if has_repetition_loop(reply):
-            parse_failures += 1
-            continue
         data = parse_json_block(reply)
         if isinstance(data, dict):
             # Reasoning models like wrapping the array in an object; accept a
@@ -90,6 +87,8 @@ def adjudicate_candidates(candidates: list[dict], backend,
                 problems.append("relation_ids empty")
             if not (row.get("rationale") or "").strip():
                 problems.append("empty rationale")
+            if has_repetition_loop(row.get("rationale") or ""):
+                problems.append("rationale degenerated into repetition")
             if cand is not None and key in seen_keys and not problems:
                 problems.append("duplicate verdict for this candidate")
             if problems:

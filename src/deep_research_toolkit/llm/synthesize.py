@@ -34,6 +34,15 @@ _REPETITION_CORRECTION = (
 )
 
 
+def _checked_complete(backend, system: str, user: str) -> str:
+    reply = backend.complete(system, user)
+    if has_repetition_loop(reply):
+        reply = backend.complete(system, user + "\n\n" + _REPETITION_CORRECTION)
+        if has_repetition_loop(reply):
+            raise ValueError("model reply degenerated into repetition")
+    return reply
+
+
 def synthesize_thesis(question: str, dossier: dict, backend,
                       min_coverage: float = 0.3) -> dict:
     """Returns {"thesis": str, "citations": validate_citations report}.
@@ -49,17 +58,13 @@ def synthesize_thesis(question: str, dossier: dict, backend,
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
     user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
-    raw = backend.complete(_SYSTEM, user)
-    if has_repetition_loop(raw):
-        raw = backend.complete(_SYSTEM, user + "\n\n" + _REPETITION_CORRECTION)
-        if has_repetition_loop(raw):
-            raise ValueError("model reply degenerated into repetition")
-    thesis = normalize_claim_markers(unfence(raw), allowed)
+    thesis = normalize_claim_markers(unfence(_checked_complete(backend, _SYSTEM, user)), allowed)
     report = validate_citations(thesis, allowed)
     if report["unknown"]:
         thesis = normalize_claim_markers(
-            unfence(backend.complete(
-                _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
+            unfence(_checked_complete(
+                backend, _SYSTEM,
+                user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
             allowed)
         report = validate_citations(thesis, allowed)
         if report["unknown"]:

@@ -100,3 +100,34 @@ def test_repetition_loop_ignores_normal_prose():
 
 def test_repetition_loop_ignores_short_texts():
     assert not has_repetition_loop("yes yes yes")
+
+
+def test_repetition_loop_found_inside_json_string():
+    import json as _json
+    reply = "<output>" + _json.dumps([{"rationale": "loop " * 50}]) + "</output>"
+    assert has_repetition_loop(reply)
+
+
+_VARIED_PROSE = (
+    "The settlement layer batches transactions before anchoring them on the "
+    "main chain, while validators rotate through committee assignments each "
+    "epoch. Fee markets respond to congestion by repricing inclusion, and "
+    "light clients verify headers without replaying full state transitions. "
+    "Checkpoint intervals bound how far any rollback can reach."
+)
+
+
+def test_repetition_loop_ignores_table_separator_rows():
+    text = ("| col | col | col |\n|---|---|---|\n"
+            "| a | 1 | x |\n| b | 2 | y |\n" + _VARIED_PROSE)
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_na_cells():
+    text = "| n/a | n/a | n/a | n/a | n/a |\n" + _VARIED_PROSE
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_catches_punctuation_jitter():
+    reps = "".join(["Error occurred, retrying." if i % 2 else "Error occurred retrying!" for i in range(30)])
+    assert has_repetition_loop(reps.replace(".", ". ").replace("!", "! "))
