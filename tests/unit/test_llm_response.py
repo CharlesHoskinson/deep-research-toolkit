@@ -1,4 +1,10 @@
-from deep_research_toolkit.llm.response import extract_claim_ids, parse_json_block, unfence, validate_citations
+from deep_research_toolkit.llm.response import (
+    extract_claim_ids,
+    normalize_claim_markers,
+    parse_json_block,
+    unfence,
+    validate_citations,
+)
 
 
 def test_extract_claim_ids_in_order_with_dupes_removed():
@@ -58,3 +64,22 @@ def test_unfence_passthrough_when_not_fenced():
 def test_unfence_leaves_mid_body_fences_alone():
     text = "intro\n```python\ncode\n```\noutro"
     assert unfence(text) == text
+
+
+def test_normalize_claim_markers_rewrites_bare_known_ids():
+    # Gemma 4 tic measured in the e2e run: [b00_c_0001] instead of [claim:b00_c_0001]
+    text = "Hydra scales eUTxO [b00_c_0001]. Instant settlement [b00_c_0002]."
+    out = normalize_claim_markers(text, ["b00_c_0001", "b00_c_0002"])
+    assert out == ("Hydra scales eUTxO [claim:b00_c_0001]. "
+                   "Instant settlement [claim:b00_c_0002].")
+
+
+def test_normalize_claim_markers_leaves_unknown_and_prefixed_alone():
+    text = "Known [c1]. Unknown [zz]. Already tagged [claim:c1]. Cite [1]."
+    out = normalize_claim_markers(text, ["c1", "c2"])
+    assert out == "Known [claim:c1]. Unknown [zz]. Already tagged [claim:c1]. Cite [1]."
+
+
+def test_normalize_claim_markers_empty_allowed_is_identity():
+    text = "Anything [c1] at all."
+    assert normalize_claim_markers(text, []) == text

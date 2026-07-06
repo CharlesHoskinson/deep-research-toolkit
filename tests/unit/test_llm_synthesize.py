@@ -53,3 +53,10 @@ def test_fenced_reply_is_unwrapped():
     fenced = "```markdown\nPraos arrived in 2018 [claim:c1] and tolerates delays [claim:c2].\n```"
     out = synthesize_thesis("q", DOSSIER, StubBackend([fenced]))
     assert not out["thesis"].startswith("```")
+
+
+def test_bare_marker_reply_is_normalized_and_passes():
+    reply = "Praos arrived in 2018 [c1] and tolerates delays [c2]."
+    out = synthesize_thesis("q", DOSSIER, StubBackend([reply]))
+    assert out["citations"]["coverage"] == 1.0
+    assert "[claim:c1]" in out["thesis"]

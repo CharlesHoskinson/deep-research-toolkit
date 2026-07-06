@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import unfence, validate_citations
+from .response import normalize_claim_markers, unfence, validate_citations
 
 _SYSTEM = """You write one wiki page body for a research knowledge base.
 
@@ -19,7 +19,8 @@ outside knowledge, no speculation.
 OUTPUT CONTRACT:
 - Markdown body only. No frontmatter, no code fences around the whole reply.
 - Every sentence that states a fact MUST end with the marker of the claim it
-  came from, formatted exactly: [claim:<claim_id>]
+  came from, formatted exactly: [claim:<claim_id>] -- the literal claim:
+  prefix is required; [<claim_id>] alone is wrong.
 - A sentence may carry several markers. Do not invent claim ids.
 - Organize with ## sections when the material warrants it; otherwise a single
   coherent body. Neutral, precise register. No filler.
@@ -58,10 +59,12 @@ def write_wiki_body(title: str, page_type: str, claims: list[dict], backend,
         raise ValueError("write_wiki_body needs at least one gate-passed claim")
     allowed = [c.get("claim_id") for c in claims]
     user = _task(title, page_type, claims)
-    body = unfence(backend.complete(_SYSTEM, user))
+    body = normalize_claim_markers(unfence(backend.complete(_SYSTEM, user)), allowed)
     report = validate_citations(body, allowed)
     if report["unknown"]:
-        body = unfence(backend.complete(_SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"]))))
+        body = normalize_claim_markers(
+            unfence(backend.complete(_SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
+            allowed)
         report = validate_citations(body, allowed)
         if report["unknown"]:
             raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")

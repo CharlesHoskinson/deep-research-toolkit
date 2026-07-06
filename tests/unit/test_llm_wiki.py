@@ -52,3 +52,11 @@ def test_fenced_reply_is_unwrapped_before_gating():
     out = write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([fenced]))
     assert not out["body"].startswith("```")
     assert out["citations"]["coverage"] == 1.0
+
+
+def test_bare_marker_reply_is_normalized_and_passes():
+    # Measured Gemma 4 tic: cites the right ids but drops the claim: prefix.
+    body = "Praos arrived in 2018 [c1] and tolerates delays [c2]."
+    out = write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([body]))
+    assert out["citations"]["coverage"] == 1.0
+    assert "[claim:c1]" in out["body"] and "[claim:c2]" in out["body"]

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import unfence, validate_citations
+from .response import normalize_claim_markers, unfence, validate_citations
 from .wiki import CitationError
 
 _SYSTEM = """You write the synthesis section of an evidence dossier.
@@ -19,7 +19,8 @@ them, connect them, state what they establish and what remains open.
 OUTPUT CONTRACT:
 - Markdown only, no title heading (the dossier supplies one).
 - Every sentence that rests on a claim MUST end with [claim:<claim_id>]
-  markers referencing the supplied claims. Do not invent ids.
+  markers referencing the supplied claims -- the literal claim: prefix is
+  required; [<claim_id>] alone is wrong. Do not invent ids.
 - If the claims cannot answer the question, say exactly what is missing.
 """
 
@@ -44,11 +45,13 @@ def synthesize_thesis(question: str, dossier: dict, backend,
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
     user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
-    thesis = unfence(backend.complete(_SYSTEM, user))
+    thesis = normalize_claim_markers(unfence(backend.complete(_SYSTEM, user)), allowed)
     report = validate_citations(thesis, allowed)
     if report["unknown"]:
-        thesis = unfence(backend.complete(
-            _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"]))))
+        thesis = normalize_claim_markers(
+            unfence(backend.complete(
+                _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
+            allowed)
         report = validate_citations(thesis, allowed)
         if report["unknown"]:
             raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")

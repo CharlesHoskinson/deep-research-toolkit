@@ -23,6 +23,18 @@ def unfence(text: str) -> str:
     return m.group(1) if m else text
 
 
+def normalize_claim_markers(text: str, allowed_ids: list[str]) -> str:
+    """Rewrite a bare [<id>] marker to [claim:<id>] when <id> is a supplied
+    claim id. Gemma 4 models were measured citing correctly by id while
+    dropping the literal `claim:` prefix; the allowed-id set is closed, so
+    the rewrite is unambiguous and mechanical. Unknown bracket contents are
+    left alone -- semantic gating still happens in validate_citations."""
+    if not allowed_ids:
+        return text
+    bare = re.compile(r"\[(" + "|".join(re.escape(i) for i in allowed_ids if i) + r")\]")
+    return bare.sub(r"[claim:\1]", text)
+
+
 def extract_claim_ids(text: str) -> list[str]:
     seen: dict[str, None] = {}
     for m in CLAIM_MARKER_RE.finditer(text):
