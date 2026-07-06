@@ -22,7 +22,7 @@ def test_reference_run_passes_clean(tmp_path):
 
 def test_corrupted_quote_is_flagged(tmp_path):
     run = _copy_fixture(tmp_path)
-    rows = [json.loads(l) for l in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     rows[0]["supporting_evidence"][0]["quote"] = "this text appears in no chunk"
     (run / "claims.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     report = check_claims_file(run)
@@ -36,8 +36,8 @@ def test_quote_from_wrong_chunk_is_flagged(tmp_path):
     named by the evidence's own node_id must still fail -- the gate is
     chunk-scoped, not corpus-scoped."""
     run = _copy_fixture(tmp_path)
-    rows = [json.loads(l) for l in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    chunks = [json.loads(l) for l in (run / "chunks.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    chunks = [json.loads(line) for line in (run / "chunks.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     chunk_text = {c.get("node_id") or c.get("locator"): c.get("text", "") for c in chunks}
 
     ev = rows[0]["supporting_evidence"][0]
@@ -57,7 +57,7 @@ def test_quote_from_wrong_chunk_is_flagged(tmp_path):
 
 def test_missing_evidence_is_flagged(tmp_path):
     run = _copy_fixture(tmp_path)
-    rows = [json.loads(l) for l in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     rows[0]["supporting_evidence"] = []
     (run / "claims.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     report = check_claims_file(run)

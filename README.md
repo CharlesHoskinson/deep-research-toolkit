@@ -1322,8 +1322,8 @@ means what the claim says it means, still takes a reader.
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at
 your project's root. Here it is in full, annotated. The shape below is
-exactly what `drt init` writes, plus the optional `llm.roles` block that
-the config loader also reads:
+exactly what `drt init` writes, with the `llm.roles` block shown the
+way init emits it: commented out until you opt in.
 
 ```yaml
 # .deepresearch.yml -- deep-research-toolkit project configuration
@@ -1357,10 +1357,11 @@ llm:
   embedding_model: all-MiniLM-L6-v2  # sentence-transformers or Ollama embedding model
 
   # Optional, only read under provider: local -- per-phase model routing.
-  # `drt init` does not write this block; add only the roles (and fields)
-  # you want to override. An unset model, base_url, api_key_env, top_p, or
-  # top_k falls back to llm.local; an unset thinking, temperature,
-  # max_tokens, or response_format uses that role's ROLE_DEFAULTS entry.
+  # `drt init` writes this block commented out; uncomment only the roles
+  # (and fields) you want to override. An unset model, base_url,
+  # api_key_env, top_p, or top_k falls back to llm.local; an unset
+  # thinking, temperature, max_tokens, or response_format uses that
+  # role's ROLE_DEFAULTS entry.
   # roles:
   #   extract:             {model: gemma4:e4b}   # thinking off, temp 0.0, JSON out
   #   wiki_write:          {model: gemma4:12b}   # thinking off, temp 0.2
