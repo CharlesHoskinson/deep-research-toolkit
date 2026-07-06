@@ -1043,12 +1043,20 @@ proposals the gate had to drop.
 What this backend deliberately is not: a switch that moves the whole
 toolkit onto a local model. Claim extraction is the main programmatic
 caller, because it is the one high-volume step whose output is
-mechanically checkable; wiki synthesis, conflict adjudication, and
-research planning remain agent work even under `provider: local`. Getting
-a local model to perform well at extraction has its own operational
-details -- the chat template a reasoning model needs, generous token
-budgets, the `llm.roles` map that routes each phase to a model suited to
-it -- all covered in [Running local models](#running-local-models) below.
+mechanically checkable. The other judgment phases now have optional
+programmatic callers too -- `write_wiki_page.py` (llm-wiki-writer, the
+`wiki_write` role), `adjudicate_contradictions.py` and
+`synthesize_dossier.py` (retrieval-planner, the `conflict_adjudicate`
+and `synthesize` roles) -- but each is gated by its own mechanical check
+(citation markers must resolve to gate-passed claims; verdicts are
+schema-validated against their candidates), each produces a proposal
+for review rather than a finished artifact, and the in-session agent
+remains the default worker for all of them. Research planning stays
+agent work outright. Getting a local model to perform well at these
+roles has its own operational details -- the chat template a reasoning
+model needs, generous token budgets, the `llm.roles` map that routes
+each phase to a model suited to it -- all covered in
+[Running local models](#running-local-models) below.
 
 ## The retrieval tools
 
@@ -1322,8 +1330,9 @@ means what the claim says it means, still takes a reader.
 
 Everything project-specific lives in one file, `.deepresearch.yml`, at
 your project's root. Here it is in full, annotated. The shape below is
-exactly what `drt init` writes, with the `llm.roles` block shown the
-way init emits it: commented out until you opt in.
+what `drt init` writes -- annotated more fully here for reference --
+with the `llm.roles` block shown the way init emits it: commented out
+until you opt in.
 
 ```yaml
 # .deepresearch.yml -- deep-research-toolkit project configuration

@@ -1,7 +1,9 @@
 # Two-Track Analysis Pipeline: Frontier Pure-Skill vs Local Gemma 4 Stack
 
 **Date:** 2026-07-05
-**Status:** Draft — awaiting review
+**Status:** Implemented on this branch (see
+`docs/superpowers/plans/2026-07-05-two-track-implementation.md`; §8/§9
+updated post-implementation)
 **Branch:** `study/two-track-gemma`
 
 ## 1. Goal
@@ -218,12 +220,26 @@ If tuning is warranted (or for the quality ceiling):
 
 ## 8. Changes on this branch
 
+Study-phase fixes:
+
 - `src/deep_research_toolkit/llm/local.py` — send `reasoning_effort: "none"`
   alongside `think: false` when a role disables thinking (Gemma 4 on
-  Ollama's `/v1` ignores the latter).
+  Ollama's `/v1` ignores the latter); per-call usage stats.
 - `scripts/validate-local-llm.py` — resolve the backend with
   `role="extract"` (mirrors production; previously exercised the flat
-  config), and print `parse_failures`.
+  config), print `parse_failures` and latency/token stats.
+
+Implementation (per the companion plan, all tasks reviewed and landed):
+
+- Track B role wiring: `llm/wiki.py` + `write_wiki_page.py`,
+  `llm/adjudicate.py` + `adjudicate_contradictions.py`,
+  `llm/synthesize.py` + `synthesize_dossier.py`, sharing
+  `llm/response.py` (citation markers, `unfence`, JSON-block parsing).
+- Track A hardening: `common/claims_check.py` + `check_claims.py` in both
+  extraction skills; SKILL.md gate loop, batch/resume via
+  `extraction-progress.json`, neutral wording; description trims.
+- Config/docs: commented `llm.roles` example in the `drt init` template;
+  README local-models section updated to the validated Gemma 4 map.
 
 ## 9. Open questions / next steps
 
@@ -233,10 +249,11 @@ If tuning is warranted (or for the quality ceiling):
    200-chunk run says otherwise.
 2. Scale the eval: build a ~200-chunk reference corpus (the tuning
    go/no-go gate) and add per-model latency/tokens to the harness output.
-3. Implement Track A hardening (de-Claude wording, `check_claims.py`
-   write-time gate, batching/resume discipline) — own plan.
-4. Wire `wiki_write` / `conflict_adjudicate` / `synthesize` programmatic
-   callers for full-local Track B — own plan.
+3. ~~Implement Track A hardening~~ — done on this branch (write-time gate,
+   batch/resume scratch-file discipline, neutral wording).
+4. ~~Wire `wiki_write` / `conflict_adjudicate` / `synthesize` programmatic
+   callers~~ — done on this branch (citation-gated / schema-validated
+   proposals; see §8).
 5. Add a Codex-produced reference run to quantify cross-model coverage
    variance on Track A.
 6. Decide default extract model (`e4b` speed vs `12b`/`31b` yield) after
