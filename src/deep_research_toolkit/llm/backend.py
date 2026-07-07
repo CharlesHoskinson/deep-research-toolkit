@@ -26,10 +26,12 @@ def get_backend(config, role: str | None = None) -> Backend:
         return AgentBackend()
     if provider == "local":
         import os
+        from pathlib import Path
 
         from .local import LocalOpenAIBackend
         roles = getattr(config, "llm_roles", None) or {}
         spec = roles[role] if role and role in roles else config.llm_local
+        trace_path = Path("llm-trace.jsonl") if getattr(config, "llm_trace", False) else None
         return LocalOpenAIBackend(
             base_url=spec["base_url"], model=spec["model"],
             api_key=os.environ.get(spec.get("api_key_env", "OPENAI_API_KEY"), "not-needed"),
@@ -37,6 +39,8 @@ def get_backend(config, role: str | None = None) -> Backend:
             max_tokens=spec.get("max_tokens", 16000),
             thinking=spec.get("thinking", True),
             response_format=spec.get("response_format"),
+            trace_path=trace_path,
+            role=role,
         )
     raise LLMBackendNotConfigured(
         f"unknown llm.provider: {provider!r} (use agent | anthropic | local)"
