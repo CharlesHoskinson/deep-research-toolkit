@@ -21,6 +21,7 @@ from collections import deque
 from pathlib import Path
 
 from ..common.verbatim import slice_span, span_ok
+from .selfconsistency import union_claims
 
 SCHEMA_VERSION = "2.0"  # evidence now carries character spans, not a copied quote
 
@@ -194,13 +195,31 @@ def _batches(items: list, size: int):
         yield items[i:i + size]
 
 
+#: Appended to the user prompt on a coverage pass, after the list of
+#: already-found claim texts, so the model only adds what earlier passes missed.
+_COVERAGE_NOTE = (
+    "Extract ONLY additional atomic claims not already listed above; "
+    "return an empty claims array if none."
+)
+
+
 def extract_claims_to_run(run_dir, producer: str, config, backend,
-                          batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
+                          batch_size: int = DEFAULT_BATCH_SIZE,
+                          samples: int = 1, min_support: int = 1,
+                          coverage_passes: int = 0) -> dict:
     """Read chunks.jsonl, have the backend extract claims/entities/relations in
     bounded batches, drop any claim whose quote is not verbatim in its chunk, and
     write claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
     Returns a summary dict (including ``parse_failures``: batches whose output
     could not be parsed, usually reasoning-token truncation).
+
+    ``samples`` > 1 runs the whole extraction N times (pass 0 deterministic, each
+    later pass at a raised temperature) and UNIONs the gate-passing claims, keeping
+    those found in >= ``min_support`` passes. Entities and relations come from
+    pass 0 only, so they stay canonical. ``coverage_passes`` then re-prompts up to
+    that many more times with the already-found claim texts, asking for additional
+    claims only, and stops early once a pass adds nothing new. Defaults
+    (``samples=1, coverage_passes=0``) reproduce single-pass behavior exactly.
     """
     run_dir = Path(run_dir)
     source_id = run_dir.name if producer == "web" else \
@@ -226,88 +245,143 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         return bare[0] if len(bare) == 1 else None
 
     id_key = "node_id" if producer == "pdf" else "locator"
-    kept, dropped = [], []
-    entities_by_id: dict[str, dict] = {}
-    relations: list[dict] = []
+    dropped: list[dict] = []
     parse_failures = 0
     batch_list = list(_batches(chunks, max(1, batch_size)))
     multi = len(batch_list) > 1
 
     thinking = getattr(backend, "thinking", True)
-    # A work queue rather than a fixed loop, so a batch whose output can't be
-    # parsed (usually token truncation) is retried as smaller halves instead of
-    # silently lost -- bounded by depth so it terminates.
-    queue: deque[tuple[list[dict], int]] = deque((b, 0) for b in batch_list)
+    # batch_no is shared across passes (not reset), so batch prefixes -- and with
+    # them claim/relation ids -- stay unique across passes as well as batches.
     batch_no = 0
-    while queue:
-        batch, depth = queue.popleft()
-        system, user = build_extraction_prompt(batch, producer, thinking=thinking)
-        sampling = {}
-        if depth > 0:  # a halved batch dispatched after a parse failure -- a retry
-            user = user + "\n\n" + _RETRY_NOTE
-            sampling = {"temperature": 0.25}
-        parsed = parse_extraction_response(backend.complete(system, user, **sampling))
-        if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
-            if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
-                mid = len(batch) // 2
-                queue.appendleft((batch[mid:], depth + 1))
-                queue.appendleft((batch[:mid], depth + 1))
-                multi = True  # splitting a lone batch means ids now need a prefix
-            else:
-                parse_failures += 1
-            continue
 
-        # Give ids a batch prefix (only when batched) so they stay unique across
-        # batches while keeping each relation's supporting_claim reference valid.
-        prefix = f"b{batch_no:02d}_" if multi else ""
-        batch_no += 1
-        for claim in parsed["claims"]:
-            if not isinstance(claim, dict):
-                continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
-            claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
-            evidence = claim.get("supporting_evidence") or []
-            ok = bool(evidence)
-            for ev in evidence:
-                if not isinstance(ev, dict):
-                    # Measured live (gemma4:26b): a bare-string evidence row.
-                    # It can't carry a locatable span -> gate failure.
-                    ok = False
+    def _extract_one_pass(extra_sampling: dict, extra_user: str = "",
+                          retry_on_empty: bool = True) -> tuple[list[dict], dict, list[dict]]:
+        """One full extraction pass over all batches: the original single-pass
+        batch/parse/gate loop, verbatim. ``extra_sampling`` is merged into each
+        call's sampling dict (so a pass can raise temperature); ``extra_user`` is
+        appended to each user prompt (the coverage-loop note). A coverage pass
+        sets ``retry_on_empty=False`` because an empty claims array is a valid
+        answer there, not a parse failure to halve-and-retry."""
+        nonlocal parse_failures, batch_no, multi
+        kept: list[dict] = []
+        entities_by_id: dict[str, dict] = {}
+        relations: list[dict] = []
+        # A work queue rather than a fixed loop, so a batch whose output can't be
+        # parsed (usually token truncation) is retried as smaller halves instead of
+        # silently lost -- bounded by depth so it terminates.
+        queue: deque[tuple[list[dict], int]] = deque((b, 0) for b in batch_list)
+        while queue:
+            batch, depth = queue.popleft()
+            system, user = build_extraction_prompt(batch, producer, thinking=thinking)
+            if extra_user:
+                user = user + "\n\n" + extra_user
+            sampling = {}
+            if depth > 0:  # a halved batch dispatched after a parse failure -- a retry
+                user = user + "\n\n" + _RETRY_NOTE
+                sampling = {"temperature": 0.25}
+            sampling = {**sampling, **extra_sampling}
+            parsed = parse_extraction_response(backend.complete(system, user, **sampling))
+            if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
+                if not retry_on_empty:
                     continue
-                real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
-                start, end = ev.get("start_char"), ev.get("end_char")
-                if real and span_ok(start, end, chunk_text_by_id[real],
-                                    ev.get("quote")):
-                    ev[id_key] = real  # rewrite to the canonical chunk id
-                    ev["quote"] = slice_span(chunk_text_by_id[real], start, end)  # derived, canonical
+                if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
+                    mid = len(batch) // 2
+                    queue.appendleft((batch[mid:], depth + 1))
+                    queue.appendleft((batch[:mid], depth + 1))
+                    multi = True  # splitting a lone batch means ids now need a prefix
                 else:
-                    ok = False
-            claim["citable"] = ok
-            (kept if ok else dropped).append(claim)
+                    parse_failures += 1
+                continue
 
-        for ent in parsed["entities"]:
-            if not isinstance(ent, dict):
-                continue
-            eid = ent.get("entity_id")
-            if not eid:
-                continue
-            # Entity `mentions` are abbreviated chunk ids too -- resolve them so
-            # entity_mentions joins back to chunks; drop unresolvable ones.
-            ment = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
-            if eid in entities_by_id:  # same entity seen in an earlier batch -> merge
-                cur = entities_by_id[eid]
-                cur["mentions"] = sorted(set(cur.get("mentions") or []) | set(ment))
-                cur["aliases"] = sorted(set(cur.get("aliases") or []) | set(ent.get("aliases") or []))
-            else:
-                ent["mentions"] = sorted(set(ment))
-                entities_by_id[eid] = ent
+            # Give ids a batch prefix (only when batched) so they stay unique across
+            # batches while keeping each relation's supporting_claim reference valid.
+            prefix = f"b{batch_no:02d}_" if multi else ""
+            batch_no += 1
+            for claim in parsed["claims"]:
+                if not isinstance(claim, dict):
+                    continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
+                claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
+                evidence = claim.get("supporting_evidence") or []
+                ok = bool(evidence)
+                for ev in evidence:
+                    if not isinstance(ev, dict):
+                        # Measured live (gemma4:26b): a bare-string evidence row.
+                        # It can't carry a locatable span -> gate failure.
+                        ok = False
+                        continue
+                    real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
+                    start, end = ev.get("start_char"), ev.get("end_char")
+                    if real and span_ok(start, end, chunk_text_by_id[real],
+                                        ev.get("quote")):
+                        ev[id_key] = real  # rewrite to the canonical chunk id
+                        ev["quote"] = slice_span(chunk_text_by_id[real], start, end)  # derived, canonical
+                    else:
+                        ok = False
+                claim["citable"] = ok
+                (kept if ok else dropped).append(claim)
 
-        for rel in parsed["relations"]:
-            if not isinstance(rel, dict):
-                continue
-            rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
-            if rel.get("supporting_claim"):
-                rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
-            relations.append(rel)
+            for ent in parsed["entities"]:
+                if not isinstance(ent, dict):
+                    continue
+                eid = ent.get("entity_id")
+                if not eid:
+                    continue
+                # Entity `mentions` are abbreviated chunk ids too -- resolve them so
+                # entity_mentions joins back to chunks; drop unresolvable ones.
+                ment = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
+                if eid in entities_by_id:  # same entity seen in an earlier batch -> merge
+                    cur = entities_by_id[eid]
+                    cur["mentions"] = sorted(set(cur.get("mentions") or []) | set(ment))
+                    cur["aliases"] = sorted(set(cur.get("aliases") or []) | set(ent.get("aliases") or []))
+                else:
+                    ent["mentions"] = sorted(set(ment))
+                    entities_by_id[eid] = ent
+
+            for rel in parsed["relations"]:
+                if not isinstance(rel, dict):
+                    continue
+                rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
+                if rel.get("supporting_claim"):
+                    rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
+                relations.append(rel)
+        return kept, entities_by_id, relations
+
+    # Pass 0 is deterministic (identical to single-pass behavior); each later
+    # pass k re-samples at temperature 0.2*k for claim recall. Entities and
+    # relations come from pass 0 ONLY: claims get the recall boost, while
+    # entities/relations stay canonical. Because pass 0 runs first and
+    # union_claims keeps the first-seen dict per key, every pass-0 claim id
+    # survives into `kept`, so pass-0 relations still resolve below.
+    claim_passes: list[list[dict]] = []
+    entities_by_id: dict[str, dict] = {}
+    relations: list[dict] = []
+    for pass_no in range(max(1, samples)):
+        extra_sampling = {"temperature": round(0.2 * pass_no, 3)} if pass_no else {}
+        pass_kept, pass_entities, pass_relations = _extract_one_pass(extra_sampling)
+        claim_passes.append(pass_kept)
+        if pass_no == 0:
+            entities_by_id, relations = pass_entities, pass_relations
+
+    support_filtered = 0
+    if samples > 1:
+        kept = union_claims(claim_passes, min_support=min_support)
+        support_filtered = len(union_claims(claim_passes, min_support=1)) - len(kept)
+    else:
+        kept = claim_passes[0]
+
+    # Bounded coverage loop: re-prompt with the claims found so far and ask for
+    # additional ones only; stop early once a pass contributes nothing new.
+    for _ in range(max(0, coverage_passes)):
+        listing = "\n".join(f"- {c.get('claim', '')}" for c in kept)
+        note = "ALREADY-EXTRACTED CLAIMS:\n" + listing + "\n\n" + _COVERAGE_NOTE
+        extra_kept, _ents, _rels = _extract_one_pass({}, extra_user=note, retry_on_empty=False)
+        if not extra_kept:
+            break
+        merged = union_claims([kept, extra_kept], min_support=1)
+        if len(merged) == len(kept):
+            break  # everything it returned was already known
+        kept = merged
 
     # Drop relations whose supporting_claim was gate-dropped (or never existed),
     # so no relation points at a claim_id that isn't in claims.jsonl. A relation
@@ -326,4 +400,6 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         "relations": len(relations),
         "batches": batch_no,
         "parse_failures": parse_failures,
+        "samples": samples,
+        "support_filtered": support_filtered,
     }
