@@ -215,7 +215,9 @@ def _repoint_research_runs(config, path: Path):
     return cfg2
 
 
-def run_extract_for_doc(doc_dir: Path, config, backend, chunk_limit: int | None = None) -> dict:
+def run_extract_for_doc(doc_dir: Path, config, backend, chunk_limit: int | None = None,
+                        samples: int = 1, min_support: int = 1, parallel: int = 1,
+                        pooled_gold: bool = False) -> dict:
     """Copy `doc_dir` into a temp run dir (keeping reference-claims.jsonl --
     extraction only ever writes claims.jsonl, which the corpus doesn't ship,
     so there is nothing to delete first), repoint research_runs_path at the
@@ -227,6 +229,13 @@ def run_extract_for_doc(doc_dir: Path, config, backend, chunk_limit: int | None 
     (smoke runs); the returned `reference` set is filtered down to only
     claims whose evidence cites a retained chunk, so scoring never penalizes
     the model for claims it was never shown the source text for.
+
+    `samples`/`min_support`/`parallel` are threaded straight through to
+    extract_claims_to_run (defaults reproduce single-pass behavior exactly).
+    `pooled_gold=True` scores against the doc's pooled-gold.jsonl (the Task-12
+    fixed denominator) when that file exists, falling back to
+    reference-claims.jsonl when it doesn't; `reference_source` in the returned
+    dict names which file was used.
 
     The original `doc_dir` (part of the read-only committed corpus) is never
     modified -- the temp copy is removed again once extraction completes."""
@@ -243,9 +252,14 @@ def run_extract_for_doc(doc_dir: Path, config, backend, chunk_limit: int | None 
             retained_locators = {c.get("locator") or c.get("node_id") for c in chunks}
 
         cfg = _repoint_research_runs(config, tmp)
-        result = extract_claims_to_run(work_run, "web", cfg, backend)
+        result = extract_claims_to_run(work_run, "web", cfg, backend,
+                                       samples=samples, min_support=min_support,
+                                       parallel=parallel)
         produced = _read_jsonl(work_run / "claims.jsonl")
-        reference = _read_jsonl(doc_dir / "reference-claims.jsonl")
+        ref_path = doc_dir / "reference-claims.jsonl"
+        if pooled_gold and (doc_dir / "pooled-gold.jsonl").is_file():
+            ref_path = doc_dir / "pooled-gold.jsonl"
+        reference = _read_jsonl(ref_path)
         if retained_locators is not None:
             reference = [
                 r for r in reference
@@ -255,37 +269,69 @@ def run_extract_for_doc(doc_dir: Path, config, backend, chunk_limit: int | None 
             "produced": produced,
             "dropped": result["dropped"],
             "parse_failures": result["parse_failures"],
+            "truncated_calls": result["truncated_calls"],
+            "batches": result["batches"],
             "written": result["written"],
             "reference": reference,
+            "reference_source": ref_path.name,
         }
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 def run_extract_for_model(corpus_dir: Path, index: dict, config, backend,
-                          doc_selection: list[tuple[str, int | None]]) -> dict:
+                          doc_selection: list[tuple[str, int | None]],
+                          samples: int = 1, min_support: int = 1, parallel: int = 1,
+                          pooled_gold: bool = False, embedder=None) -> dict:
     """Runs run_extract_for_doc across every selected doc, then scores the
     pooled produced/reference/dropped sets with evalkit.metrics.extract_metrics
     plus a corpus-wide bait_rejection rate (design doc §3.4). `per_doc` keeps
     the individual doc-level metrics too, for a future cross-model paired
-    bootstrap (see the --models A/B path in main())."""
+    bootstrap (see the --models A/B path in main()).
+
+    `samples`/`min_support`/`parallel`/`pooled_gold` are threaded through to
+    run_extract_for_doc. `embedder` is a callable ``texts -> vectors`` handed
+    to extract_metrics so recall_entailment/f_fact are computed; if any embed
+    call fails (no embedding endpoint), scoring degrades for the rest of the
+    run to the plain no-embedder metric shape instead of crashing. The model
+    summary also carries `truncated_calls`/`batches` (summed across docs, the
+    <5% truncation SLO signal) and `reference_source` per doc."""
     all_produced: list[dict] = []
     all_reference: list[dict] = []
     all_dropped: list = []
     parse_failures_total = 0
+    truncated_calls_total = 0
+    batches_total = 0
     bait_scores: list[float] = []
     bait_sources = index.get("bait_sources") or {}
     per_doc: dict[str, dict] = {}
 
+    def _metrics(produced, reference, dropped, parse_failures):
+        nonlocal embedder
+        if embedder is not None:
+            try:
+                return extract_metrics(produced, reference, dropped, parse_failures,
+                                       embedder=embedder)
+            except Exception as e:  # noqa: BLE001 -- degrade, never crash the run
+                print(f"embedder failed ({e}); continuing without entailment metrics",
+                      file=sys.stderr)
+                embedder = None
+        return extract_metrics(produced, reference, dropped, parse_failures)
+
     for doc_id, chunk_cap in doc_selection:
         doc_dir = corpus_dir / doc_id
-        result = run_extract_for_doc(doc_dir, config, backend, chunk_limit=chunk_cap)
+        result = run_extract_for_doc(doc_dir, config, backend, chunk_limit=chunk_cap,
+                                     samples=samples, min_support=min_support,
+                                     parallel=parallel, pooled_gold=pooled_gold)
         all_produced.extend(result["produced"])
         all_reference.extend(result["reference"])
         all_dropped.extend(result["dropped"])
         parse_failures_total += result["parse_failures"]
-        per_doc[doc_id] = extract_metrics(
+        truncated_calls_total += result["truncated_calls"]
+        batches_total += result["batches"]
+        per_doc[doc_id] = _metrics(
             result["produced"], result["reference"], result["dropped"], result["parse_failures"])
+        per_doc[doc_id]["reference_source"] = result["reference_source"]
 
         chunk_texts = {c.get("locator"): c.get("text", "") for c in _read_jsonl(doc_dir / "chunks.jsonl")}
         for bait_loc in chunk_texts:
@@ -300,9 +346,11 @@ def run_extract_for_model(corpus_dir: Path, index: dict, config, backend,
             if rate is not None:
                 bait_scores.append(rate)
 
-    metrics = extract_metrics(all_produced, all_reference, all_dropped, parse_failures_total)
+    metrics = _metrics(all_produced, all_reference, all_dropped, parse_failures_total)
     metrics["bait_rejection"] = (sum(bait_scores) / len(bait_scores)) if bait_scores else None
     metrics["docs"] = len(doc_selection)
+    metrics["truncated_calls"] = truncated_calls_total
+    metrics["batches"] = batches_total
     metrics["per_doc"] = per_doc
     stats = getattr(backend, "stats", None)
     if stats:
@@ -333,6 +381,7 @@ def run_prose_role_with_backend(role: str, sampled_locators: list[str], claims_b
     pre-normalization replies the model actually emitted."""
     rec = RecordingBackend(backend)
     coverages: list[float] = []
+    coverage_rules: list[str] = []
     per_chunk: dict[str, dict] = {}
 
     def _attempt(locator: str) -> bool:
@@ -345,6 +394,7 @@ def run_prose_role_with_backend(role: str, sampled_locators: list[str], claims_b
             dossier = _dossier_from_claims(claims)
             out = synthesize_thesis(f"What does the evidence for {locator} establish?", dossier, rec)
         coverages.append(out["citations"]["coverage"])
+        coverage_rules.append(out["citations"]["rule"])
         return True
 
     for locator in sampled_locators:
@@ -356,6 +406,10 @@ def run_prose_role_with_backend(role: str, sampled_locators: list[str], claims_b
         "per_chunk": per_chunk,
         "mean_pass_rate": (sum(pass_rates) / len(pass_rates)) if pass_rates else None,
         "mean_coverage": (sum(coverages) / len(coverages)) if coverages else None,
+        # Which validate_citations coverage rule ("absolute" below the citable
+        # floor, "ratio" at/above it) each successful attempt was scored under,
+        # as counts -- so a coverage number is never read against the wrong rule.
+        "coverage_rules": {r: coverage_rules.count(r) for r in sorted(set(coverage_rules))},
         "bare_marker_rate": rates["bare_rate"],
         "marker_counts": {"bare": rates["bare"], "prefixed": rates["prefixed"]},
     }
@@ -571,6 +625,31 @@ def compare_reports(current: dict, baseline: dict, tolerance: float = DEFAULT_TO
 
 
 # ---------------------------------------------------------------------------
+# Embedder for entailment recall (--pooled-gold)
+# ---------------------------------------------------------------------------
+
+def make_embedder(config):
+    """Callable ``texts -> vectors`` over the project's embedding route -- the
+    exact construction compiler/build.py uses: compiler.embed.get_embedder
+    routes an Ollama "name:tag" embedding_model (e.g. qwen3-embedding:4b) to
+    OllamaEmbedder against llm.local's base_url. Construction is lazy (the
+    HTTP client opens on the first embed call), and any failure to build the
+    route returns None instead of raising, so the runner degrades to metrics
+    without the entailment fields rather than crashing."""
+    try:
+        from deep_research_toolkit.compiler.embed import get_embedder
+        embedder = get_embedder(
+            config.embedding_model,
+            getattr(config, "llm_local", {}).get("base_url", "http://localhost:11434/v1"),
+        )
+        return embedder.embed
+    except Exception as e:  # noqa: BLE001 -- entailment recall is additive, never fatal
+        print(f"could not construct an embedder ({e}); "
+              "reporting metrics without recall_entailment/f_fact", file=sys.stderr)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -603,6 +682,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
                         help=f"Flake runs per wiki_write/synthesize sampled chunk (default: {DEFAULT_RUNS})")
     parser.add_argument("--limit", type=int, default=None,
                         help="Chunk cap across the extract corpus, for smoke runs (default: no cap)")
+    parser.add_argument("--samples", type=int, default=1,
+                        help="Extraction sample passes per doc; >1 unions gate-passing claims "
+                             "across passes (default: 1, single-pass)")
+    parser.add_argument("--min-support", type=int, default=1,
+                        help="Sample passes a claim must appear in to survive the union "
+                             "(default: 1)")
+    parser.add_argument("--parallel", type=int, default=1,
+                        help="Concurrent sample passes; size from the server's real concurrency "
+                             "(OLLAMA_NUM_PARALLEL) (default: 1, sequential)")
+    parser.add_argument("--pooled-gold", action="store_true",
+                        help="Score each doc against its pooled-gold.jsonl when present (else "
+                             "reference-claims.jsonl) and add embedding entailment recall via the "
+                             "configured embedding model (llm.embedding_model, e.g. qwen3-embedding:4b)")
     parser.add_argument("--compare", default=None,
                         help="Path to a baseline.json to diff this run against")
     parser.add_argument("--tolerance", type=float, default=DEFAULT_TOLERANCE,
@@ -638,12 +730,20 @@ def main(argv: list[str] | None = None) -> int:
     role_results: dict = {}
 
     if "extract" in roles:
+        # Entailment recall rides with --pooled-gold (both halves of the
+        # Task-13 scoring change); the embedder is built lazily and only when
+        # asked for, so default runs never touch the embedding route.
+        embedder = make_embedder(config) if args.pooled_gold else None
         extract_models = models or [config.llm_roles["extract"]["model"]]
         per_model: dict[str, dict] = {}
         for model in extract_models:
             cfg = _repoint_extract_model(config, model if models else None)
             backend = get_backend(cfg, role="extract")
-            per_model[model] = run_extract_for_model(corpus_dir, index, cfg, backend, doc_selection)
+            per_model[model] = run_extract_for_model(
+                corpus_dir, index, cfg, backend, doc_selection,
+                samples=args.samples, min_support=args.min_support,
+                parallel=args.parallel, pooled_gold=args.pooled_gold,
+                embedder=embedder)
         role_results["extract"] = {"models": per_model}
 
         if models and len(extract_models) > 1:
