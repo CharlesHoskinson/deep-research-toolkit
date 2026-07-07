@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "gpu-scheduling",
+  "title": "Tessera: A Dynamic Multi-Tenant GPU Kernel Scheduler",
+  "source_url": "https://example.org/eval-corpus/gpu-scheduling",
+  "content_hash": "sha256:7ea9715d56cfe4d9",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 15
+}

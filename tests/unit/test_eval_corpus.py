@@ -480,3 +480,12 @@ def test_corpus_version_mismatch_is_flagged(tmp_path):
                       min_contradiction_pairs=0)
     assert any("corpus_version mismatch" in e for e in errors)
 
+
+# ---------------------------------------------------------------------------
+# The committed corpus itself, validated at full production scale.
+# ---------------------------------------------------------------------------
+
+def test_committed_corpus_passes_with_default_quotas():
+    errors = validate(DEFAULT_CORPUS_DIR)
+    assert errors == [], "\n".join(errors)
+

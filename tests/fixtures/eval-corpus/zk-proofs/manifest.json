@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "zk-proofs",
+  "title": "Aegis: A Recursive zk-SNARK Rollup Built on Groth-Delta",
+  "source_url": "https://example.org/eval-corpus/zk-proofs",
+  "content_hash": "sha256:76c391e4eb3d9d31",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 23
+}
