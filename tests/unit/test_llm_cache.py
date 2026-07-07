@@ -110,6 +110,15 @@ class FinishReasonInner:
         return "REPLY"
 
 
+def test_stats_proxies_inner_backend(tmp_path):
+    inner = FakeInner()
+    inner.stats = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+    cb = CachingBackend(inner, cache_dir=tmp_path, enabled=True, role="extract")
+    assert cb.stats is inner.stats  # live object, cumulative counts flow through
+    inner.stats["calls"] += 3
+    assert cb.stats["calls"] == 3
+
+
 def test_last_finish_reason_proxies_on_miss_and_resets_on_hit(tmp_path):
     inner = FinishReasonInner()
     cb = CachingBackend(inner, cache_dir=tmp_path, enabled=True, role="extract")

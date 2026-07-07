@@ -50,6 +50,13 @@ class CachingBackend:
     #: max_tokens or response_format) silently returns a stale cached reply.
     _GEN_ATTRS = ("temperature", "top_p", "top_k", "max_tokens", "thinking")
 
+    @property
+    def stats(self):
+        # Transparently expose the inner backend's live stats object so the
+        # eval harness's cost/latency telemetry keeps working through the
+        # wrapper. None if the inner has none -- same graceful-degradation shape.
+        return getattr(self.inner, "stats", None)
+
     def complete(self, system, user, **sampling) -> str:
         return self.complete_with_meta(system, user, **sampling)[0]
 
