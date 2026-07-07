@@ -23,7 +23,8 @@ OUTPUT CONTRACT:
   required; [<claim_id>] alone is wrong. Do not invent ids.
 - If the claims cannot answer the question, say exactly what is missing.
 - Example of a correctly cited sentence: "Settlement is final once all
-  parties sign [claim:b00_c_0008]."
+  parties sign [claim:b00_c_0008]." (illustrative id -- cite only ids that
+  appear in the supplied claims)
 """
 
 _CORRECTION = (

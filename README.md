@@ -1247,6 +1247,19 @@ is "does this serving stack, at this version, honor that switch" --
 and the only way to answer it is to test the exact (model, server,
 version) triple you intend to run.
 
+Getting a reasoning model to work at all involves two more serving
+details. First, the model needs its real chat template: the stock
+`Ornith-1.0-9B-GGUF` on Hugging Face ships without one, so Ollama falls
+back to a raw passthrough that silences the model's `<think>` reasoning
+and can degenerate into repetition loops. Build a local model from it
+with a proper ChatML `TEMPLATE` (`ollama create <name> -f Modelfile`)
+and point `llm.local.model` at that name. Second, budget tokens
+generously -- `max_tokens` defaults to 16000 because a reasoning model
+spends thousands of tokens thinking before it answers, and a low cap
+truncates it mid-thought -- and keep the documented sampling
+(`temperature` 0.6, `top_p` 0.95, `top_k` 20): lowering the temperature
+for "determinism" backfires into repetition on this model family.
+
 **Serving knobs that matter.** A handful of Ollama settings change
 measured behavior enough to call out on their own:
 
@@ -1265,22 +1278,10 @@ measured behavior enough to call out on their own:
   each parallel slot multiplies KV-cache memory.
 - Context ceilings are real, not theoretical: measured on Ollama
   0.31.1, Gemma 4 prompts of 20.7k tokens processed fully at defaults
-  while ~41k-token prompts were silently truncated. Keep any single
-  call under ~16k prompt tokens; the live canary suite (`tests/live/`)
-  tracks the measured ceiling across upgrades.
-
-Getting a reasoning model to work at all involves two more serving
-details. First, the model needs its real chat template: the stock
-`Ornith-1.0-9B-GGUF` on Hugging Face ships without one, so Ollama falls
-back to a raw passthrough that silences the model's `<think>` reasoning
-and can degenerate into repetition loops. Build a local model from it
-with a proper ChatML `TEMPLATE` (`ollama create <name> -f Modelfile`)
-and point `llm.local.model` at that name. Second, budget tokens
-generously -- `max_tokens` defaults to 16000 because a reasoning model
-spends thousands of tokens thinking before it answers, and a low cap
-truncates it mid-thought -- and keep the documented sampling
-(`temperature` 0.6, `top_p` 0.95, `top_k` 20): lowering the temperature
-for "determinism" backfires into repetition on this model family.
+  while ~41k-token prompts were silently truncated. That budget is
+  shared with the output side (`max_tokens`), so keep any single
+  call's prompt under ~16k tokens; the live canary suite
+  (`tests/live/`) tracks the measured ceiling across upgrades.
 
 Embeddings are a separate axis, set by `llm.embedding_model` and routed
 by the shape of the name: a plain sentence-transformers name

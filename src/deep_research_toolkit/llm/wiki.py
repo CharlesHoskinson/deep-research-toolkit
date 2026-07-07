@@ -25,7 +25,8 @@ OUTPUT CONTRACT:
 - Organize with ## sections when the material warrants it; otherwise a single
   coherent body. Neutral, precise register. No filler.
 - Example of a correctly cited sentence: "The Head settles instantly among
-  participants [claim:b00_c_0002]."
+  participants [claim:b00_c_0002]." (illustrative id -- cite only ids that
+  appear in the supplied claims)
 """
 
 _CORRECTION = (
