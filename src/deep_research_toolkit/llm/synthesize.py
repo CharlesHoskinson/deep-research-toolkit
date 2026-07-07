@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import generate_cited
+from .response import allowed_ids_block, generate_cited
 from .wiki import CitationError
 
 _SYSTEM = """You write the synthesis section of an evidence dossier.
@@ -53,7 +53,9 @@ def synthesize_thesis(question: str, dossier: dict, backend,
     rows = [{"claim_id": c.get("claim_id"), "claim": c.get("claim"),
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
-    user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
+    user = (f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n"
+            + json.dumps(rows, ensure_ascii=False, indent=1)
+            + "\n\n" + allowed_ids_block(allowed))
     out = generate_cited(
         backend, _SYSTEM, user, allowed,
         min_coverage=min_coverage, kind="synthesis",

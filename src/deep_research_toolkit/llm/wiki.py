@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import generate_cited
+from .response import allowed_ids_block, generate_cited
 
 _SYSTEM = """You write one wiki page body for a research knowledge base.
 
@@ -54,6 +54,7 @@ def _task(title: str, page_type: str, claims: list[dict]) -> str:
     return (
         f"PAGE: {title} (type: {page_type})\n\nCLAIMS (the only permitted sources):\n"
         + json.dumps(rows, ensure_ascii=False, indent=1)
+        + "\n\n" + allowed_ids_block([c.get("claim_id") for c in claims])
     )
 
 

@@ -2,27 +2,36 @@
 under llm.provider=local).
 
 The prompt is a *task brief*, not a rigid schema dump: it hands a reasoning
-model (e.g. Ornith-1.0) the goal, the output contract, the hard verbatim-quote
+model (e.g. Ornith-1.0) the goal, the output contract, the hard character-span
 invariant, and the extraction rules, then lets the model plan and self-verify
 its own approach before emitting -- playing to a self-scaffolding, coding-tuned
 model's strengths. The model reasons freely, then emits the final JSON inside
 <output>...</output> so parsing is robust to the reasoning trace.
 
-The verbatim gate is still applied here mechanically as the backstop: every
-supporting quote must be an exact substring of the chunk text the model was
-shown, so an off-label local model can only under-produce, never corrupt the
-corpus.
+The span gate is still applied here mechanically as the backstop: every
+supporting_evidence points at its source by start_char/end_char offsets that
+slice the chunk text the model was shown to exactly the supporting span, so an
+off-label local model can only under-produce, never corrupt the corpus.
 """
 from __future__ import annotations
 
 import json
 import re
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import NamedTuple
 
-from ..common.verbatim import verbatim_ok
+from ..common.verbatim import slice_span, span_ok
+from .selfconsistency import union_claims
 
-SCHEMA_VERSION = "1.0"
+# Parallelism note: ``extract_claims_to_run(parallel=N)`` fans the N sample
+# passes out on a bounded ThreadPoolExecutor. Size the worker count from the
+# server's true concurrency -- OLLAMA_NUM_PARALLEL (2-4 is right for an e4b
+# model) -- and NEVER set it high for a 31B model: extra workers just queue on
+# the server and add timeout risk without adding throughput.
+
+SCHEMA_VERSION = "2.0"  # evidence now carries character spans, not a copied quote
 
 _SYSTEM = """\
 You are building an extraction harness for a research knowledge base. From the \
@@ -46,16 +55,18 @@ OUTPUT CONTRACT (a typed API -- emit exactly this shape):
 }}
 
 HARD INVARIANT (a precondition, checked mechanically downstream):
-For every supporting_evidence quote, `chunk_text.find(quote) != -1` MUST hold --
-an exact, contiguous substring of the cited chunk's text, copied character for
-character. No paraphrase, no ellipsis, no stitching spans together. A
-deterministic gate DROPS any claim whose quote fails this check. Under-produce
-rather than approximate: if you cannot find an exact supporting substring, drop
-the claim.
+Every supporting_evidence points at its source by CHARACTER OFFSETS into the
+cited chunk's text: start_char/end_char such that chunk_text[start_char:end_char]
+IS the supporting span, copied by reference not by hand. Offsets are 0-based,
+end-exclusive, and must satisfy 0 <= start_char < end_char <= len(chunk_text).
+A deterministic gate DROPS any claim whose span is out of bounds or empty.
+Point at the SHORTEST contiguous span that supports the claim. Under-produce
+rather than approximate: if no single contiguous span supports the claim, drop it.
 
 RULES:
 - One checkable assertion per claim (split compound sentences).
-- Quote first, then write the claim around the quote you found.
+- Find the supporting span first, then write the claim around it and report its
+  start_char/end_char offsets into the chunk.
 - Merge mentions of the same thing under one entity_id (most formal name; other
   forms as aliases). mentions are the chunk_ids the entity appears in.
 - Only emit a relation a claim actually asserts. Do not force claims, entities,
@@ -65,19 +76,20 @@ RULES:
 
 _TAIL_THINKING = """\
 METHOD (build your own approach; this is your harness):
-Plan, identify the entities, draft each claim with a candidate quote, re-read
-each quote against its chunk to confirm it is an exact substring, revise or drop,
-then emit. Reason freely first.
+Plan, identify the entities, draft each claim with a candidate span, re-check
+each claim's start_char/end_char against its chunk to confirm they slice to
+exactly the supporting text, revise or drop, then emit. Reason freely first.
 
 FORMAT: After reasoning, emit ONLY the final JSON object inside <output> and
 </output> tags -- nothing else inside those tags."""
 
 _TAIL_DIRECT = """\
-Work through the chunks and copy each quote exactly. Output ONLY the JSON object
-matching the contract above -- no reasoning, no commentary, no markdown fences."""
+Work through the chunks and compute exact character offsets for each supporting
+span. Output ONLY the JSON object matching the contract above -- no reasoning,
+no commentary, no markdown fences."""
 
-_PDF_EVIDENCE = '{"node_id": "<chunk_id>", "quote": "<verbatim substring>", "page": <int>}'
-_WEB_EVIDENCE = '{"locator": "<chunk_id>", "quote": "<verbatim substring>", "url": "<source url or null>"}'
+_PDF_EVIDENCE = '{"node_id": "<chunk_id>", "start_char": <int>, "end_char": <int>, "page": <int>}'
+_WEB_EVIDENCE = '{"locator": "<chunk_id>", "start_char": <int>, "end_char": <int>, "url": "<source url or null>"}'
 
 
 def build_extraction_prompt(chunks: list[dict], producer: str = "web",
@@ -191,13 +203,74 @@ def _batches(items: list, size: int):
         yield items[i:i + size]
 
 
+#: Appended to the user prompt on a coverage pass, after the list of
+#: already-found claim texts, so the model only adds what earlier passes missed.
+_COVERAGE_NOTE = (
+    "Extract ONLY additional atomic claims not already listed above; "
+    "return an empty claims array if none."
+)
+
+
+def _complete_meta(backend, system, user, **sampling) -> tuple[str, str | None]:
+    """One backend call returning ``(text, finish_reason)``. Prefers the
+    backend's per-call meta channel (thread-safe: the reason comes back as a
+    return value, not shared state); falls back to ``complete()`` +
+    ``last_finish_reason`` for plain backends (older fakes, other providers) --
+    correct when calls don't overlap, which is the only way they're run."""
+    if hasattr(backend, "complete_with_meta"):
+        return backend.complete_with_meta(system, user, **sampling)
+    return (backend.complete(system, user, **sampling),
+            getattr(backend, "last_finish_reason", None))
+
+
+class _PassResult(NamedTuple):
+    """Everything one extraction pass produced, returned by value so a pass
+    can run on a worker thread without writing any shared mutable state."""
+    kept: list[dict]
+    entities_by_id: dict[str, dict]
+    relations: list[dict]
+    truncated: int        #: calls this pass saw finish_reason == "length"
+    parse_failures: int   #: batches this pass gave up on after halving
+    batches: int          #: batches this pass successfully parsed
+    dropped: list[dict]   #: gate-failed claims, in call order
+
+
 def extract_claims_to_run(run_dir, producer: str, config, backend,
-                          batch_size: int = DEFAULT_BATCH_SIZE) -> dict:
+                          batch_size: int = DEFAULT_BATCH_SIZE,
+                          samples: int = 1, min_support: int = 1,
+                          coverage_passes: int = 0,
+                          parallel: int = 1) -> dict:
     """Read chunks.jsonl, have the backend extract claims/entities/relations in
     bounded batches, drop any claim whose quote is not verbatim in its chunk, and
     write claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
     Returns a summary dict (including ``parse_failures``: batches whose output
-    could not be parsed, usually reasoning-token truncation).
+    could not be parsed, usually reasoning-token truncation, and
+    ``truncated_calls``: calls the backend reported as cut off at max_tokens,
+    i.e. ``finish_reason == "length"``).
+
+    Size ``batch_size`` so a full extract of one batch fits under the
+    backend's max_tokens: right-size num_predict/max_tokens to the batch
+    rather than relying on a fixed cap (e.g. 3000) to be enough. A truncated
+    call amplifies cost -- the halve-and-retry path re-runs the same chunks --
+    so ``truncated_calls`` should stay near zero (<5% of ``batches``).
+
+    ``samples`` > 1 runs the whole extraction N times (pass 0 deterministic, each
+    later pass at a raised temperature) and UNIONs the gate-passing claims, keeping
+    those found in >= ``min_support`` passes. Entities and relations come from
+    pass 0 only, so they stay canonical. ``coverage_passes`` then re-prompts up to
+    that many more times with the already-found claim texts, asking for additional
+    claims only, and stops early once a pass adds nothing new. Defaults
+    (``samples=1, coverage_passes=0``) reproduce single-pass behavior exactly.
+
+    ``parallel`` > 1 runs the sample passes concurrently on a bounded
+    ``ThreadPoolExecutor`` (workers clamped to ``min(parallel, samples)``).
+    Each pass returns its results by value and all merging happens after the
+    futures join, in submission order, so the output is deterministic and
+    identical to a sequential run. Size ``parallel`` from the server's real
+    concurrency (``OLLAMA_NUM_PARALLEL``; 2-4 for an e4b-class model, never
+    high for 31B). ``parallel=1`` (default) runs passes sequentially, exactly
+    as before. Coverage passes always run sequentially -- each depends on the
+    claims found so far.
     """
     run_dir = Path(run_dir)
     source_id = run_dir.name if producer == "web" else \
@@ -223,84 +296,197 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         return bare[0] if len(bare) == 1 else None
 
     id_key = "node_id" if producer == "pdf" else "locator"
-    kept, dropped = [], []
-    entities_by_id: dict[str, dict] = {}
-    relations: list[dict] = []
-    parse_failures = 0
     batch_list = list(_batches(chunks, max(1, batch_size)))
-    multi = len(batch_list) > 1
+    multi_batch = len(batch_list) > 1  # read-only under the fan-out
 
     thinking = getattr(backend, "thinking", True)
-    # A work queue rather than a fixed loop, so a batch whose output can't be
-    # parsed (usually token truncation) is retried as smaller halves instead of
-    # silently lost -- bounded by depth so it terminates.
-    queue: deque[tuple[list[dict], int]] = deque((b, 0) for b in batch_list)
-    batch_no = 0
-    while queue:
-        batch, depth = queue.popleft()
-        system, user = build_extraction_prompt(batch, producer, thinking=thinking)
-        sampling = {}
-        if depth > 0:  # a halved batch dispatched after a parse failure -- a retry
-            user = user + "\n\n" + _RETRY_NOTE
-            sampling = {"temperature": 0.25}
-        parsed = parse_extraction_response(backend.complete(system, user, **sampling))
-        if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
-            if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
-                mid = len(batch) // 2
-                queue.appendleft((batch[mid:], depth + 1))
-                queue.appendleft((batch[:mid], depth + 1))
-                multi = True  # splitting a lone batch means ids now need a prefix
-            else:
-                parse_failures += 1
-            continue
+    # Each pass is an independent LLM call that restarts its own claim_id
+    # numbering (c_0001...), and the batch prefix is only applied when batched --
+    # so on a single-batch source pass 0 and pass k would mint DIFFERENT claims
+    # sharing the same raw id, and union_claims (dedup by content, not id) keeps
+    # both -> duplicate primary keys in claims.jsonl. A per-pass tag namespaces
+    # every id a pass mints. The tag is EMPTY on the default path (samples=1 and
+    # coverage_passes=0), so single-pass ids are byte-identical to before.
+    multipass = samples > 1 or coverage_passes > 0
 
-        # Give ids a batch prefix (only when batched) so they stay unique across
-        # batches while keeping each relation's supporting_claim reference valid.
-        prefix = f"b{batch_no:02d}_" if multi else ""
-        batch_no += 1
-        for claim in parsed["claims"]:
-            if not isinstance(claim, dict):
-                continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
-            claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
-            evidence = claim.get("supporting_evidence") or []
-            ok = bool(evidence)
-            for ev in evidence:
-                if not isinstance(ev, dict):
-                    # Measured live (gemma4:26b): a bare-string evidence row.
-                    # It can't carry a locatable verbatim quote -> gate failure.
-                    ok = False
+    def _extract_one_pass(pass_no: int, extra_sampling: dict, extra_user: str = "",
+                          retry_on_empty: bool = True) -> _PassResult:
+        """One full extraction pass over all batches: the original single-pass
+        batch/parse/gate loop, verbatim. ``extra_sampling`` is merged into each
+        call's sampling dict (so a pass can raise temperature); ``extra_user`` is
+        appended to each user prompt (the coverage-loop note). A coverage pass
+        sets ``retry_on_empty=False`` because an empty claims array is a valid
+        answer there, not a parse failure to halve-and-retry. ``pass_no`` gives
+        every id this pass mints a unique per-pass tag when running multi-pass.
+
+        Thread-safety contract (the fan-out runs this on worker threads):
+        everything a pass produces -- kept/dropped claims, entities, relations,
+        the truncated/parse-failure/batch counters -- lives in LOCALS and is
+        RETURNED by value; the enclosing scope is only ever read. The per-call
+        finish_reason comes back from ``_complete_meta`` as a return value,
+        never from shared backend state another thread could overwrite."""
+        pass_tag = f"p{pass_no}_" if multipass else ""
+        kept: list[dict] = []
+        dropped: list[dict] = []
+        entities_by_id: dict[str, dict] = {}
+        relations: list[dict] = []
+        truncated = 0       # calls cut off at max_tokens (finish_reason "length")
+        parse_failures = 0
+        batch_no = 0        # this pass's own numbering; the pass tag keeps
+        #                     prefixes unique across passes
+        use_prefix = multi_batch
+        # A work queue rather than a fixed loop, so a batch whose output can't be
+        # parsed (usually token truncation) is retried as smaller halves instead of
+        # silently lost -- bounded by depth so it terminates.
+        queue: deque[tuple[list[dict], int]] = deque((b, 0) for b in batch_list)
+        while queue:
+            batch, depth = queue.popleft()
+            system, user = build_extraction_prompt(batch, producer, thinking=thinking)
+            if extra_user:
+                user = user + "\n\n" + extra_user
+            sampling = {}
+            if depth > 0:  # a halved batch dispatched after a parse failure -- a retry
+                user = user + "\n\n" + _RETRY_NOTE
+                sampling = {"temperature": 0.25}
+            sampling = {**sampling, **extra_sampling}
+            raw, finish_reason = _complete_meta(backend, system, user, **sampling)
+            if finish_reason == "length":
+                # The model hit max_tokens mid-answer: silent truncation that
+                # amplifies cost via the halve-and-retry path. Counted into the
+                # summary as the <5% truncation SLO signal.
+                truncated += 1
+            parsed = parse_extraction_response(raw)
+            if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
+                if not retry_on_empty:
                     continue
-                real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
-                if real and verbatim_ok(ev.get("quote") or "", chunk_text_by_id[real]):
-                    ev[id_key] = real  # rewrite to the canonical chunk id
+                if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
+                    mid = len(batch) // 2
+                    queue.appendleft((batch[mid:], depth + 1))
+                    queue.appendleft((batch[:mid], depth + 1))
+                    use_prefix = True  # splitting a lone batch means ids now need a prefix
                 else:
-                    ok = False
-            (kept if ok else dropped).append(claim)
+                    parse_failures += 1
+                continue
 
-        for ent in parsed["entities"]:
-            if not isinstance(ent, dict):
-                continue
-            eid = ent.get("entity_id")
-            if not eid:
-                continue
-            # Entity `mentions` are abbreviated chunk ids too -- resolve them so
-            # entity_mentions joins back to chunks; drop unresolvable ones.
-            ment = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
-            if eid in entities_by_id:  # same entity seen in an earlier batch -> merge
-                cur = entities_by_id[eid]
-                cur["mentions"] = sorted(set(cur.get("mentions") or []) | set(ment))
-                cur["aliases"] = sorted(set(cur.get("aliases") or []) | set(ent.get("aliases") or []))
-            else:
-                ent["mentions"] = sorted(set(ment))
-                entities_by_id[eid] = ent
+            # Give ids a batch prefix (only when batched) so they stay unique
+            # across batches, plus a per-pass tag (only when multi-pass) so ids
+            # minted in different passes can't collide -- while keeping each
+            # relation's supporting_claim reference valid within its own pass.
+            prefix = pass_tag + (f"b{batch_no:02d}_" if use_prefix else "")
+            batch_no += 1
+            for claim in parsed["claims"]:
+                if not isinstance(claim, dict):
+                    continue  # some models emit a bare-string claim -> no evidence, can't pass the gate
+                claim["claim_id"] = prefix + str(claim.get("claim_id", ""))
+                evidence = claim.get("supporting_evidence") or []
+                ok = bool(evidence)
+                for ev in evidence:
+                    if not isinstance(ev, dict):
+                        # Measured live (gemma4:26b): a bare-string evidence row.
+                        # It can't carry a locatable span -> gate failure.
+                        ok = False
+                        continue
+                    real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
+                    start, end = ev.get("start_char"), ev.get("end_char")
+                    if real and span_ok(start, end, chunk_text_by_id[real],
+                                        ev.get("quote")):
+                        ev[id_key] = real  # rewrite to the canonical chunk id
+                        ev["quote"] = slice_span(chunk_text_by_id[real], start, end)  # derived, canonical
+                    else:
+                        ok = False
+                claim["citable"] = ok
+                (kept if ok else dropped).append(claim)
 
-        for rel in parsed["relations"]:
-            if not isinstance(rel, dict):
-                continue
-            rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
-            if rel.get("supporting_claim"):
-                rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
-            relations.append(rel)
+            for ent in parsed["entities"]:
+                if not isinstance(ent, dict):
+                    continue
+                eid = ent.get("entity_id")
+                if not eid:
+                    continue
+                # Entity `mentions` are abbreviated chunk ids too -- resolve them so
+                # entity_mentions joins back to chunks; drop unresolvable ones.
+                ment = [r for m in (ent.get("mentions") or []) if (r := _resolve(str(m)))]
+                if eid in entities_by_id:  # same entity seen in an earlier batch -> merge
+                    cur = entities_by_id[eid]
+                    cur["mentions"] = sorted(set(cur.get("mentions") or []) | set(ment))
+                    cur["aliases"] = sorted(set(cur.get("aliases") or []) | set(ent.get("aliases") or []))
+                else:
+                    ent["mentions"] = sorted(set(ment))
+                    entities_by_id[eid] = ent
+
+            for rel in parsed["relations"]:
+                if not isinstance(rel, dict):
+                    continue
+                rel["relation_id"] = prefix + str(rel.get("relation_id", ""))
+                if rel.get("supporting_claim"):
+                    rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
+                relations.append(rel)
+        return _PassResult(kept, entities_by_id, relations,
+                           truncated, parse_failures, batch_no, dropped)
+
+    def _pass_sampling(pass_no: int) -> dict:
+        return {"temperature": round(0.2 * pass_no, 3)} if pass_no else {}
+
+    # Pass 0 is deterministic (identical to single-pass behavior); each later
+    # pass k re-samples at temperature 0.2*k for claim recall. Entities and
+    # relations come from pass 0 ONLY: claims get the recall boost, while
+    # entities/relations stay canonical. Because pass 0 runs first and
+    # union_claims keeps the first-seen dict per key, every pass-0 claim id
+    # survives into `kept`, so pass-0 relations still resolve below.
+    n_passes = max(1, samples)
+    if parallel > 1 and n_passes > 1:
+        # Bounded fan-out: passes are independent by construction (see the
+        # thread-safety contract on _extract_one_pass), so overlap them. The
+        # openai client is thread-safe. Results are collected IN SUBMISSION
+        # ORDER, so the union input -- and therefore the output -- is the same
+        # as a sequential run.
+        with ThreadPoolExecutor(max_workers=max(1, min(parallel, n_passes))) as ex:
+            futures = [ex.submit(_extract_one_pass, p, _pass_sampling(p))
+                       for p in range(n_passes)]
+            results = [f.result() for f in futures]
+    else:
+        results = [_extract_one_pass(p, _pass_sampling(p)) for p in range(n_passes)]
+
+    # All merging happens here, after the passes have returned -- single-threaded.
+    claim_passes: list[list[dict]] = [r.kept for r in results]
+    entities_by_id: dict[str, dict] = results[0].entities_by_id
+    relations: list[dict] = results[0].relations
+    dropped: list[dict] = []
+    truncated_calls = 0  # calls the backend reports as cut off at max_tokens
+    parse_failures = 0
+    batches = 0
+    for r in results:
+        dropped.extend(r.dropped)
+        truncated_calls += r.truncated
+        parse_failures += r.parse_failures
+        batches += r.batches
+
+    support_filtered = 0
+    if samples > 1:
+        kept = union_claims(claim_passes, min_support=min_support)
+        support_filtered = len(union_claims(claim_passes, min_support=1)) - len(kept)
+    else:
+        kept = claim_passes[0]
+
+    # Bounded coverage loop: re-prompt with the claims found so far and ask for
+    # additional ones only; stop early once a pass contributes nothing new.
+    # Always sequential -- each pass's prompt depends on the claims so far.
+    for k in range(max(0, coverage_passes)):
+        listing = "\n".join(f"- {c.get('claim', '')}" for c in kept)
+        note = "ALREADY-EXTRACTED CLAIMS:\n" + listing + "\n\n" + _COVERAGE_NOTE
+        # Give each coverage pass a pass_no past the sample passes so its ids
+        # can't collide with sample-pass ids either.
+        cov = _extract_one_pass(samples + k, {}, extra_user=note, retry_on_empty=False)
+        dropped.extend(cov.dropped)
+        truncated_calls += cov.truncated
+        parse_failures += cov.parse_failures
+        batches += cov.batches
+        if not cov.kept:
+            break
+        merged = union_claims([kept, cov.kept], min_support=1)
+        if len(merged) == len(kept):
+            break  # everything it returned was already known
+        kept = merged
 
     # Drop relations whose supporting_claim was gate-dropped (or never existed),
     # so no relation points at a claim_id that isn't in claims.jsonl. A relation
@@ -317,6 +503,10 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         "dropped": [c.get("claim_id") for c in dropped],
         "entities": len(entities_by_id),
         "relations": len(relations),
-        "batches": batch_no,
+        "batches": batches,
         "parse_failures": parse_failures,
+        "truncated_calls": truncated_calls,
+        "samples": samples,
+        "parallel": parallel,
+        "support_filtered": support_filtered,
     }

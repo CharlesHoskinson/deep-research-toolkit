@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,8 +50,11 @@ class LocalOpenAIBackend:
         # `think` control) -- right for high-volume, well-specified extraction,
         # where a hidden deliberation pass is wasted time.
         self.thinking = thinking
-        # "json" -> OpenAI json_object mode (grammar-constrained valid JSON); a
-        # dict is passed through as a full response_format (e.g. json_schema).
+        # "json" -> OpenAI json_object mode (grammar-constrained valid JSON).
+        # A dict with an OpenAI type (json_object/json_schema/text) is passed
+        # through as a full response_format; any other dict is treated as a
+        # bare JSON schema and wrapped in the json_schema envelope, which
+        # Ollama's compat layer turns into its native `format`.
         self.response_format = response_format
         # Opt-in per-call JSONL ledger (OTel GenAI field names, no OTel
         # dependency) -- None disables tracing entirely. `role` is the pipeline
@@ -61,6 +65,17 @@ class LocalOpenAIBackend:
         # Cumulative usage over this backend's lifetime; read by the eval
         # harness to report cost/latency per model. Never reset internally.
         self.stats = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+        # finish_reason of the most recent call ("stop", "length", ...). Advisory
+        # / back-compat only: under a parallel>1 extraction fan-out several
+        # threads share one backend, so this reflects whichever call last wrote
+        # it -- NOT reliably the caller's own. Callers must use the finish_reason
+        # RETURNED by complete_with_meta. None until the first call or when the
+        # server omits the field.
+        self.last_finish_reason: str | None = None
+        # Guards the non-atomic stats read-modify-write and the trace append,
+        # which parallel extraction workers reach on ONE shared backend. Held
+        # only around the quick mutations, never across the network call.
+        self._lock = threading.Lock()
 
     def _load_client(self):
         if self._client is None:
@@ -100,31 +115,73 @@ class LocalOpenAIBackend:
         if rf == "json":
             kwargs["response_format"] = {"type": "json_object"}
         elif isinstance(rf, dict):
-            kwargs["response_format"] = rf
+            if rf.get("type") in ("text", "json_object", "json_schema"):
+                # Already a full OpenAI response_format -- forward unchanged.
+                kwargs["response_format"] = rf
+            else:
+                # A bare JSON schema. Ollama's OpenAI-compatible endpoint has
+                # no top-level `format` field (unknown body fields are
+                # dropped); its compat layer copies
+                # response_format.json_schema.schema into the native
+                # request's `format`, so ride the same response_format
+                # plumbing "json" mode uses above. vLLM's json_schema
+                # guided decoding accepts the identical envelope.
+                kwargs["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": "response", "schema": rf},
+                }
         return client.chat.completions.create(**kwargs)
 
-    def complete(self, system: str, user: str, **sampling) -> str:
+    def complete(self, system: str, user: str, *,
+                 response_format: str | dict | None = None, **sampling) -> str:
+        return self.complete_with_meta(system, user,
+                                       response_format=response_format, **sampling)[0]
+
+    def complete_with_meta(self, system: str, user: str, *,
+                           response_format: str | dict | None = None,
+                           **sampling) -> tuple[str, str | None]:
+        """Like complete(), but returns ``(text, finish_reason)`` so a caller
+        gets THIS call's finish_reason as a return value -- no read of shared
+        backend state, which under concurrent callers (threaded extraction
+        fan-out) another thread's call may have overwritten in the meantime.
+        ``last_finish_reason`` is still set for the trace and back-compat."""
+        if response_format is not None:
+            sampling["response_format"] = response_format
         import time
+        # The network call and all parsing happen WITHOUT the lock, so parallel
+        # workers overlap their HTTP round-trips.
         t0 = time.perf_counter()
         resp = self._client_complete(system, user, **sampling)
         elapsed = time.perf_counter() - t0
-        self.stats["calls"] += 1
-        self.stats["seconds"] += elapsed
         usage = getattr(resp, "usage", None)
         prompt_tokens = 0
         completion_tokens = 0
         if usage is not None:
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+        choice = resp.choices[0]
+        # "length" means the model hit max_tokens mid-answer -- the silent
+        # truncation this telemetry exists to surface. Guard the read: fakes
+        # and some servers omit the field.
+        finish_reason = getattr(choice, "finish_reason", None)
+        content = strip_think(choice.message.content or "")
+        # Critical section: only the quick shared-state mutations. No I/O here.
+        with self._lock:
+            self.stats["calls"] += 1
+            self.stats["seconds"] += elapsed
             self.stats["prompt_tokens"] += prompt_tokens
             self.stats["completion_tokens"] += completion_tokens
-        content = strip_think(resp.choices[0].message.content or "")
+            # Advisory only; see the __init__ note. The reliable value is the
+            # finish_reason this method RETURNS.
+            self.last_finish_reason = finish_reason
         if self.trace_path is not None:
-            self._write_trace(elapsed, prompt_tokens, completion_tokens, content)
-        return content
+            self._write_trace(elapsed, prompt_tokens, completion_tokens, content,
+                              finish_reason)
+        return content, finish_reason
 
     def _write_trace(self, elapsed: float, prompt_tokens: int,
-                     completion_tokens: int, content: str) -> None:
+                     completion_tokens: int, content: str,
+                     finish_reason: str | None) -> None:
         """Append one JSONL ledger line for a completed call. A trace failure
         must never break a call, so every error is swallowed."""
         try:
@@ -136,8 +193,15 @@ class LocalOpenAIBackend:
                 "latency_s": elapsed,
                 "role": self.role,
                 "ok": bool(content),
+                # The call's own finish_reason, passed down rather than read
+                # from self.last_finish_reason (racy under threaded callers).
+                "finish_reason": finish_reason,
             }
-            with open(self.trace_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(row) + "\n")
+            line = json.dumps(row) + "\n"
+            # Serialize the append so parallel workers can't interleave partial
+            # writes into a non-JSON line. The write is quick -- no network here.
+            with self._lock:
+                with open(self.trace_path, "a", encoding="utf-8") as f:
+                    f.write(line)
         except Exception:  # noqa: BLE001 -- tracing is best-effort by contract
             pass

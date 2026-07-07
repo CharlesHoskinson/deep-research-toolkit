@@ -303,8 +303,8 @@ def test_run_extract_for_doc_scores_against_untouched_reference(tmp_path):
     from types import SimpleNamespace
     config = SimpleNamespace(research_runs_path=tmp_path / "unused", pdf_runs_path=tmp_path / "unused2")
     payload = json.dumps([
-        {"claim_id": "p1", "claim": "x", "supporting_evidence":
-         [{"locator": "doc-a#c001", "quote": "Alpha fact one", "url": None}]},
+        {"claim_id": "p1", "claim": "x", "supporting_evidence":  # chunk[0:14] == "Alpha fact one"
+         [{"locator": "doc-a#c001", "start_char": 0, "end_char": 14, "url": None}]},
     ])
     backend = _FakeExtractBackend({"doc-a#c001": payload})
     out = eval_pipeline.run_extract_for_doc(tmp_path / "doc-a", config, backend)
@@ -338,8 +338,8 @@ def test_run_extract_for_model_aggregates_recall_across_docs(tmp_path):
     from types import SimpleNamespace
     config = SimpleNamespace(research_runs_path=tmp_path / "unused", pdf_runs_path=tmp_path / "unused2")
     payload = json.dumps([
-        {"claim_id": "p1", "claim": "x", "supporting_evidence":
-         [{"locator": "doc-a#c001", "quote": "Alpha fact one", "url": None}]},
+        {"claim_id": "p1", "claim": "x", "supporting_evidence":  # chunk[0:14] == "Alpha fact one"
+         [{"locator": "doc-a#c001", "start_char": 0, "end_char": 14, "url": None}]},
     ])
     backend = _FakeExtractBackend({"doc-a#c001": payload})  # doc-b gets "{}"
     index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
@@ -349,7 +349,7 @@ def test_run_extract_for_model_aggregates_recall_across_docs(tmp_path):
 
     assert out["recall"] == pytest.approx(1 / 3)     # 1 of 3 pooled reference claims
     assert out["gate_pass_rate"] == 1.0              # nothing dropped
-    assert out["precision_proxy"] == 1.0             # the one produced claim matched
+    assert out["gold_match_rate"] == 1.0             # the one produced claim matched
     assert out["docs"] == 2
     assert out["per_doc"]["doc-a"]["recall"] == pytest.approx(0.5)   # 1 of doc-a's 2
     assert out["per_doc"]["doc-b"]["recall"] == 0.0                  # doc-b's 1 missed
@@ -407,6 +407,235 @@ def test_real_corpus_adjudicate_candidates_carry_the_distinguishing_values():
             assert digits in union, (
                 f"pair note {pair['note']!r}: value {digits!r} missing from the "
                 f"candidate objects: {union!r}")
+
+
+# ---------------------------------------------------------------------------
+# Task 13 wiring: samples/min-support/parallel/pooled-gold flags,
+# truncated_calls in the report, entailment recall via an injected embedder
+# ---------------------------------------------------------------------------
+
+class _FakeMetaExtractBackend:
+    """Like _FakeExtractBackend but answers on the per-call meta channel
+    (complete_with_meta), reporting every call's finish_reason -- so the
+    truncation counter can be exercised without a live model."""
+
+    def __init__(self, by_locator: dict, finish_reason: str | None = "length"):
+        self.by_locator = by_locator
+        self.finish_reason = finish_reason
+
+    def complete_with_meta(self, system, user, **kw):
+        for locator, payload in self.by_locator.items():
+            if locator in user:
+                return payload, self.finish_reason
+        return "{}", self.finish_reason
+
+
+def _make_one_hot_embedder(dim: int = 16):
+    """Deterministic fake embedder callable (texts -> unit vectors): every
+    distinct text gets its own one-hot axis, so cosine is exactly 1.0 for
+    identical texts and 0.0 otherwise -- no model, no network."""
+    index: dict[str, int] = {}
+
+    def embed(texts: list[str]) -> list[list[float]]:
+        vecs = []
+        for t in texts:
+            i = index.setdefault(t, len(index))
+            assert i < dim, "one-hot fake embedder ran out of axes"
+            v = [0.0] * dim
+            v[i] = 1.0
+            vecs.append(v)
+        return vecs
+
+    return embed
+
+
+def _tiny_corpus_config(tmp_path):
+    from types import SimpleNamespace
+    return SimpleNamespace(research_runs_path=tmp_path / "unused",
+                           pdf_runs_path=tmp_path / "unused2")
+
+
+_ALPHA_PAYLOAD = json.dumps([
+    {"claim_id": "p1", "claim": "claim about Alpha fact one", "supporting_evidence":
+     [{"locator": "doc-a#c001", "start_char": 0, "end_char": 14, "url": None}]},
+])
+_GAMMA_PAYLOAD = json.dumps([
+    {"claim_id": "p2", "claim": "some unrelated paraphrase", "supporting_evidence":
+     [{"locator": "doc-b#c001", "start_char": 0, "end_char": 14, "url": None}]},
+])
+
+
+def test_run_extract_for_model_reports_truncated_calls_and_batches(tmp_path):
+    # Every call reports finish_reason == "length"; both docs parse on their
+    # first (only) batch, so truncated_calls must be exactly 2 (one per doc)
+    # and it must survive into build_report's per-model extract metrics.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeMetaExtractBackend(
+        {"doc-a#c001": _ALPHA_PAYLOAD, "doc-b#c001": _GAMMA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+
+    out = eval_pipeline.run_extract_for_model(tmp_path, index, config, backend, doc_selection)
+    assert out["truncated_calls"] == 2
+    assert out["batches"] == 2
+
+    report = eval_pipeline.build_report(
+        corpus_dir=str(tmp_path), join_keys={}, role_results={"extract": {"models": {"m1": out}}})
+    assert report["roles"]["extract"]["models"]["m1"]["truncated_calls"] == 2
+
+
+def test_run_extract_for_model_truncated_calls_zero_without_meta_backend(tmp_path):
+    # A plain complete()-only backend (no meta channel) must still yield the
+    # key, at zero -- never a crash, never a missing field.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+    out = eval_pipeline.run_extract_for_model(tmp_path, index, config, backend, doc_selection)
+    assert out["truncated_calls"] == 0
+
+
+def test_run_extract_for_model_recall_entailment_with_fake_embedder(tmp_path):
+    # The produced claim TEXT equals gold a_c1's text exactly, so the one-hot
+    # embedder credits exactly 1 of the 3 pooled reference claims.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+
+    out = eval_pipeline.run_extract_for_model(
+        tmp_path, index, config, backend, doc_selection,
+        embedder=_make_one_hot_embedder())
+
+    assert out["recall_entailment"] == pytest.approx(1 / 3)
+    assert out["f_fact"] is None  # no self_faithfulness signal here
+    assert out["per_doc"]["doc-a"]["recall_entailment"] == pytest.approx(0.5)
+    assert out["per_doc"]["doc-b"]["recall_entailment"] == 0.0
+
+    report = eval_pipeline.build_report(
+        corpus_dir=str(tmp_path), join_keys={}, role_results={"extract": {"models": {"m1": out}}})
+    assert report["roles"]["extract"]["models"]["m1"]["recall_entailment"] == pytest.approx(1 / 3)
+
+
+def test_run_extract_for_model_without_embedder_omits_entailment_fields(tmp_path):
+    # Default flags must reproduce today's report shape exactly.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+    out = eval_pipeline.run_extract_for_model(tmp_path, index, config, backend, doc_selection)
+    assert "recall_entailment" not in out
+    assert "f_fact" not in out
+
+
+def test_run_extract_for_model_degrades_when_embedder_raises(tmp_path):
+    # An embedder whose calls fail (endpoint down) must degrade to the
+    # no-embedder metric shape, never crash the run.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+
+    def broken(texts):
+        raise RuntimeError("no embedding endpoint")
+
+    out = eval_pipeline.run_extract_for_model(
+        tmp_path, index, config, backend, doc_selection, embedder=broken)
+    assert "recall_entailment" not in out
+    assert out["recall"] == pytest.approx(1 / 3)  # base metrics intact
+
+
+def test_run_extract_for_doc_prefers_pooled_gold_reference(tmp_path):
+    _build_tiny_corpus(tmp_path)
+    pooled = [_claim("pg1", "doc-a#c001", "Alpha fact one"),
+              _claim("pg2", "doc-a#c001", "Alpha fact two"),
+              _claim("pg3", "doc-a#c002", "Beta fact one")]
+    with open(tmp_path / "doc-a" / "pooled-gold.jsonl", "w", encoding="utf-8") as f:
+        for c in pooled:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({})
+
+    out = eval_pipeline.run_extract_for_doc(
+        tmp_path / "doc-a", config, backend, pooled_gold=True)
+    assert {c["claim_id"] for c in out["reference"]} == {"pg1", "pg2", "pg3"}
+    assert out["reference_source"] == "pooled-gold.jsonl"
+
+    # doc-b ships no pooled-gold.jsonl -> falls back to reference-claims.jsonl
+    out_b = eval_pipeline.run_extract_for_doc(
+        tmp_path / "doc-b", config, backend, pooled_gold=True)
+    assert {c["claim_id"] for c in out_b["reference"]} == {"b_c1"}
+    assert out_b["reference_source"] == "reference-claims.jsonl"
+
+    # without the flag the pooled file is ignored even when present
+    out_default = eval_pipeline.run_extract_for_doc(tmp_path / "doc-a", config, backend)
+    assert {c["claim_id"] for c in out_default["reference"]} == {"a_c1", "a_c2"}
+    assert out_default["reference_source"] == "reference-claims.jsonl"
+
+
+class _CountingExtractBackend:
+    def __init__(self, by_locator: dict):
+        self.by_locator = by_locator
+        self.calls = 0
+
+    def complete(self, system, user, **kw):
+        self.calls += 1
+        for locator, payload in self.by_locator.items():
+            if locator in user:
+                return payload
+        return "{}"
+
+
+def test_run_extract_for_doc_threads_samples_through_to_extraction(tmp_path):
+    # samples=2 must fan the extraction out into two passes (doc-a is a
+    # single batch, so exactly two backend calls) and still dedup the
+    # identical claims down to one written row under min_support=2.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _CountingExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    out = eval_pipeline.run_extract_for_doc(
+        tmp_path / "doc-a", config, backend, samples=2, min_support=2, parallel=1)
+    assert backend.calls == 2
+    assert out["written"] == 1
+
+
+def test_run_prose_role_reports_coverage_rule_counts(tmp_path):
+    # Each tiny-corpus chunk carries a single citable claim (< the ratio
+    # floor's minimum), so both attempts score under the "absolute" rule --
+    # and the rule must be visible in the role result / report.
+    _build_tiny_corpus(tmp_path)
+    claims_by_chunk = eval_pipeline.load_claims_by_chunk(tmp_path)
+    backend = _KeyedProseBackend({
+        "a_c1": "Alpha holds [claim:a_c1].",
+        "a_c2": "Beta holds [claim:a_c2].",
+    })
+    out = eval_pipeline.run_prose_role_with_backend(
+        "wiki_write", ["doc-a#c001", "doc-a#c002"], claims_by_chunk, backend, runs=1)
+    assert out["coverage_rules"] == {"absolute": 2}
+
+
+def test_arg_parser_new_flag_defaults_reproduce_single_pass_behavior():
+    args = eval_pipeline.build_arg_parser().parse_args([])
+    assert args.samples == 1
+    assert args.min_support == 1
+    assert args.parallel == 1
+    assert args.pooled_gold is False
+
+
+def test_make_embedder_returns_callable_or_none():
+    from types import SimpleNamespace
+    # An Ollama-tag embedding model builds lazily (no network at construction).
+    cfg = SimpleNamespace(embedding_model="qwen3-embedding:4b",
+                          llm_local={"base_url": "http://localhost:11434/v1"})
+    embedder = eval_pipeline.make_embedder(cfg)
+    assert callable(embedder)
+    # A config the route can't be built from degrades to None, never raises.
+    assert eval_pipeline.make_embedder(SimpleNamespace()) is None
 
 
 # ---------------------------------------------------------------------------
@@ -571,3 +800,7 @@ def test_help_works_without_a_live_endpoint():
     assert result.returncode == 0
     assert "--corpus" in result.stdout
     assert "--compare" in result.stdout
+    assert "--samples" in result.stdout
+    assert "--min-support" in result.stdout
+    assert "--parallel" in result.stdout
+    assert "--pooled-gold" in result.stdout

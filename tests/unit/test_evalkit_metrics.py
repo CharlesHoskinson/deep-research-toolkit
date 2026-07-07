@@ -115,7 +115,7 @@ def test_extract_metrics_basic_rates():
     out = extract_metrics(produced, reference, dropped, parse_failures=2)
     assert out["gate_pass_rate"] == 2 / 3
     assert out["recall"] == 1 / 3
-    assert out["precision_proxy"] == 1 / 2  # only p1 matched something
+    assert out["gold_match_rate"] == 1 / 2  # only p1 matched something
     assert out["atomicity"] == 2 / 3
     assert out["parse_failures"] == 2
 
@@ -133,7 +133,7 @@ def test_extract_metrics_guards_empty_reference():
 
 def test_extract_metrics_guards_empty_produced():
     out = extract_metrics([], [_claim("r1", "x")], ["d1"], parse_failures=0)
-    assert out["precision_proxy"] is None
+    assert out["gold_match_rate"] is None
     assert out["gate_pass_rate"] == 0.0
 
 
@@ -143,8 +143,39 @@ def test_extract_metrics_perfect_recall_and_precision():
     out = extract_metrics(produced, reference, [], parse_failures=0)
     assert out["gate_pass_rate"] == 1.0
     assert out["recall"] == 1.0
-    assert out["precision_proxy"] == 1.0
+    assert out["gold_match_rate"] == 1.0
     assert out["atomicity"] == 1.0
+
+
+def test_extract_metrics_no_embedder_omits_entailment_fields():
+    out = extract_metrics([_claim("p1", "x")], [_claim("r1", "x")], [], parse_failures=0)
+    assert "recall_entailment" not in out
+    assert "f_fact" not in out
+    assert "precision_proxy" not in out  # retired label must be gone
+
+
+def test_extract_metrics_with_embedder_adds_recall_entailment_and_f_fact():
+    # Identical claim text -> identical vectors -> cosine 1.0 >= threshold.
+    def embedder(texts):
+        return [[1.0, 0.0] for _ in texts]
+
+    produced = [_claim("p1", "x")]
+    reference = [_claim("r1", "x")]
+    out = extract_metrics(produced, reference, [], parse_failures=0,
+                          embedder=embedder, self_faithfulness=0.5)
+    assert out["recall_entailment"] == 1.0
+    # harmonic mean of 1.0 and 0.5
+    assert out["f_fact"] == 2 * 1.0 * 0.5 / (1.0 + 0.5)
+
+
+def test_extract_metrics_with_embedder_but_no_self_faithfulness_leaves_f_fact_none():
+    def embedder(texts):
+        return [[1.0, 0.0] for _ in texts]
+
+    out = extract_metrics([_claim("p1", "x")], [_claim("r1", "x")], [],
+                          parse_failures=0, embedder=embedder)
+    assert out["recall_entailment"] == 1.0
+    assert out["f_fact"] is None
 
 
 # --------------------------------------------------------------------------

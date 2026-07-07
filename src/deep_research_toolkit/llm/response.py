@@ -35,6 +35,26 @@ def normalize_claim_markers(text: str, allowed_ids: list[str]) -> str:
     return bare.sub(r"[claim:\1]", text)
 
 
+def allowed_ids_block(allowed_ids: list[str]) -> str:
+    """Fenced closed-set note for a prose role's task prompt: the enum of
+    citable ids plus one positive and one decline exemplar. This is the
+    prompt-side lever against invented ids (the mempool-design#c005 failure
+    mode); validate_citations in generate_cited stays the mechanical
+    backstop that guarantees correctness regardless of the model."""
+    ids = [str(i) for i in allowed_ids if i]
+    example_id = ids[0] if ids else "<id>"
+    return (
+        "```\n"
+        "Valid claim ids (cite ONLY these, in [claim:<id>] form):\n"
+        f"  {', '.join(ids)}\n"
+        "Example -- cite a listed id that supports the sentence: "
+        f'"Fees rise under load [claim:{example_id}]."\n'
+        "Example -- if no listed id supports a sentence, write it WITHOUT a "
+        "citation; never invent an id.\n"
+        "```"
+    )
+
+
 def extract_claim_ids(text: str) -> list[str]:
     seen: dict[str, None] = {}
     for m in CLAIM_MARKER_RE.finditer(text):
@@ -42,16 +62,26 @@ def extract_claim_ids(text: str) -> list[str]:
     return list(seen)
 
 
-def validate_citations(text: str, allowed_ids: list[str]) -> dict:
+def validate_citations(text: str, allowed_ids: list[str], *,
+                       min_citable_for_ratio: int = 4,
+                       min_coverage: float = 0.3) -> dict:
+    """Closed-set citation check + coverage rule. With few citable claims the
+    ratio floor is statistically meaningless (2 claims, one uncited = 0.5 <
+    0.3-floor false alarm), so below `min_citable_for_ratio` we require EVERY
+    allowed id to be cited (absolute rule); at/above it the ratio floor holds."""
     allowed = set(allowed_ids)
     cited_all = extract_claim_ids(text)
     cited = [c for c in cited_all if c in allowed]
     unknown = [c for c in cited_all if c not in allowed]
-    return {
-        "cited": cited,
-        "unknown": unknown,
-        "coverage": (len(cited) / len(allowed)) if allowed else 0.0,
-    }
+    coverage = (len(cited) / len(allowed)) if allowed else 0.0
+    if len(allowed) < min_citable_for_ratio:
+        rule = "absolute"
+        coverage_ok = set(cited) >= allowed  # every allowed id cited
+    else:
+        rule = "ratio"
+        coverage_ok = coverage >= min_coverage
+    return {"cited": cited, "unknown": unknown, "coverage": coverage,
+            "coverage_ok": coverage_ok, "rule": rule}
 
 
 def _fence_stripped(text: str) -> str:
@@ -147,7 +177,7 @@ def generate_cited(backend, system: str, user: str, allowed_ids: list[str], *,
     def _attempt(prompt: str, **sampling) -> tuple[str, dict]:
         text = normalize_claim_markers(
             unfence(checked_complete(backend, system, prompt, **sampling)), allowed_ids)
-        return text, validate_citations(text, allowed_ids)
+        return text, validate_citations(text, allowed_ids, min_coverage=min_coverage)
 
     text, report = _attempt(user)
     if report["unknown"]:
@@ -156,16 +186,16 @@ def generate_cited(backend, system: str, user: str, allowed_ids: list[str], *,
             temperature=0.25)
         if report["unknown"]:
             raise citation_error(f"model cited unknown claim ids after retry: {report['unknown']}")
-    if report["coverage"] < min_coverage:
+    if not report["coverage_ok"]:
         note = correction_low_coverage.format(
             n=len(report["cited"]), total=len(allowed_ids), kind=kind)
         text, report = _attempt(user + "\n\n" + note, temperature=0.25)
         if report["unknown"]:
             raise citation_error(f"model cited unknown claim ids after retry: {report['unknown']}")
-        if report["coverage"] < min_coverage:
+        if not report["coverage_ok"]:
             raise ValueError(
-                f"{kind} cites {len(report['cited'])}/{len(allowed_ids)} supplied claims "
-                f"(coverage {report['coverage']:.2f} < {min_coverage})")
+                f"{kind} fails citation coverage ({report['rule']}): "
+                f"cited {len(report['cited'])}/{len(allowed_ids)}")
     return {"text": text, "citations": report}
 
 

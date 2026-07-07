@@ -34,7 +34,7 @@ def get_backend(config, role: str | None = None) -> Backend:
         # Intentionally CWD-relative: one global ledger per invocation
         # directory, unlike the config paths resolved against project_root.
         trace_path = Path("llm-trace.jsonl") if getattr(config, "llm_trace", False) else None
-        return LocalOpenAIBackend(
+        backend = LocalOpenAIBackend(
             base_url=spec["base_url"], model=spec["model"],
             api_key=os.environ.get(spec.get("api_key_env", "OPENAI_API_KEY"), "not-needed"),
             temperature=spec["temperature"], top_p=spec["top_p"], top_k=spec["top_k"],
@@ -44,6 +44,12 @@ def get_backend(config, role: str | None = None) -> Backend:
             trace_path=trace_path,
             role=role,
         )
+        if getattr(config, "llm_cache", False):
+            from .cache import CachingBackend
+            index_dir = Path(getattr(config, "index_dir", None) or ".deepresearch/index")
+            return CachingBackend(backend, cache_dir=index_dir.parent / "llm-cache",
+                                  enabled=True, role=role or "")
+        return backend
     raise LLMBackendNotConfigured(
         f"unknown llm.provider: {provider!r} (use agent | anthropic | local)"
     )

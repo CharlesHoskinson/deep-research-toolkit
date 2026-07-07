@@ -9,7 +9,9 @@ loudly instead of silently degrading eval numbers:
   - every doc directory has manifest.json, chunks.jsonl, reference-claims.jsonl
   - chunk rows carry a "<doc>#c<NNN>" locator and are 80-450 words
   - total chunk count and per-slice quotas (from corpus-index.json) are met
-  - every reference claim quote is a verbatim substring of its own chunk
+  - every reference claim evidence carries a character span (start_char/
+    end_char) that is in-bounds in its own chunk and slices to exactly the
+    stored quote (the span contract from src/.../common/verbatim.py)
   - each chunk is cited by 2-6 reference claims
   - bait chunks (near-copies of a same-doc source sentence) are recorded in
     "bait_sources" and actually contain a near-copy (>=80% word overlap, not
@@ -39,7 +41,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from deep_research_toolkit.common.verbatim import verbatim_ok  # noqa: E402
+from deep_research_toolkit.common.verbatim import span_ok  # noqa: E402
 
 DEFAULT_CORPUS_DIR = REPO_ROOT / "tests" / "fixtures" / "eval-corpus"
 
@@ -108,6 +110,21 @@ def _bait_near_copy_exists(bait_text: str, source_text: str, threshold: float) -
             if overlap >= threshold:
                 return True
     return False
+
+
+def validate_claim_evidence(claim: dict, chunk_text: str) -> bool:
+    """Span gate for one reference claim against the chunk text its evidence
+    cites: every evidence row must carry an in-bounds start_char/end_char span
+    whose slice equals its stored quote exactly. Old-shape evidence (quote
+    with no offsets) and claims with no evidence at all are rejected."""
+    evs = claim.get("supporting_evidence") or []
+    if not evs:
+        return False
+    for ev in evs:
+        if not span_ok(ev.get("start_char"), ev.get("end_char"), chunk_text,
+                       ev.get("quote")):
+            return False
+    return True
 
 
 def compute_corpus_version(chunk_texts: dict[str, str]) -> str:
@@ -204,13 +221,16 @@ def _walk_docs(corpus_dir: Path, word_range: tuple[int, int]) -> dict:
             locs_in_claim: set[str] = set()
             for ev in evidence:
                 loc = ev.get("locator")
-                quote = ev.get("quote") or ""
                 if loc not in doc_chunk_texts:
                     errors.append(f"{doc_id}: claim {claim_id!r} cites unknown locator {loc!r}")
                     continue
-                if not verbatim_ok(quote, doc_chunk_texts[loc]):
-                    errors.append(f"{doc_id}: claim {claim_id!r} quote is not verbatim in "
-                                  f"{loc!r}: {quote!r}")
+                if not validate_claim_evidence({"supporting_evidence": [ev]},
+                                               doc_chunk_texts[loc]):
+                    errors.append(
+                        f"{doc_id}: claim {claim_id!r} evidence span "
+                        f"[{ev.get('start_char')!r}, {ev.get('end_char')!r}) in {loc!r} "
+                        f"is missing/out-of-bounds or its slice is not verbatim-equal "
+                        f"to the stored quote: {ev.get('quote')!r}")
                 locs_in_claim.add(loc)
             doc_claim_evidence[claim_id] = locs_in_claim
             for loc in locs_in_claim:

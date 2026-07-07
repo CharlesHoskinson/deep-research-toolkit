@@ -47,7 +47,7 @@ def quote_overlap_match(produced: list[dict], reference: list[dict]) -> dict:
       {"recalled": [reference claim, ...], "missed": [reference claim, ...],
        "matched_produced": {produced claim_id, ...}}
     `matched_produced` is every produced claim_id that overlapped at least one
-    reference quote (used for precision_proxy), independent of which
+    reference quote (used for gold_match_rate), independent of which
     reference claim it matched."""
     prod_quotes = [(c.get("claim_id"), q) for c in produced for q in _quotes(c)]
 
@@ -71,37 +71,58 @@ def quote_overlap_match(produced: list[dict], reference: list[dict]) -> dict:
 
 
 def extract_metrics(produced: list[dict], reference: list[dict],
-                    dropped: list, parse_failures: int) -> dict:
+                    dropped: list, parse_failures: int,
+                    embedder=None, self_faithfulness: float | None = None) -> dict:
     """Per-doc/per-run extraction metrics.
 
     - gate_pass_rate: len(produced) / (len(produced) + len(dropped)); None
       when nothing was attempted at all (nothing produced and nothing dropped).
     - recall: share of reference claims recalled (quote_overlap_match); None
       when reference is empty (nothing to recall).
-    - precision_proxy: share of produced claims that matched some reference
-      claim; None when nothing was produced.
+    - gold_match_rate: share of produced claims that matched some reference
+      claim -- bounded by gold non-exhaustiveness, NOT model precision; do
+      not gate on it. None when nothing was produced.
     - atomicity: len(produced) / len(reference), flags over/under-splitting;
       None when reference is empty.
     - parse_failures: passed through unchanged (batches that never yielded
       parseable JSON).
+
+    When `embedder` is provided, two extra keys are included:
+    - recall_entailment: embedding-matched recall over claim TEXT
+      (embed_recall), which credits paraphrased recall the quote-overlap
+      rule misses.
+    - f_fact: harmonic mean of recall_entailment and self_faithfulness when
+      both are present and > 0; None otherwise.
     """
     match = quote_overlap_match(produced, reference)
 
     denom = len(produced) + len(dropped)
     gate_pass_rate = (len(produced) / denom) if denom else None
     recall = (len(match["recalled"]) / len(reference)) if reference else None
-    precision_proxy = (len(match["matched_produced"]) / len(produced)) if produced else None
+    gold_match_rate = (len(match["matched_produced"]) / len(produced)) if produced else None
     atomicity = (len(produced) / len(reference)) if reference else None
 
-    return {
+    metrics = {
         "gate_pass_rate": gate_pass_rate,
         "recall": recall,
-        "precision_proxy": precision_proxy,
+        "gold_match_rate": gold_match_rate,
         "atomicity": atomicity,
         "parse_failures": parse_failures,
         "recalled": len(match["recalled"]),
         "missed_claim_ids": [r.get("claim_id") for r in match["missed"]],
     }
+
+    if embedder is not None:
+        from .embed_match import embed_recall
+        recall_entailment = embed_recall(produced, reference, embedder)["recall"]
+        metrics["recall_entailment"] = recall_entailment
+        if recall_entailment and self_faithfulness:
+            metrics["f_fact"] = (2 * recall_entailment * self_faithfulness
+                                 / (recall_entailment + self_faithfulness))
+        else:
+            metrics["f_fact"] = None
+
+    return metrics
 
 
 def bait_rejection(produced_bait_chunk_claims: list[dict], bait_source_text: str) -> float | None:
