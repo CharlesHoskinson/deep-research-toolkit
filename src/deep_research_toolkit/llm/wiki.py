@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import normalize_claim_markers, unfence, validate_citations
+from .response import generate_cited
 
 _SYSTEM = """You write one wiki page body for a research knowledge base.
 
@@ -34,7 +34,7 @@ _CORRECTION = (
 
 _LOW_COVERAGE_CORRECTION = (
     "Your previous reply cited only {n}/{total} of the supplied claims. Rewrite "
-    "the full page body, grounding every factual sentence in a supplied claim marker."
+    "the full {kind}, grounding every factual sentence in a supplied claim marker."
 )
 
 
@@ -58,35 +58,18 @@ def write_wiki_body(title: str, page_type: str, claims: list[dict], backend,
                     min_coverage: float = 0.5) -> dict:
     """Returns {"body": str, "citations": validate_citations report}.
 
-    Raises CitationError if the model cites unknown ids twice; ValueError on
-    empty claims or when the accepted body's coverage still falls below
-    min_coverage after one low-coverage retry."""
+    Raises CitationError when the model cites unknown ids after a retry;
+    ValueError on empty claims, when coverage still falls below min_coverage
+    after one low-coverage retry, or when a reply degenerates into repetition
+    (raised by the shared loop guard)."""
     if not claims:
         raise ValueError("write_wiki_body needs at least one gate-passed claim")
     allowed = [c.get("claim_id") for c in claims]
     user = _task(title, page_type, claims)
-    body = normalize_claim_markers(unfence(backend.complete(_SYSTEM, user)), allowed)
-    report = validate_citations(body, allowed)
-    if report["unknown"]:
-        body = normalize_claim_markers(
-            unfence(backend.complete(
-                _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])),
-                temperature=0.25)),
-            allowed)
-        report = validate_citations(body, allowed)
-        if report["unknown"]:
-            raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")
-    if report["coverage"] < min_coverage:
-        body = normalize_claim_markers(
-            unfence(backend.complete(
-                _SYSTEM,
-                user + "\n\n" + _LOW_COVERAGE_CORRECTION.format(n=len(report["cited"]), total=len(allowed)),
-                temperature=0.25)),
-            allowed)
-        report = validate_citations(body, allowed)
-        if report["coverage"] < min_coverage:
-            raise ValueError(
-                f"body cites {len(report['cited'])}/{len(allowed)} claims "
-                f"(coverage {report['coverage']:.2f} < {min_coverage}) -- refusing a page that ignores its sources"
-            )
-    return {"body": body, "citations": report}
+    out = generate_cited(
+        backend, _SYSTEM, user, allowed,
+        min_coverage=min_coverage, kind="page body",
+        correction_unknown=_CORRECTION,
+        correction_low_coverage=_LOW_COVERAGE_CORRECTION,
+        citation_error=CitationError)
+    return {"body": out["text"], "citations": out["citations"]}

@@ -116,6 +116,59 @@ def has_repetition_loop(text: str, max_pattern: int = 20, min_repeats: int = 6,
     return False
 
 
+_REPETITION_CORRECTION = (
+    "Your previous reply degenerated into repetition. Write the reply normally."
+)
+
+
+def checked_complete(backend, system: str, user: str, **sampling) -> str:
+    """complete() with the repetition-loop guard: a looping reply gets one
+    corrected retry (temperature raised unless the caller already set one --
+    loops are a greedy-decoding artifact); a second loop is an error."""
+    reply = backend.complete(system, user, **sampling)
+    if has_repetition_loop(reply):
+        retry_sampling = dict(sampling)
+        retry_sampling.setdefault("temperature", 0.25)
+        reply = backend.complete(system, user + "\n\n" + _REPETITION_CORRECTION, **retry_sampling)
+        if has_repetition_loop(reply):
+            raise ValueError("model reply degenerated into repetition")
+    return reply
+
+
+def generate_cited(backend, system: str, user: str, allowed_ids: list[str], *,
+                   min_coverage: float, kind: str, correction_unknown: str,
+                   correction_low_coverage: str, citation_error: type) -> dict:
+    """Shared gate-and-retry loop for prose roles: complete (loop-guarded) ->
+    unfence -> normalize markers -> gate unknown ids (one corrected retry at
+    temperature 0.25) -> gate coverage (one corrected retry, whose reply is
+    re-gated for unknown ids before the coverage re-check). Returns
+    {"text", "citations"}; raises citation_error on unknown ids surviving a
+    retry, ValueError on a coverage floor miss after retry."""
+    def _attempt(prompt: str, **sampling) -> tuple[str, dict]:
+        text = normalize_claim_markers(
+            unfence(checked_complete(backend, system, prompt, **sampling)), allowed_ids)
+        return text, validate_citations(text, allowed_ids)
+
+    text, report = _attempt(user)
+    if report["unknown"]:
+        text, report = _attempt(
+            user + "\n\n" + correction_unknown.format(bad=", ".join(report["unknown"])),
+            temperature=0.25)
+        if report["unknown"]:
+            raise citation_error(f"model cited unknown claim ids after retry: {report['unknown']}")
+    if report["coverage"] < min_coverage:
+        note = correction_low_coverage.format(
+            n=len(report["cited"]), total=len(allowed_ids), kind=kind)
+        text, report = _attempt(user + "\n\n" + note, temperature=0.25)
+        if report["unknown"]:
+            raise citation_error(f"model cited unknown claim ids after retry: {report['unknown']}")
+        if report["coverage"] < min_coverage:
+            raise ValueError(
+                f"{kind} cites {len(report['cited'])}/{len(allowed_ids)} supplied claims "
+                f"(coverage {report['coverage']:.2f} < {min_coverage})")
+    return {"text": text, "citations": report}
+
+
 def parse_json_block(text: str):
     """JSON from a model reply. An <output>...</output> block, when present,
     is authoritative: only its content is considered (fences stripped, then

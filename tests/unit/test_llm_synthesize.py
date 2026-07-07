@@ -70,6 +70,27 @@ def test_marker_and_coverage_retries_are_bounded_and_use_temperature():
     assert backend.calls[2][2].get("temperature") == 0.25
 
 
+def test_unknown_marker_on_coverage_retry_raises():
+    # The coverage-retry reply reaches full coverage but fabricates an id --
+    # it must be re-gated for unknown ids and raise, never returned.
+    low = "No markers here."  # zero markers, no unknowns -> coverage retry
+    bad_retry = ("Praos, introduced in 2018 [claim:c1], tolerates delays "
+                 "[claim:c2] and is quantum-safe [claim:c999].")
+    backend = StubBackend([low, bad_retry])
+    with pytest.raises(CitationError, match="c999"):
+        synthesize_thesis("q", DOSSIER, backend)
+    assert len(backend.calls) == 2
+
+
+def test_bare_markers_on_coverage_retry_are_normalized_and_accepted():
+    # The retry path must keep normalizing bare markers, same as first replies.
+    low = "No markers here."
+    bare = "Praos arrived in 2018 [c1] and tolerates delays [c2]."
+    out = synthesize_thesis("q", DOSSIER, StubBackend([low, bare]))
+    assert out["citations"]["coverage"] == 1.0
+    assert "[claim:c1]" in out["thesis"] and "[claim:c2]" in out["thesis"]
+
+
 def test_fenced_reply_is_unwrapped():
     fenced = "```markdown\nPraos arrived in 2018 [claim:c1] and tolerates delays [claim:c2].\n```"
     out = synthesize_thesis("q", DOSSIER, StubBackend([fenced]))
@@ -99,6 +120,10 @@ def test_repetition_loop_then_good_reply_succeeds():
     assert out["thesis"] == good
     assert out["citations"]["coverage"] == 1.0
     assert len(backend.calls) == 2
+    # A loop is a greedy-decoding artifact: the corrected retry raises the
+    # temperature even though the first attempt carried no override.
+    assert backend.calls[0][2].get("temperature") is None
+    assert backend.calls[1][2].get("temperature") == 0.25
 
 
 def test_repetition_loop_on_citation_retry_reply_raises():

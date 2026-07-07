@@ -1,5 +1,6 @@
 from deep_research_toolkit.llm.response import (
     extract_claim_ids,
+    generate_cited,
     has_repetition_loop,
     normalize_claim_markers,
     parse_json_block,
@@ -131,3 +132,28 @@ def test_repetition_loop_ignores_na_cells():
 def test_repetition_loop_catches_punctuation_jitter():
     reps = "".join(["Error occurred, retrying." if i % 2 else "Error occurred retrying!" for i in range(30)])
     assert has_repetition_loop(reps.replace(".", ". ").replace("!", "! "))
+
+
+class _StubBackend:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls = []
+
+    def complete(self, system, user, **kw):
+        self.calls.append((system, user, kw))
+        return self.replies.pop(0)
+
+
+def test_generate_cited_happy_path_single_call():
+    reply = "Alpha holds [claim:c1]. Beta holds [claim:c2]."
+    backend = _StubBackend([reply])
+    out = generate_cited(
+        backend, "sys", "user prompt", ["c1", "c2"],
+        min_coverage=0.5, kind="page body",
+        correction_unknown="bad ids: {bad}",
+        correction_low_coverage="cited {n}/{total}; rewrite the {kind}",
+        citation_error=ValueError)
+    assert out["text"] == reply
+    assert out["citations"]["coverage"] == 1.0
+    assert len(backend.calls) == 1
+    assert backend.calls[0][2].get("temperature") is None
