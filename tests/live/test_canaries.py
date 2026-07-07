@@ -245,6 +245,16 @@ def test_long_prompt_liveness_31b(live_backend_config, canary_report):
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 64,
+            # Suppress reasoning for this probe only: a 31B model thinks by
+            # default, and a tight max_tokens budget shared with an unbounded
+            # reasoning pass can exhaust on `reasoning` alone (finish_reason
+            # "length", empty `content`) -- a false alarm unrelated to the
+            # FA-hang liveness this canary actually probes for. Confirmed live
+            # 2026-07-06: the same prompt/budget returns promptly (~14s) with
+            # non-empty content once reasoning is suppressed; production's
+            # conflict_adjudicate/synthesize roles keep thinking on but budget
+            # 8k-12k max_tokens, so this mismatch is canary-only.
+            "reasoning_effort": "none",
         }, timeout=300.0)
 
     # No `with` block: its __exit__ would wait for the stuck worker. On
