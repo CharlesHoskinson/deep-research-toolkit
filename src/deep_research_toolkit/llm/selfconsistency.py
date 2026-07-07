@@ -17,11 +17,18 @@ def _norm(text: str) -> str:
 
 
 def claim_key(claim: dict) -> str:
-    spans = sorted(
-        (str(ev.get("locator") or ev.get("node_id") or ""), ev.get("start_char"), ev.get("end_char"))
+    """Dedup key for the union: normalized claim text + the SOURCE LOCATORS it
+    cites, but NOT the exact character offsets. Different samples routinely pick
+    slightly different start/end offsets for the same supporting span, so keying
+    on exact offsets treats one claim as N distinct claims and the union stops
+    deduplicating (atomicity explodes ~N-fold under samples=N). Keying on the
+    locator set collapses those jittered-offset duplicates while still keeping a
+    claim that cites a genuinely different chunk distinct."""
+    locators = sorted(
+        str(ev.get("locator") or ev.get("node_id") or "")
         for ev in (claim.get("supporting_evidence") or [])
     )
-    return _norm(claim.get("claim", "")) + "||" + repr(spans)
+    return _norm(claim.get("claim", "")) + "||" + repr(locators)
 
 
 def union_claims(candidate_lists: list[list[dict]], min_support: int = 1) -> list[dict]:
