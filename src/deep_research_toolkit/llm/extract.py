@@ -251,19 +251,27 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     multi = len(batch_list) > 1
 
     thinking = getattr(backend, "thinking", True)
-    # batch_no is shared across passes (not reset), so batch prefixes -- and with
-    # them claim/relation ids -- stay unique across passes as well as batches.
     batch_no = 0
+    # Each pass is an independent LLM call that restarts its own claim_id
+    # numbering (c_0001...), and the batch prefix is only applied when batched --
+    # so on a single-batch source pass 0 and pass k would mint DIFFERENT claims
+    # sharing the same raw id, and union_claims (dedup by content, not id) keeps
+    # both -> duplicate primary keys in claims.jsonl. A per-pass tag namespaces
+    # every id a pass mints. The tag is EMPTY on the default path (samples=1 and
+    # coverage_passes=0), so single-pass ids are byte-identical to before.
+    multipass = samples > 1 or coverage_passes > 0
 
-    def _extract_one_pass(extra_sampling: dict, extra_user: str = "",
+    def _extract_one_pass(pass_no: int, extra_sampling: dict, extra_user: str = "",
                           retry_on_empty: bool = True) -> tuple[list[dict], dict, list[dict]]:
         """One full extraction pass over all batches: the original single-pass
         batch/parse/gate loop, verbatim. ``extra_sampling`` is merged into each
         call's sampling dict (so a pass can raise temperature); ``extra_user`` is
         appended to each user prompt (the coverage-loop note). A coverage pass
         sets ``retry_on_empty=False`` because an empty claims array is a valid
-        answer there, not a parse failure to halve-and-retry."""
+        answer there, not a parse failure to halve-and-retry. ``pass_no`` gives
+        every id this pass mints a unique per-pass tag when running multi-pass."""
         nonlocal parse_failures, batch_no, multi
+        pass_tag = f"p{pass_no}_" if multipass else ""
         kept: list[dict] = []
         entities_by_id: dict[str, dict] = {}
         relations: list[dict] = []
@@ -294,9 +302,11 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                     parse_failures += 1
                 continue
 
-            # Give ids a batch prefix (only when batched) so they stay unique across
-            # batches while keeping each relation's supporting_claim reference valid.
-            prefix = f"b{batch_no:02d}_" if multi else ""
+            # Give ids a batch prefix (only when batched) so they stay unique
+            # across batches, plus a per-pass tag (only when multi-pass) so ids
+            # minted in different passes can't collide -- while keeping each
+            # relation's supporting_claim reference valid within its own pass.
+            prefix = pass_tag + (f"b{batch_no:02d}_" if multi else "")
             batch_no += 1
             for claim in parsed["claims"]:
                 if not isinstance(claim, dict):
@@ -358,7 +368,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     relations: list[dict] = []
     for pass_no in range(max(1, samples)):
         extra_sampling = {"temperature": round(0.2 * pass_no, 3)} if pass_no else {}
-        pass_kept, pass_entities, pass_relations = _extract_one_pass(extra_sampling)
+        pass_kept, pass_entities, pass_relations = _extract_one_pass(pass_no, extra_sampling)
         claim_passes.append(pass_kept)
         if pass_no == 0:
             entities_by_id, relations = pass_entities, pass_relations
@@ -372,10 +382,13 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
 
     # Bounded coverage loop: re-prompt with the claims found so far and ask for
     # additional ones only; stop early once a pass contributes nothing new.
-    for _ in range(max(0, coverage_passes)):
+    for k in range(max(0, coverage_passes)):
         listing = "\n".join(f"- {c.get('claim', '')}" for c in kept)
         note = "ALREADY-EXTRACTED CLAIMS:\n" + listing + "\n\n" + _COVERAGE_NOTE
-        extra_kept, _ents, _rels = _extract_one_pass({}, extra_user=note, retry_on_empty=False)
+        # Give each coverage pass a pass_no past the sample passes so its ids
+        # can't collide with sample-pass ids either.
+        extra_kept, _ents, _rels = _extract_one_pass(
+            samples + k, {}, extra_user=note, retry_on_empty=False)
         if not extra_kept:
             break
         merged = union_claims([kept, extra_kept], min_support=1)

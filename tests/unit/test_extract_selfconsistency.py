@@ -51,7 +51,7 @@ def test_min_support_drops_single_pass_claims(tmp_path):
     assert summary["written"] == 1          # only the claim seen in both passes
     assert summary["support_filtered"] == 2  # a and b were each seen once
     written = [json.loads(x) for x in (tmp_path / "claims.jsonl").read_text(encoding="utf-8").splitlines() if x]
-    assert [c["claim_id"] for c in written] == ["c"]
+    assert [c["claim_id"] for c in written] == ["p0_c"]  # first-seen (pass-0) dict, per-pass tagged
 
 
 def test_entities_and_relations_come_from_pass_zero_only(tmp_path):
@@ -74,8 +74,8 @@ def test_entities_and_relations_come_from_pass_zero_only(tmp_path):
     assert summary["entities"] == 1 and summary["relations"] == 1  # pass 0 only
     ents = [json.loads(x) for x in (tmp_path / "entities.jsonl").read_text(encoding="utf-8").splitlines() if x]
     rels = [json.loads(x) for x in (tmp_path / "relations.jsonl").read_text(encoding="utf-8").splitlines() if x]
-    assert [e["entity_id"] for e in ents] == ["leader"]
-    assert [r["relation_id"] for r in rels] == ["r1"]  # pass-0 relation resolves against unioned kept
+    assert [e["entity_id"] for e in ents] == ["leader"]  # entity ids are keys, not per-pass tagged
+    assert [r["relation_id"] for r in rels] == ["p0_r1"]  # pass-0 relation resolves against unioned kept
 
 
 def test_coverage_pass_adds_missed_claims_and_stops_early(tmp_path):
@@ -108,3 +108,20 @@ def test_default_args_run_a_single_deterministic_pass(tmp_path):
     summary = extract.extract_claims_to_run(tmp_path, "web", None, backend)
     assert summary["written"] == 1 and summary["samples"] == 1 and summary["support_filtered"] == 0
     assert backend.kwargs == [{}]  # exactly one call, no sampling overrides
+
+
+def test_cross_pass_claim_ids_are_distinct_no_collision(tmp_path):
+    # Regression: each pass is an independent call that restarts its own
+    # claim_id numbering, and on a single-batch source no batch prefix is added.
+    # Both passes emit "c1" for DIFFERENT claims; union_claims dedups by content,
+    # not id, so both survive -> they must NOT share an id in claims.jsonl, or a
+    # claim_id-keyed downstream lookup would blend evidence across the two.
+    _write_chunk(tmp_path)
+    x = {"claim_id": "c1", "claim": "Leaders rotate.", "confidence": "high", "supporting_evidence": _ev(0, 7)}
+    y = {"claim_id": "c1", "claim": "Followers verify.", "confidence": "high", "supporting_evidence": _ev(21, 46)}
+    backend = SeqBackend([_payload([x]), _payload([y])])
+    summary = extract.extract_claims_to_run(tmp_path, "web", None, backend, samples=2, min_support=1)
+    assert summary["written"] == 2
+    written = [json.loads(v) for v in (tmp_path / "claims.jsonl").read_text(encoding="utf-8").splitlines() if v]
+    ids = [c["claim_id"] for c in written]
+    assert len(ids) == 2 and len(set(ids)) == 2  # distinct primary keys, no collision
