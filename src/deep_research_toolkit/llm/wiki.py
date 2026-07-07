@@ -32,6 +32,11 @@ _CORRECTION = (
     "body now, fixing or removing the offending sentences."
 )
 
+_LOW_COVERAGE_CORRECTION = (
+    "Your previous reply cited only {n}/{total} of the supplied claims. Rewrite "
+    "the full page body, grounding every factual sentence in a supplied claim marker."
+)
+
 
 class CitationError(ValueError):
     pass
@@ -54,7 +59,8 @@ def write_wiki_body(title: str, page_type: str, claims: list[dict], backend,
     """Returns {"body": str, "citations": validate_citations report}.
 
     Raises CitationError if the model cites unknown ids twice; ValueError on
-    empty claims or when the accepted body's coverage falls below min_coverage."""
+    empty claims or when the accepted body's coverage still falls below
+    min_coverage after one low-coverage retry."""
     if not claims:
         raise ValueError("write_wiki_body needs at least one gate-passed claim")
     allowed = [c.get("claim_id") for c in claims]
@@ -63,14 +69,24 @@ def write_wiki_body(title: str, page_type: str, claims: list[dict], backend,
     report = validate_citations(body, allowed)
     if report["unknown"]:
         body = normalize_claim_markers(
-            unfence(backend.complete(_SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
+            unfence(backend.complete(
+                _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])),
+                temperature=0.25)),
             allowed)
         report = validate_citations(body, allowed)
         if report["unknown"]:
             raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")
     if report["coverage"] < min_coverage:
-        raise ValueError(
-            f"body cites {len(report['cited'])}/{len(allowed)} claims "
-            f"(coverage {report['coverage']:.2f} < {min_coverage}) -- refusing a page that ignores its sources"
-        )
+        body = normalize_claim_markers(
+            unfence(backend.complete(
+                _SYSTEM,
+                user + "\n\n" + _LOW_COVERAGE_CORRECTION.format(n=len(report["cited"]), total=len(allowed)),
+                temperature=0.25)),
+            allowed)
+        report = validate_citations(body, allowed)
+        if report["coverage"] < min_coverage:
+            raise ValueError(
+                f"body cites {len(report['cited'])}/{len(allowed)} claims "
+                f"(coverage {report['coverage']:.2f} < {min_coverage}) -- refusing a page that ignores its sources"
+            )
     return {"body": body, "citations": report}

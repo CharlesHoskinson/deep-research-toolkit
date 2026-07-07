@@ -29,15 +29,20 @@ _CORRECTION = (
     "claim_ids may appear in [claim:...] markers. Rewrite the full synthesis."
 )
 
+_LOW_COVERAGE_CORRECTION = (
+    "Your previous reply cited only {n}/{total} of the supplied claims. Rewrite "
+    "the full synthesis, grounding every factual sentence in a supplied claim marker."
+)
+
 _REPETITION_CORRECTION = (
     "Your previous reply degenerated into repetition. Write the synthesis normally."
 )
 
 
-def _checked_complete(backend, system: str, user: str) -> str:
-    reply = backend.complete(system, user)
+def _checked_complete(backend, system: str, user: str, **sampling) -> str:
+    reply = backend.complete(system, user, **sampling)
     if has_repetition_loop(reply):
-        reply = backend.complete(system, user + "\n\n" + _REPETITION_CORRECTION)
+        reply = backend.complete(system, user + "\n\n" + _REPETITION_CORRECTION, **sampling)
         if has_repetition_loop(reply):
             raise ValueError("model reply degenerated into repetition")
     return reply
@@ -48,8 +53,9 @@ def synthesize_thesis(question: str, dossier: dict, backend,
     """Returns {"thesis": str, "citations": validate_citations report}.
 
     Raises CitationError if the model cites unknown ids twice; ValueError on
-    an empty dossier or when the accepted thesis's coverage falls below
-    min_coverage."""
+    an empty dossier or when the accepted thesis's coverage still falls below
+    min_coverage after one low-coverage retry; or when a reply degenerates
+    into repetition (raised by _checked_complete)."""
     included = dossier.get("included") or []
     if not included:
         raise ValueError("dossier has no included claims -- nothing to synthesize")
@@ -64,14 +70,23 @@ def synthesize_thesis(question: str, dossier: dict, backend,
         thesis = normalize_claim_markers(
             unfence(_checked_complete(
                 backend, _SYSTEM,
-                user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
+                user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])),
+                temperature=0.25)),
             allowed)
         report = validate_citations(thesis, allowed)
         if report["unknown"]:
             raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")
     if report["coverage"] < min_coverage:
-        raise ValueError(
-            f"synthesis cites {len(report['cited'])}/{len(allowed)} included claims "
-            f"(coverage {report['coverage']:.2f} < {min_coverage})"
-        )
+        thesis = normalize_claim_markers(
+            unfence(_checked_complete(
+                backend, _SYSTEM,
+                user + "\n\n" + _LOW_COVERAGE_CORRECTION.format(n=len(report["cited"]), total=len(allowed)),
+                temperature=0.25)),
+            allowed)
+        report = validate_citations(thesis, allowed)
+        if report["coverage"] < min_coverage:
+            raise ValueError(
+                f"synthesis cites {len(report['cited'])}/{len(allowed)} included claims "
+                f"(coverage {report['coverage']:.2f} < {min_coverage})"
+            )
     return {"thesis": thesis, "citations": report}

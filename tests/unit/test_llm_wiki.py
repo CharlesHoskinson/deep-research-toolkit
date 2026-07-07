@@ -16,7 +16,7 @@ class StubBackend:
         self.calls = []
 
     def complete(self, system, user, **kw):
-        self.calls.append((system, user))
+        self.calls.append((system, user, kw))
         return self.replies.pop(0)
 
 
@@ -44,7 +44,28 @@ def test_empty_claims_is_an_error():
 def test_low_coverage_body_is_rejected():
     body = "Praos exists."  # zero markers, no unknowns
     with pytest.raises(ValueError, match="coverage"):
-        write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([body]))
+        write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([body, body]))
+
+
+def test_low_coverage_body_retries_once_then_succeeds():
+    low = "Praos exists."  # zero markers, no unknowns
+    good = "Praos arrived in 2018 [claim:c1] and tolerates delays [claim:c2]."
+    out = write_wiki_body("Praos", "Concept", CLAIMS, StubBackend([low, good]))
+    assert out["body"] == good
+    assert out["citations"]["coverage"] == 1.0
+
+
+def test_marker_and_coverage_retries_are_bounded_and_use_temperature():
+    bad_marker = "Praos is fast [claim:nope]."
+    clean_but_low = "Praos exists."  # markers fixed, but zero coverage
+    good = "Praos arrived in 2018 [claim:c1] and tolerates delays [claim:c2]."
+    backend = StubBackend([bad_marker, clean_but_low, good])
+    out = write_wiki_body("Praos", "Concept", CLAIMS, backend)
+    assert out["citations"]["coverage"] == 1.0
+    assert len(backend.calls) == 3
+    assert backend.calls[0][2].get("temperature") is None
+    assert backend.calls[1][2].get("temperature") == 0.25
+    assert backend.calls[2][2].get("temperature") == 0.25
 
 
 def test_fenced_reply_is_unwrapped_before_gating():

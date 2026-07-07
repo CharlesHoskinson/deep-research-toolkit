@@ -177,6 +177,14 @@ DEFAULT_BATCH_SIZE = 6
 #: it's counted as a parse failure. 6 -> 3 -> 1 covers the default batch size.
 _MAX_RETRY_DEPTH = 2
 
+#: Appended to the user prompt on a halved-batch retry (depth > 0) so the model
+#: sees the concrete failure reason instead of an identical prompt -- an
+#: identical-prompt retry reproduces the same parse failure.
+_RETRY_NOTE = (
+    "NOTE: a previous attempt on these chunks failed to parse as the required "
+    "JSON. Emit ONLY the contract JSON."
+)
+
 
 def _batches(items: list, size: int):
     for i in range(0, len(items), size):
@@ -231,7 +239,11 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     while queue:
         batch, depth = queue.popleft()
         system, user = build_extraction_prompt(batch, producer, thinking=thinking)
-        parsed = parse_extraction_response(backend.complete(system, user))
+        sampling = {}
+        if depth > 0:  # a halved batch dispatched after a parse failure -- a retry
+            user = user + "\n\n" + _RETRY_NOTE
+            sampling = {"temperature": 0.25}
+        parsed = parse_extraction_response(backend.complete(system, user, **sampling))
         if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
             if len(batch) > 1 and depth < _MAX_RETRY_DEPTH:
                 mid = len(batch) // 2
