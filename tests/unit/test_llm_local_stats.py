@@ -1,4 +1,6 @@
 """LocalOpenAIBackend accumulates per-call usage stats."""
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 from deep_research_toolkit.llm.local import LocalOpenAIBackend
@@ -45,3 +47,44 @@ def test_stats_survive_missing_usage():
     b.complete("sys", "user")
     assert b.stats["calls"] == 1
     assert b.stats["prompt_tokens"] == 0
+
+
+class _BarrierClient:
+    """Fake client whose create() rendezvouses ``width`` callers at a barrier
+    before returning, forcing threads to interleave right at the stats
+    read-modify-write -- so an unguarded += loses updates deterministically."""
+    def __init__(self, width):
+        self._barrier = threading.Barrier(width)
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        try:
+            self._barrier.wait(timeout=5.0)
+        except threading.BrokenBarrierError:
+            pass
+        msg = SimpleNamespace(content="hello")
+        usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")], usage=usage)
+
+
+def test_stats_exact_under_concurrent_calls():
+    # 8 threads x 20 calls on ONE backend. The stats increments are non-atomic
+    # read-modify-write; the lock added for parallel extraction must make the
+    # totals exact (no lost updates) despite the forced interleaving.
+    threads, per_thread = 8, 20
+    total = threads * per_thread
+    b = _backend()
+    b._client = _BarrierClient(width=threads)
+
+    def _worker():
+        for _ in range(per_thread):
+            b.complete_with_meta("sys", "user")
+
+    with ThreadPoolExecutor(max_workers=threads) as ex:
+        for f in [ex.submit(_worker) for _ in range(threads)]:
+            f.result()
+
+    assert b.stats["calls"] == total
+    assert b.stats["prompt_tokens"] == 11 * total
+    assert b.stats["completion_tokens"] == 7 * total

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 
@@ -24,12 +25,18 @@ class CachingBackend:
         self.role = role
         self.model = model or getattr(inner, "model", "")
         self.thinking = getattr(inner, "thinking", True)
-        # Proxied from the inner backend after each real call; Task 8's
-        # truncation counter (extract.py) reads it. None on a cache hit
-        # (no model call this turn) and until the first miss.
+        # Proxied from the inner backend after each real call. Advisory /
+        # back-compat only: under a parallel>1 fan-out several threads share one
+        # CachingBackend, so this reflects whichever call last wrote it -- NOT
+        # reliably the caller's own. Callers must use the finish_reason RETURNED
+        # by complete_with_meta. None on a cache hit and until the first miss.
         self.last_finish_reason: str | None = None
         self._path = Path(cache_dir) / "llm-cache.jsonl"
         self._mem: dict[str, str] = {}
+        # Guards the _mem dict access, the last_finish_reason write, and the
+        # JSONL append against parallel extraction workers. Never held across
+        # the inner network call.
+        self._lock = threading.Lock()
         if enabled and self._path.is_file():
             with open(self._path, encoding="utf-8") as f:
                 for line in f:
@@ -69,13 +76,19 @@ class CachingBackend:
         params.update({k: v for k, v in sampling.items() if k != "response_format"})
         schema = sampling.get("response_format", getattr(self.inner, "response_format", None))
         key = cache_key(self.model, self.role, system, user, params, schema)
-        if key in self._mem:
-            self.last_finish_reason = None  # served from cache, no model call
-            return self._mem[key], None
+        # Hit-check under the lock so parallel workers see a consistent _mem.
+        with self._lock:
+            if key in self._mem:
+                self.last_finish_reason = None  # served from cache, no model call
+                return self._mem[key], None
+        # MISS: run the inner network call WITHOUT the lock so workers overlap.
         reply, reason = self._inner_with_meta(system, user, **sampling)
-        self.last_finish_reason = reason
-        self._mem[key] = reply
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"key": key, "reply": reply}, ensure_ascii=False) + "\n")
+        # Critical section: quick shared-state mutation + the JSONL append,
+        # serialized so parallel appends can't interleave into a broken line.
+        with self._lock:
+            self.last_finish_reason = reason
+            self._mem[key] = reply
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"key": key, "reply": reply}, ensure_ascii=False) + "\n")
         return reply, reason

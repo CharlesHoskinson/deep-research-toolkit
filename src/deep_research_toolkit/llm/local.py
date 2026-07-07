@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,10 +65,17 @@ class LocalOpenAIBackend:
         # Cumulative usage over this backend's lifetime; read by the eval
         # harness to report cost/latency per model. Never reset internally.
         self.stats = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
-        # finish_reason of the most recent call ("stop", "length", ...). Callers
-        # (e.g. extract) read it after complete() to count truncated calls;
-        # None until the first call or when the server omits the field.
+        # finish_reason of the most recent call ("stop", "length", ...). Advisory
+        # / back-compat only: under a parallel>1 extraction fan-out several
+        # threads share one backend, so this reflects whichever call last wrote
+        # it -- NOT reliably the caller's own. Callers must use the finish_reason
+        # RETURNED by complete_with_meta. None until the first call or when the
+        # server omits the field.
         self.last_finish_reason: str | None = None
+        # Guards the non-atomic stats read-modify-write and the trace append,
+        # which parallel extraction workers reach on ONE shared backend. Held
+        # only around the quick mutations, never across the network call.
+        self._lock = threading.Lock()
 
     def _load_client(self):
         if self._client is None:
@@ -140,26 +148,32 @@ class LocalOpenAIBackend:
         if response_format is not None:
             sampling["response_format"] = response_format
         import time
+        # The network call and all parsing happen WITHOUT the lock, so parallel
+        # workers overlap their HTTP round-trips.
         t0 = time.perf_counter()
         resp = self._client_complete(system, user, **sampling)
         elapsed = time.perf_counter() - t0
-        self.stats["calls"] += 1
-        self.stats["seconds"] += elapsed
         usage = getattr(resp, "usage", None)
         prompt_tokens = 0
         completion_tokens = 0
         if usage is not None:
             prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-            self.stats["prompt_tokens"] += prompt_tokens
-            self.stats["completion_tokens"] += completion_tokens
         choice = resp.choices[0]
         # "length" means the model hit max_tokens mid-answer -- the silent
         # truncation this telemetry exists to surface. Guard the read: fakes
         # and some servers omit the field.
         finish_reason = getattr(choice, "finish_reason", None)
-        self.last_finish_reason = finish_reason
         content = strip_think(choice.message.content or "")
+        # Critical section: only the quick shared-state mutations. No I/O here.
+        with self._lock:
+            self.stats["calls"] += 1
+            self.stats["seconds"] += elapsed
+            self.stats["prompt_tokens"] += prompt_tokens
+            self.stats["completion_tokens"] += completion_tokens
+            # Advisory only; see the __init__ note. The reliable value is the
+            # finish_reason this method RETURNS.
+            self.last_finish_reason = finish_reason
         if self.trace_path is not None:
             self._write_trace(elapsed, prompt_tokens, completion_tokens, content,
                               finish_reason)
@@ -183,7 +197,11 @@ class LocalOpenAIBackend:
                 # from self.last_finish_reason (racy under threaded callers).
                 "finish_reason": finish_reason,
             }
-            with open(self.trace_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(row) + "\n")
+            line = json.dumps(row) + "\n"
+            # Serialize the append so parallel workers can't interleave partial
+            # writes into a non-JSON line. The write is quick -- no network here.
+            with self._lock:
+                with open(self.trace_path, "a", encoding="utf-8") as f:
+                    f.write(line)
         except Exception:  # noqa: BLE001 -- tracing is best-effort by contract
             pass
