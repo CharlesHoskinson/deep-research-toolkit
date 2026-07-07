@@ -1124,46 +1124,78 @@
     }
   },
   "contradiction_pairs": [
-    [
-      "distributed-consensus#c010",
-      "bft-networking#c008"
-    ],
-    [
-      "distributed-consensus#c011",
-      "oceanographic-sensors#c007"
-    ],
-    [
-      "zk-proofs#c011",
-      "mempool-design#c010"
-    ],
-    [
-      "zk-proofs#c010",
-      "formal-verification#c008"
-    ],
-    [
-      "mempool-design#c009",
-      "compiler-ir-design#c009"
-    ],
-    [
-      "lsm-storage-engines#c009",
-      "gpu-scheduling#c008"
-    ],
-    [
-      "lsm-storage-engines#c010",
-      "gpu-scheduling#c007"
-    ],
-    [
-      "bft-networking#c009",
-      "embedded-rtos#c008"
-    ],
-    [
-      "formal-verification#c009",
-      "compiler-ir-design#c008"
-    ],
-    [
-      "gpu-scheduling#c009",
-      "embedded-rtos#c009"
-    ]
+    {
+      "a": "distributed-consensus#c010",
+      "b": "bft-networking#c008",
+      "verdict": "contradiction",
+      "note": "MCB v2 release year: 2020 vs 2021"
+    },
+    {
+      "a": "distributed-consensus#c011",
+      "b": "oceanographic-sensors#c007",
+      "verdict": "contradiction",
+      "note": "Neptune-9 array deployment year: 2016 vs 2018"
+    },
+    {
+      "a": "zk-proofs#c011",
+      "b": "mempool-design#c010",
+      "verdict": "contradiction",
+      "note": "Sable mainnet launch year: 2022 vs 2020"
+    },
+    {
+      "a": "zk-proofs#c010",
+      "b": "formal-verification#c008",
+      "verdict": "contradiction",
+      "note": "Same formally verified Groth-Delta-style ceremony study: 199 vs 175 participants"
+    },
+    {
+      "a": "mempool-design#c009",
+      "b": "compiler-ir-design#c009",
+      "verdict": "contradiction",
+      "note": "Helios minimum relay fee: 1,000 vs 1,500 fee units"
+    },
+    {
+      "a": "lsm-storage-engines#c009",
+      "b": "gpu-scheduling#c008",
+      "verdict": "not_contradiction",
+      "note": "ALCB dataset 2.1 vs 1.8 TB: gpu text version-scopes its figure and attributes variance to dataset regeneration between suite versions -- reconcilable"
+    },
+    {
+      "a": "lsm-storage-engines#c010",
+      "b": "gpu-scheduling#c007",
+      "verdict": "not_contradiction",
+      "note": "Tessera concurrent-kernel ceiling 96 vs 128: as-configured-for-the-study vs current release -- version-scoped and consistent"
+    },
+    {
+      "a": "bft-networking#c009",
+      "b": "embedded-rtos#c008",
+      "verdict": "contradiction",
+      "note": "RTOS-Cert Level 4 task jitter bound: 80 vs 50 microseconds"
+    },
+    {
+      "a": "formal-verification#c009",
+      "b": "compiler-ir-design#c008",
+      "verdict": "contradiction",
+      "note": "CIRWG v1 ratification year: 2019 vs 2021"
+    },
+    {
+      "a": "gpu-scheduling#c009",
+      "b": "embedded-rtos#c009",
+      "verdict": "not_contradiction",
+      "note": "Zephyx latest version 4.4 vs 4.2: both are 'as of' each project's own report date -- differently dated observations, not a conflict"
+    },
+    {
+      "a": "formal-verification#c009",
+      "b": "compiler-ir-design#c001",
+      "verdict": "contradiction",
+      "note": "CIRWG v1 core IR operation count: 42 vs 56"
+    },
+    {
+      "a": "distributed-consensus#c011",
+      "b": "oceanographic-sensors#c014",
+      "verdict": "contradiction",
+      "note": "Neptune-9 production array size: 300 vs 340 buoys"
+    }
   ],
   "bait_sources": {
     "distributed-consensus#c022": "distributed-consensus#c002",
@@ -1183,5 +1215,5 @@
     "compiler-ir-design#c015": "compiler-ir-design#c001",
     "oceanographic-sensors#c015": "oceanographic-sensors#c001"
   },
-  "corpus_version": "sha256:62a12a79eb5b2c3dd158d16f3da4db61fb4973241b3609cc68ae80030c644ce5"
+  "corpus_version": "sha256:d42ff7147f435997fc318e070681536474e4b77a575fc86464ec083cc5e36452"
 }

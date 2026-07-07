@@ -14,7 +14,9 @@ loudly instead of silently degrading eval numbers:
   - bait chunks (near-copies of a same-doc source sentence) are recorded in
     "bait_sources" and actually contain a near-copy (>=80% word overlap, not
     identical) of a sentence in their source chunk
-  - contradiction_pairs reference real, cross-document locators
+  - contradiction_pairs are {"a", "b", "verdict", "note"} objects; verdicts are
+    "contradiction" or "not_contradiction"; locators exist; "contradiction"
+    pairs span different documents; enough pairs carry verdict "contradiction"
   - corpus_version (sha256 over sorted chunk texts) matches what's on disk
 
 Usage:
@@ -38,6 +40,8 @@ from deep_research_toolkit.common.verbatim import verbatim_ok  # noqa: E402
 DEFAULT_CORPUS_DIR = REPO_ROOT / "tests" / "fixtures" / "eval-corpus"
 
 KNOWN_SLICES = {"prose", "dense-facts", "table", "list", "unicode", "math", "long", "bait"}
+
+VALID_VERDICTS = {"contradiction", "not_contradiction"}
 
 DEFAULT_QUOTAS = {
     "prose": 60, "dense-facts": 30, "table": 15, "list": 15,
@@ -291,22 +295,29 @@ def validate(
                           f"word overlap, not verbatim-identical) of a sentence in source {source_loc!r}")
 
     pairs = index.get("contradiction_pairs") or []
-    if len(pairs) < min_pairs:
-        errors.append(f"only {len(pairs)} contradiction_pairs, needs >= {min_pairs}")
+    genuine = 0
     for pair in pairs:
-        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-            errors.append(f"malformed contradiction pair: {pair!r}")
+        if not isinstance(pair, dict) or not all(k in pair for k in ("a", "b", "verdict")):
+            errors.append(f"malformed contradiction pair (needs 'a', 'b', 'verdict'): {pair!r}")
             continue
-        a, b = pair
+        a, b, verdict = pair["a"], pair["b"], pair["verdict"]
+        if verdict not in VALID_VERDICTS:
+            errors.append(f"contradiction pair ({a!r}, {b!r}) has invalid verdict {verdict!r} "
+                          f"(must be one of {sorted(VALID_VERDICTS)})")
+            continue
         a_ok = a in chunk_texts
         b_ok = b in chunk_texts
         if not a_ok:
             errors.append(f"contradiction pair references unknown locator {a!r}")
         if not b_ok:
             errors.append(f"contradiction pair references unknown locator {b!r}")
-        if a_ok and b_ok and _doc_of(a) == _doc_of(b):
-            errors.append(f"contradiction pair ({a!r}, {b!r}) is within the same document, "
-                          f"needs to span different documents")
+        if verdict == "contradiction":
+            genuine += 1
+            if a_ok and b_ok and _doc_of(a) == _doc_of(b):
+                errors.append(f"contradiction pair ({a!r}, {b!r}) is within the same document, "
+                              f"needs to span different documents")
+    if genuine < min_pairs:
+        errors.append(f"only {genuine} pair(s) with verdict 'contradiction', needs >= {min_pairs}")
 
     stated_version = index.get("corpus_version")
     if not stated_version:
