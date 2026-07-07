@@ -29,10 +29,13 @@ def test_extract_drops_non_verbatim_quotes(tmp_path):
         {"node_id": "src-1:c01", "text": "Hydra settles instantly."}) + "\n", encoding="utf-8")
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = json.dumps([
+        # chunk[6:23] == "settles instantly"
         {"claim_id": "c1", "claim": "good", "supporting_evidence": [
-            {"locator": "src-1:c01", "quote": "settles instantly", "url": "u"}]},
+            {"locator": "src-1:c01", "start_char": 6, "end_char": 23, "url": "u"}]},
+        # span slice != the echoed quote (near-quote) -> gate failure
         {"claim_id": "c2", "claim": "bad", "supporting_evidence": [
-            {"locator": "src-1:c01", "quote": "settles very fast", "url": "u"}]},
+            {"locator": "src-1:c01", "start_char": 6, "end_char": 23,
+             "quote": "settles very fast", "url": "u"}]},
     ])
     result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
     written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
@@ -51,10 +54,13 @@ def test_extract_pdf_keeps_verbatim_and_drops_paraphrase(tmp_path):
          "source": {"page_start": 1}}) + "\n", encoding="utf-8")
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = json.dumps([
+        # chunk[6:27] == "settles synchronously"
         {"claim_id": "c1", "claim": "good", "supporting_evidence": [
-            {"node_id": "doc-abc:n5", "quote": "settles synchronously", "page": 1}]},
+            {"node_id": "doc-abc:n5", "start_char": 6, "end_char": 27, "page": 1}]},
+        # echoed quote is a paraphrase of the span it points at -> gate failure
         {"claim_id": "c2", "claim": "bad", "supporting_evidence": [
-            {"node_id": "doc-abc:n5", "quote": "settles very fast", "page": 1}]},
+            {"node_id": "doc-abc:n5", "start_char": 6, "end_char": 27,
+             "quote": "settles very fast", "page": 1}]},
     ])
     result = extract_claims_to_run(run, "pdf", cfg, _FakeBackend(payload))
     written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
@@ -79,8 +85,11 @@ def test_extract_pdf_gate_uses_chunk_text_not_provenance(tmp_path):
         encoding="utf-8")
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = json.dumps([
+        # span 0:25 covers "First part.\n\nSecond part." in the CHUNK text; the
+        # echoed quote must be checked against that same chunk text, not provenance.
         {"claim_id": "c1", "claim": "spans boundary", "supporting_evidence": [
-            {"node_id": "doc-x:n1", "quote": "First part.\n\nSecond part.", "page": 1}]},
+            {"node_id": "doc-x:n1", "start_char": 0, "end_char": 25,
+             "quote": "First part.\n\nSecond part.", "page": 1}]},
     ])
     result = extract_claims_to_run(run, "pdf", cfg, _FakeBackend(payload))
     assert result["written"] == 1 and result["dropped"] == []
@@ -100,8 +109,9 @@ def test_extract_resolves_abbreviated_chunk_ids(tmp_path):
          "source": {"page_start": 1}}) + "\n", encoding="utf-8")
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = "<output>" + json.dumps([
+        # chunk[6:27] == "settles synchronously"
         {"claim_id": "c1", "claim": "good", "supporting_evidence": [
-            {"node_id": "n5", "quote": "settles synchronously", "page": 1}]},
+            {"node_id": "n5", "start_char": 6, "end_char": 27, "page": 1}]},
     ]) + "</output>"
     result = extract_claims_to_run(run, "pdf", cfg, _FakeBackend(payload))
     written = [json.loads(x) for x in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if x]
@@ -121,7 +131,8 @@ def test_extract_resolves_abbreviated_entity_mentions(tmp_path):
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = "<output>" + json.dumps({
         "claims": [{"claim_id": "c1", "claim": "Cardano uses proof of stake.",
-                    "supporting_evidence": [{"locator": "c01", "quote": "Cardano uses proof of stake", "url": None}]}],
+                    "supporting_evidence": [  # chunk[0:27] == "Cardano uses proof of stake"
+                        {"locator": "c01", "start_char": 0, "end_char": 27, "url": None}]}],
         "entities": [{"entity_id": "cardano", "name": "Cardano", "aliases": [], "type": "blockchain",
                       "mentions": ["c01"]},
                      {"entity_id": "ghost", "name": "Ghost", "aliases": [], "type": "x", "mentions": ["c99"]}],
@@ -144,10 +155,11 @@ def test_extract_drops_relations_referencing_dropped_claims(tmp_path):
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = json.dumps({
         "claims": [
-            {"claim_id": "good", "claim": "Alpha is real.",
-             "supporting_evidence": [{"locator": "src-r:c01", "quote": "Alpha is real", "url": None}]},
-            {"claim_id": "bad", "claim": "x",  # non-verbatim -> dropped
-             "supporting_evidence": [{"locator": "src-r:c01", "quote": "paraphrase not present", "url": None}]},
+            {"claim_id": "good", "claim": "Alpha is real.",  # chunk[0:13] == "Alpha is real"
+             "supporting_evidence": [{"locator": "src-r:c01", "start_char": 0, "end_char": 13, "url": None}]},
+            {"claim_id": "bad", "claim": "x",  # span slice != echoed quote -> dropped
+             "supporting_evidence": [{"locator": "src-r:c01", "start_char": 0, "end_char": 13,
+                                      "quote": "paraphrase not present", "url": None}]},
         ],
         "entities": [],
         "relations": [
@@ -178,7 +190,8 @@ def test_extract_retries_failed_batch_by_splitting(tmp_path):
             cid, q = ("src-rt:c01", "Alpha fact") if has1 else ("src-rt:c02", "Beta fact")
             return "<output>" + json.dumps({
                 "claims": [{"claim_id": "c1", "claim": q,
-                            "supporting_evidence": [{"locator": cid, "quote": q, "url": None}]}],
+                            "supporting_evidence": [{"locator": cid, "start_char": 0,
+                                                     "end_char": len(q), "url": None}]}],
                 "entities": [], "relations": []}) + "</output>"
 
     result = extract_claims_to_run(run, "web", cfg, _Splitty(), batch_size=2)
@@ -208,7 +221,8 @@ def test_extract_retry_batches_get_failure_note_and_temperature(tmp_path):
             cid, q = ("src-rn:c01", "Alpha fact") if "src-rn:c01" in user else ("src-rn:c02", "Beta fact")
             return "<output>" + json.dumps({
                 "claims": [{"claim_id": "c1", "claim": q,
-                            "supporting_evidence": [{"locator": cid, "quote": q, "url": None}]}],
+                            "supporting_evidence": [{"locator": cid, "start_char": 0,
+                                                     "end_char": len(q), "url": None}]}],
                 "entities": [], "relations": []}) + "</output>"
 
     backend = _FailOnce()
@@ -234,7 +248,7 @@ def test_extract_ambiguous_abbreviated_id_is_not_resolved(tmp_path):
     # "n5" is a bare suffix of BOTH chunk ids -> ambiguous -> must not resolve -> claim dropped
     payload = "<output>" + json.dumps({
         "claims": [{"claim_id": "c1", "claim": "x",
-                    "supporting_evidence": [{"locator": "n5", "quote": "Alpha fact here", "url": None}]}],
+                    "supporting_evidence": [{"locator": "n5", "start_char": 0, "end_char": 15, "url": None}]}],
         "entities": [], "relations": []}) + "</output>"
     result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload), batch_size=6)
     assert result["written"] == 0 and result["dropped"] == ["c1"]
@@ -252,7 +266,8 @@ def test_extract_tolerates_bare_string_claims(tmp_path):
     payload = json.dumps({
         "claims": ["Snails are molluscs.",  # bare string -> skipped, no crash
                    {"claim_id": "c1", "claim": "Snails are molluscs.",
-                    "supporting_evidence": [{"locator": "src-s:c01", "quote": "Snails are molluscs", "url": None}]}],
+                    "supporting_evidence": [  # chunk[0:19] == "Snails are molluscs"
+                        {"locator": "src-s:c01", "start_char": 0, "end_char": 19, "url": None}]}],
         "entities": ["not a dict", {"entity_id": "snail", "name": "Snail", "mentions": ["src-s:c01"]}],
         "relations": ["also not a dict"],
     })
@@ -275,8 +290,8 @@ def test_extract_tolerates_bare_string_evidence_rows(tmp_path):
         "claims": [
             {"claim_id": "c1", "claim": "bad evidence row",
              "supporting_evidence": ["Snails are molluscs"]},  # string, not object
-            {"claim_id": "c2", "claim": "good",
-             "supporting_evidence": [{"locator": "src-e:c01", "quote": "Snails are molluscs", "url": None}]},
+            {"claim_id": "c2", "claim": "good",  # chunk[0:19] == "Snails are molluscs"
+             "supporting_evidence": [{"locator": "src-e:c01", "start_char": 0, "end_char": 19, "url": None}]},
         ],
         "entities": [], "relations": [],
     })
@@ -302,7 +317,8 @@ def test_extract_batches_sources_and_merges_entities(tmp_path):
             cid, quote = ("src-b:c01", "Alpha fact here") if "src-b:c01" in user else ("src-b:c02", "Beta fact here")
             return "<output>" + json.dumps({
                 "claims": [{"claim_id": "c1", "claim": quote,
-                            "supporting_evidence": [{"locator": cid, "quote": quote, "url": None}]}],
+                            "supporting_evidence": [{"locator": cid, "start_char": 0,
+                                                     "end_char": len(quote), "url": None}]}],
                 "entities": [{"entity_id": "e", "name": "E", "aliases": [], "type": "x", "mentions": [cid]}],
                 "relations": [],
             }) + "</output>"
@@ -347,7 +363,8 @@ def test_extract_full_contract_writes_all_three_files(tmp_path):
     cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
     payload = "<think>plan then verify</think>\n<output>\n" + json.dumps({
         "claims": [{"claim_id": "c1", "claim": "Hydra settles instantly.",
-                    "supporting_evidence": [{"locator": "src-9:c01", "quote": "Hydra settles instantly", "url": None}]}],
+                    "supporting_evidence": [  # chunk[0:23] == "Hydra settles instantly"
+                        {"locator": "src-9:c01", "start_char": 0, "end_char": 23, "url": None}]}],
         "entities": [{"entity_id": "hydra", "name": "Hydra", "aliases": [], "type": "protocol",
                       "mentions": ["src-9:c01"]}],
         "relations": [{"relation_id": "r1", "subject": "cardano", "predicate": "uses", "object": "eutxo",
@@ -358,6 +375,6 @@ def test_extract_full_contract_writes_all_three_files(tmp_path):
     claims = [json.loads(x) for x in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if x]
     ents = [json.loads(x) for x in (run / "entities.jsonl").read_text(encoding="utf-8").splitlines() if x]
     rels = [json.loads(x) for x in (run / "relations.jsonl").read_text(encoding="utf-8").splitlines() if x]
-    assert claims[0]["document_id"] == "src-9" and claims[0]["schema_version"] == "1.0"
-    assert ents[0]["entity_id"] == "hydra" and ents[0]["schema_version"] == "1.0"
+    assert claims[0]["document_id"] == "src-9" and claims[0]["schema_version"] == "2.0"
+    assert ents[0]["entity_id"] == "hydra" and ents[0]["schema_version"] == "2.0"
     assert rels[0]["predicate"] == "uses" and rels[0]["document_id"] == "src-9"

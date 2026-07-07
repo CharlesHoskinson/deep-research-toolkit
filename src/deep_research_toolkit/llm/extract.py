@@ -20,9 +20,9 @@ import re
 from collections import deque
 from pathlib import Path
 
-from ..common.verbatim import verbatim_ok
+from ..common.verbatim import slice_span, span_ok
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"  # evidence now carries character spans, not a copied quote
 
 _SYSTEM = """\
 You are building an extraction harness for a research knowledge base. From the \
@@ -46,12 +46,13 @@ OUTPUT CONTRACT (a typed API -- emit exactly this shape):
 }}
 
 HARD INVARIANT (a precondition, checked mechanically downstream):
-For every supporting_evidence quote, `chunk_text.find(quote) != -1` MUST hold --
-an exact, contiguous substring of the cited chunk's text, copied character for
-character. No paraphrase, no ellipsis, no stitching spans together. A
-deterministic gate DROPS any claim whose quote fails this check. Under-produce
-rather than approximate: if you cannot find an exact supporting substring, drop
-the claim.
+Every supporting_evidence points at its source by CHARACTER OFFSETS into the
+cited chunk's text: start_char/end_char such that chunk_text[start_char:end_char]
+IS the supporting span, copied by reference not by hand. Offsets are 0-based,
+end-exclusive, and must satisfy 0 <= start_char < end_char <= len(chunk_text).
+A deterministic gate DROPS any claim whose span is out of bounds or empty.
+Point at the SHORTEST contiguous span that supports the claim. Under-produce
+rather than approximate: if no single contiguous span supports the claim, drop it.
 
 RULES:
 - One checkable assertion per claim (split compound sentences).
@@ -76,8 +77,8 @@ _TAIL_DIRECT = """\
 Work through the chunks and copy each quote exactly. Output ONLY the JSON object
 matching the contract above -- no reasoning, no commentary, no markdown fences."""
 
-_PDF_EVIDENCE = '{"node_id": "<chunk_id>", "quote": "<verbatim substring>", "page": <int>}'
-_WEB_EVIDENCE = '{"locator": "<chunk_id>", "quote": "<verbatim substring>", "url": "<source url or null>"}'
+_PDF_EVIDENCE = '{"node_id": "<chunk_id>", "start_char": <int>, "end_char": <int>, "page": <int>}'
+_WEB_EVIDENCE = '{"locator": "<chunk_id>", "start_char": <int>, "end_char": <int>, "url": "<source url or null>"}'
 
 
 def build_extraction_prompt(chunks: list[dict], producer: str = "web",
@@ -267,14 +268,18 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
             for ev in evidence:
                 if not isinstance(ev, dict):
                     # Measured live (gemma4:26b): a bare-string evidence row.
-                    # It can't carry a locatable verbatim quote -> gate failure.
+                    # It can't carry a locatable span -> gate failure.
                     ok = False
                     continue
                 real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
-                if real and verbatim_ok(ev.get("quote") or "", chunk_text_by_id[real]):
+                start, end = ev.get("start_char"), ev.get("end_char")
+                if real and span_ok(start, end, chunk_text_by_id[real],
+                                    ev.get("quote")):
                     ev[id_key] = real  # rewrite to the canonical chunk id
+                    ev["quote"] = slice_span(chunk_text_by_id[real], start, end)  # derived, canonical
                 else:
                     ok = False
+            claim["citable"] = ok
             (kept if ok else dropped).append(claim)
 
         for ent in parsed["entities"]:

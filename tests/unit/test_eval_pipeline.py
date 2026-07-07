@@ -303,8 +303,8 @@ def test_run_extract_for_doc_scores_against_untouched_reference(tmp_path):
     from types import SimpleNamespace
     config = SimpleNamespace(research_runs_path=tmp_path / "unused", pdf_runs_path=tmp_path / "unused2")
     payload = json.dumps([
-        {"claim_id": "p1", "claim": "x", "supporting_evidence":
-         [{"locator": "doc-a#c001", "quote": "Alpha fact one", "url": None}]},
+        {"claim_id": "p1", "claim": "x", "supporting_evidence":  # chunk[0:14] == "Alpha fact one"
+         [{"locator": "doc-a#c001", "start_char": 0, "end_char": 14, "url": None}]},
     ])
     backend = _FakeExtractBackend({"doc-a#c001": payload})
     out = eval_pipeline.run_extract_for_doc(tmp_path / "doc-a", config, backend)
@@ -338,8 +338,8 @@ def test_run_extract_for_model_aggregates_recall_across_docs(tmp_path):
     from types import SimpleNamespace
     config = SimpleNamespace(research_runs_path=tmp_path / "unused", pdf_runs_path=tmp_path / "unused2")
     payload = json.dumps([
-        {"claim_id": "p1", "claim": "x", "supporting_evidence":
-         [{"locator": "doc-a#c001", "quote": "Alpha fact one", "url": None}]},
+        {"claim_id": "p1", "claim": "x", "supporting_evidence":  # chunk[0:14] == "Alpha fact one"
+         [{"locator": "doc-a#c001", "start_char": 0, "end_char": 14, "url": None}]},
     ])
     backend = _FakeExtractBackend({"doc-a#c001": payload})  # doc-b gets "{}"
     index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
