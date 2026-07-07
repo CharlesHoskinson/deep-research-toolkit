@@ -24,10 +24,26 @@ def _quotes(claim: dict) -> list[str]:
     return [q for q in (ev.get("quote") for ev in claim.get("supporting_evidence") or []) if q]
 
 
+#: Minimum length of the SHORTER quote for a substring-direction match to
+#: count. A tiny fragment ("42", "the") is a substring of almost anything, so
+#: below this floor only exact equality matches -- keeps quote overlap from
+#: inflating recall/precision with coincidental containment.
+_MIN_SUBSTRING_LEN = 12
+
+
+def _quotes_overlap(a: str, b: str) -> bool:
+    if a == b:
+        return True
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    return len(shorter) >= _MIN_SUBSTRING_LEN and shorter in longer
+
+
 def quote_overlap_match(produced: list[dict], reference: list[dict]) -> dict:
     """A reference claim counts as recalled when any produced evidence quote
     overlaps one of its quotes -- substring either direction, the same rule
-    `scripts/validate-local-llm.py`'s `_recovered` uses. Returns:
+    `scripts/validate-local-llm.py`'s `_recovered` uses, except that a
+    substring-direction match additionally requires the shorter quote to be
+    at least 12 characters (exact equality always counts). Returns:
       {"recalled": [reference claim, ...], "missed": [reference claim, ...],
        "matched_produced": {produced claim_id, ...}}
     `matched_produced` is every produced claim_id that overlapped at least one
@@ -43,7 +59,7 @@ def quote_overlap_match(produced: list[dict], reference: list[dict]) -> dict:
             continue
         hit = False
         for pid, pq in prod_quotes:
-            if any(pq in rq or rq in pq for rq in ref_quotes):
+            if any(_quotes_overlap(pq, rq) for rq in ref_quotes):
                 matched_produced.add(pid)
                 hit = True
         if hit:

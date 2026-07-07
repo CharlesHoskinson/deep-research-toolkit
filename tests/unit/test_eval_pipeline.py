@@ -1,15 +1,19 @@
 """Unit tests for scripts/eval-pipeline.py's importable pure logic: corpus
 loading/limiting, stratified sampling, the adjudicate synthetic-candidate
-protocol ("pair-claims-v1"), report assembly, history lines, and baseline
-comparison. Extraction/prose-role wiring is exercised with fake in-process
-backends (never a live model) so the whole pipeline is drivable in the fast
-suite; only the CLI's actual `get_backend(config, ...)` construction against
-a live endpoint is left for the live tier / Task 8 runbook."""
+protocol ("pair-claims-v2"), report assembly, history lines, and baseline
+comparison. Extraction/prose-role wiring and role-level aggregation are
+exercised end-to-end with fake in-process backends (never a live model) so
+the whole pipeline is drivable in the fast suite; only the CLI's actual
+`get_backend(config, ...)` construction against a live endpoint is left for
+the live tier / Task 8 runbook."""
 from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _SPEC = importlib.util.spec_from_file_location(
@@ -67,8 +71,9 @@ def _build_tiny_corpus(root: Path) -> None:
         },
         "bait_sources": {"doc-a#c002": "doc-a#c001"},
         "contradiction_pairs": [
-            {"a": "doc-a#c001", "b": "doc-b#c001", "verdict": "contradiction",
-             "note": "widget count: 10 vs 20"},
+            {"a": "doc-a#c001", "b": "doc-b#c001",
+             "claim_a": "a_c1", "claim_b": "b_c1",
+             "verdict": "contradiction", "note": "widget count: 10 vs 20"},
         ],
         "corpus_version": "sha256:test",
     }
@@ -136,64 +141,97 @@ def test_stratified_sample_caps_at_available_chunks():
     assert picked == ["only-one"]
 
 
+def test_stratified_sample_excludes_chunks_with_no_gold_claims():
+    # A prose role can't be exercised on a chunk with nothing to cite, so a
+    # claim-less chunk must never enter the sample when the gold map is given.
+    index = {"chunks": {
+        "with-claims": {"slices": ["prose"]},
+        "no-claims": {"slices": ["prose"]},
+    }}
+    claims_by_chunk = {"with-claims": [{"claim_id": "c1"}]}
+    picked = eval_pipeline.stratified_sample_chunks(
+        index, k=5, seed=7, claims_by_chunk=claims_by_chunk)
+    assert picked == ["with-claims"]
+
+
 # ---------------------------------------------------------------------------
-# adjudicate synthetic-candidate protocol ("pair-claims-v1")
+# adjudicate synthetic-candidate protocol ("pair-claims-v2")
 # ---------------------------------------------------------------------------
 
 def test_slugify_basic():
     assert eval_pipeline.slugify("MCB v2 release year") == "mcb-v2-release-year"
 
 
-def test_pick_claim_for_pair_prefers_keyword_overlap():
-    claims_by_chunk = {
-        "doc#c001": [
-            _claim("c1", "doc#c001", "unrelated filler text"),
-            _claim("c2", "doc#c001", "the widget count was measured carefully"),
-        ]
-    }
-    picked = eval_pipeline.pick_claim_for_pair("doc#c001", "widget count", claims_by_chunk)
-    assert picked["claim_id"] == "c2"
+def test_load_claims_by_id_maps_every_claim(tmp_path):
+    _build_tiny_corpus(tmp_path)
+    by_id = eval_pipeline.load_claims_by_id(tmp_path)
+    assert set(by_id) == {"a_c1", "a_c2", "b_c1"}
+    assert by_id["a_c1"]["supporting_evidence"][0]["locator"] == "doc-a#c001"
 
 
-def test_pick_claim_for_pair_returns_none_when_chunk_has_no_claims():
-    assert eval_pipeline.pick_claim_for_pair("doc#c999", "topic", {}) is None
-
-
-def test_build_adjudicate_candidates_shape_and_unique_subjects():
-    claims_by_chunk = {
-        "doc-a#c001": [_claim("a1", "doc-a#c001", "widget count was 10")],
-        "doc-b#c001": [_claim("b1", "doc-b#c001", "widget count was 20")],
+def test_build_adjudicate_candidates_shape_from_pinned_gold_claims():
+    claims_by_id = {
+        "a1": _claim("a1", "doc-a#c001", "widget count was 10"),
+        "b1": _claim("b1", "doc-b#c001", "widget count was 20"),
     }
     pairs = [
-        {"a": "doc-a#c001", "b": "doc-b#c001", "verdict": "contradiction", "note": "widget count: 10 vs 20"},
+        {"a": "doc-a#c001", "b": "doc-b#c001", "claim_a": "a1", "claim_b": "b1",
+         "verdict": "contradiction", "note": "widget count: 10 vs 20"},
     ]
-    candidates, meta = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_chunk)
+    candidates, meta, warnings = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_id)
+    assert warnings == []
     assert len(candidates) == 1 and len(meta) == 1
     cand = candidates[0]
     assert cand["kind"] == "relation"
     assert cand["predicate"] == "asserts"
-    assert cand["subject"] == "widget-count"
+    assert cand["subject"] == "widget-count-10-vs-20"  # full note, slugified
     assert cand["relation_ids"] == ["a1", "b1"]
     assert cand["objects"] == ["claim about widget count was 10", "claim about widget count was 20"]
+    assert cand["source_ids"] == ["doc-a#c001", "doc-b#c001"]
     assert meta[0]["gold_verdict"] == "contradiction"
-    assert meta[0]["subject"] == "widget-count"
+    assert meta[0]["subject"] == "widget-count-10-vs-20"
     assert meta[0]["predicate"] == "asserts"
 
 
 def test_build_adjudicate_candidates_dedupes_colliding_subjects():
-    claims_by_chunk = {
-        "doc-a#c001": [_claim("a1", "doc-a#c001", "x")],
-        "doc-b#c001": [_claim("b1", "doc-b#c001", "y")],
-        "doc-c#c001": [_claim("c1", "doc-c#c001", "z")],
-        "doc-d#c001": [_claim("d1", "doc-d#c001", "w")],
+    claims_by_id = {
+        "a1": _claim("a1", "doc-a#c001", "x"), "b1": _claim("b1", "doc-b#c001", "y"),
+        "c1": _claim("c1", "doc-c#c001", "z"), "d1": _claim("d1", "doc-d#c001", "w"),
     }
     pairs = [
-        {"a": "doc-a#c001", "b": "doc-b#c001", "verdict": "contradiction", "note": "same topic: x vs y"},
-        {"a": "doc-c#c001", "b": "doc-d#c001", "verdict": "not_contradiction", "note": "same topic: z vs w"},
+        {"a": "doc-a#c001", "b": "doc-b#c001", "claim_a": "a1", "claim_b": "b1",
+         "verdict": "contradiction", "note": "same topic"},
+        {"a": "doc-c#c001", "b": "doc-d#c001", "claim_a": "c1", "claim_b": "d1",
+         "verdict": "not_contradiction", "note": "same topic"},
     ]
-    candidates, meta = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_chunk)
+    candidates, meta, warnings = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_id)
+    assert warnings == []
     subjects = [c["subject"] for c in candidates]
     assert len(subjects) == len(set(subjects))  # never collide
+
+
+def test_build_adjudicate_candidates_skips_missing_gold_claim_with_warning():
+    claims_by_id = {"a1": _claim("a1", "doc-a#c001", "x")}
+    pairs = [
+        {"a": "doc-a#c001", "b": "doc-b#c001", "claim_a": "a1", "claim_b": "ghost",
+         "verdict": "contradiction", "note": "n"},
+    ]
+    candidates, meta, warnings = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_id)
+    assert candidates == [] and meta == []
+    assert len(warnings) == 1
+    assert "ghost" in warnings[0] and "skipped" in warnings[0]
+
+
+def test_build_adjudicate_candidates_truncates_long_note_subjects():
+    claims_by_id = {
+        "a1": _claim("a1", "doc-a#c001", "x"), "b1": _claim("b1", "doc-b#c001", "y"),
+    }
+    long_note = "an extremely long note " * 10 + ": 1 vs 2"
+    pairs = [{"a": "doc-a#c001", "b": "doc-b#c001", "claim_a": "a1", "claim_b": "b1",
+              "verdict": "contradiction", "note": long_note}]
+    candidates, _, _ = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_id)
+    assert len(candidates[0]["subject"]) <= 60
+    assert not candidates[0]["subject"].endswith("-")
 
 
 def test_score_adjudicate_exact_match_is_full_credit():
@@ -203,7 +241,7 @@ def test_score_adjudicate_exact_match_is_full_credit():
               "invalid": [], "parse_failures": 0}
     out = eval_pipeline.score_adjudicate(result, meta)
     assert out["accuracy"] == 1.0
-    assert out["adjudicate_protocol"] == "pair-claims-v1"
+    assert out["adjudicate_protocol"] == "pair-claims-v2"
 
 
 def test_score_adjudicate_insufficient_evidence_is_half_credit():
@@ -287,6 +325,91 @@ def test_run_extract_for_doc_respects_chunk_limit(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# aggregation end-to-end (fake backends, no live calls)
+# ---------------------------------------------------------------------------
+
+def test_run_extract_for_model_aggregates_recall_across_docs(tmp_path):
+    # End-to-end over the whole extract aggregation path: gold comes from the
+    # UNTOUCHED reference-claims.jsonl files, pooled across docs. The fake
+    # backend recovers exactly one of the corpus's three reference claims, so
+    # overall recall must be exactly 1/3 -- a wrong-gold-file regression (e.g.
+    # scoring against the model's own output) would move this number.
+    _build_tiny_corpus(tmp_path)
+    from types import SimpleNamespace
+    config = SimpleNamespace(research_runs_path=tmp_path / "unused", pdf_runs_path=tmp_path / "unused2")
+    payload = json.dumps([
+        {"claim_id": "p1", "claim": "x", "supporting_evidence":
+         [{"locator": "doc-a#c001", "quote": "Alpha fact one", "url": None}]},
+    ])
+    backend = _FakeExtractBackend({"doc-a#c001": payload})  # doc-b gets "{}"
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+
+    out = eval_pipeline.run_extract_for_model(tmp_path, index, config, backend, doc_selection)
+
+    assert out["recall"] == pytest.approx(1 / 3)     # 1 of 3 pooled reference claims
+    assert out["gate_pass_rate"] == 1.0              # nothing dropped
+    assert out["precision_proxy"] == 1.0             # the one produced claim matched
+    assert out["docs"] == 2
+    assert out["per_doc"]["doc-a"]["recall"] == pytest.approx(0.5)   # 1 of doc-a's 2
+    assert out["per_doc"]["doc-b"]["recall"] == 0.0                  # doc-b's 1 missed
+
+
+class _KeyedProseBackend:
+    """Returns a canned reply based on which claim id appears in the prompt."""
+
+    def __init__(self, replies_by_key: dict):
+        self.replies_by_key = replies_by_key
+
+    def complete(self, system, user, **sampling):
+        for key, reply in self.replies_by_key.items():
+            if key in user:
+                return reply
+        raise AssertionError(f"no canned reply matches prompt: {user[:120]}")
+
+
+def test_run_prose_role_aggregates_pass_rate_and_bare_marker_rate(tmp_path):
+    # End-to-end over the prose aggregation path with controlled raw replies:
+    # chunk 1's reply cites with the claim: prefix, chunk 2's reply cites
+    # bare -- both pass the gate (bare markers are normalized), so
+    # mean_pass_rate is 1.0 while bare_marker_rate (measured on the RAW
+    # replies via RecordingBackend) is exactly 1/2.
+    _build_tiny_corpus(tmp_path)
+    claims_by_chunk = eval_pipeline.load_claims_by_chunk(tmp_path)
+    backend = _KeyedProseBackend({
+        "a_c1": "Alpha holds [claim:a_c1].",
+        "a_c2": "Beta holds [a_c2].",  # bare marker in the raw reply
+    })
+    out = eval_pipeline.run_prose_role_with_backend(
+        "wiki_write", ["doc-a#c001", "doc-a#c002"], claims_by_chunk, backend, runs=1)
+    assert out["mean_pass_rate"] == 1.0
+    assert out["mean_coverage"] == 1.0
+    assert out["marker_counts"] == {"bare": 1, "prefixed": 1}
+    assert out["bare_marker_rate"] == pytest.approx(0.5)
+    assert set(out["per_chunk"]) == {"doc-a#c001", "doc-a#c002"}
+
+
+def test_real_corpus_adjudicate_candidates_carry_the_distinguishing_values():
+    # The regression test for the v1 critical: every candidate built from the
+    # committed corpus must put the note's distinguishing values in front of
+    # the model. Every digit run in a pair's note (the conflicting years/
+    # counts/sizes) must appear in the union of the two pinned claim texts.
+    index = json.loads((DEFAULT_CORPUS_DIR / "corpus-index.json").read_text(encoding="utf-8"))
+    pairs = index["contradiction_pairs"]
+    claims_by_id = eval_pipeline.load_claims_by_id(DEFAULT_CORPUS_DIR)
+    candidates, meta, warnings = eval_pipeline.build_adjudicate_candidates(pairs, claims_by_id)
+    assert warnings == []
+    assert len(candidates) == len(pairs) == 12
+    for pair, cand in zip(pairs, candidates):
+        assert cand["relation_ids"] == [pair["claim_a"], pair["claim_b"]]
+        union = " ".join(cand["objects"])
+        for digits in re.findall(r"\d+", pair["note"]):
+            assert digits in union, (
+                f"pair note {pair['note']!r}: value {digits!r} missing from the "
+                f"candidate objects: {union!r}")
+
+
+# ---------------------------------------------------------------------------
 # report assembly / history / compare
 # ---------------------------------------------------------------------------
 
@@ -318,6 +441,31 @@ def test_history_lines_one_row_per_model_and_role():
     for row in lines:
         assert row["ts"] == "2026-07-06T00:00:00+00:00"
         assert row["prompt_version"] == "p"
+
+
+def test_history_lines_strip_bulky_detail_keys():
+    # per_doc / missed_claim_ids / per_chunk live in the run report only --
+    # history.jsonl is the flat summary time series.
+    report = eval_pipeline.build_report(
+        corpus_dir="c", join_keys={"prompt_version": "p"},
+        role_results={
+            "extract": {"models": {"m1": {
+                "gate_pass_rate": 0.9, "recall": 0.8,
+                "per_doc": {"doc-a": {"recall": 0.8}},
+                "missed_claim_ids": ["r9"],
+            }}},
+            "wiki_write": {"model": "m3", "mean_coverage": 0.5,
+                           "per_chunk": {"doc-a#c001": {"rate": 1.0}}},
+        },
+        ts="2026-07-06T00:00:00+00:00",
+    )
+    lines = eval_pipeline.history_lines(report)
+    for row in lines:
+        assert "per_doc" not in row
+        assert "missed_claim_ids" not in row
+        assert "per_chunk" not in row
+    extract_row = next(r for r in lines if r["role"] == "extract")
+    assert extract_row["recall"] == 0.8  # summary metrics survive the strip
 
 
 def test_compare_reports_flags_gate_pass_rate_regression():
@@ -359,6 +507,17 @@ def test_compare_reports_ignores_model_absent_from_baseline():
 
 def test_compare_reports_handles_missing_extract_role_gracefully():
     assert eval_pipeline.compare_reports({"roles": {}}, {"roles": {}}, tolerance=0.03) == []
+
+
+def test_compare_reports_flags_metric_becoming_none():
+    # A metric that was numeric in the baseline but is None in the current
+    # run silently degraded to unmeasurable -- that is a regression, not a
+    # skip.
+    baseline = {"roles": {"extract": {"models": {"m1": {"gate_pass_rate": 0.9, "recall": 0.8}}}}}
+    current = {"roles": {"extract": {"models": {"m1": {"gate_pass_rate": 0.9, "recall": None}}}}}
+    regressions = eval_pipeline.compare_reports(current, baseline, tolerance=0.03)
+    assert len(regressions) == 1
+    assert "recall" in regressions[0] and "unmeasurable" in regressions[0]
 
 
 # ---------------------------------------------------------------------------

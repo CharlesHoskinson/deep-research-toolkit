@@ -440,10 +440,12 @@ def test_contradiction_pairs_below_minimum_counts_contradiction_verdicts_only(tm
     meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
     _write_index(tmp_path, meta, all_texts,
                 contradiction_pairs=[
-                    {"a": "doc-a#c003", "b": "doc-b#c002", "verdict": "contradiction",
-                     "note": "release year"},
-                    {"a": "doc-a#c001", "b": "doc-b#c001", "verdict": "not_contradiction",
-                     "note": "version-scoped, reconcilable"},
+                    {"a": "doc-a#c003", "b": "doc-b#c002",
+                     "claim_a": "a_c003_1", "claim_b": "b_c002_1",
+                     "verdict": "contradiction", "note": "release year"},
+                    {"a": "doc-a#c001", "b": "doc-b#c001",
+                     "claim_a": "a_c001_1", "claim_b": "b_c001_1",
+                     "verdict": "not_contradiction", "note": "version-scoped, reconcilable"},
                 ],
                 bait_sources={"doc-a#c002": "doc-a#c001"})
     errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=2)
@@ -455,8 +457,9 @@ def test_contradiction_pair_unknown_locator_is_flagged(tmp_path):
     meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
     _write_index(tmp_path, meta, all_texts,
                 contradiction_pairs=[
-                    {"a": "doc-a#c003", "b": "doc-b#c999", "verdict": "contradiction",
-                     "note": "x"}],
+                    {"a": "doc-a#c003", "b": "doc-b#c999",
+                     "claim_a": "a_c003_1", "claim_b": "b_c002_1",
+                     "verdict": "contradiction", "note": "x"}],
                 bait_sources={"doc-a#c002": "doc-a#c001"})
     errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=1)
     assert any("doc-b#c999" in e and "unknown locator" in e for e in errors)
@@ -466,8 +469,9 @@ def test_contradiction_pair_same_document_is_flagged(tmp_path):
     meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
     _write_index(tmp_path, meta, all_texts,
                 contradiction_pairs=[
-                    {"a": "doc-a#c003", "b": "doc-a#c001", "verdict": "contradiction",
-                     "note": "x"}],
+                    {"a": "doc-a#c003", "b": "doc-a#c001",
+                     "claim_a": "a_c003_1", "claim_b": "a_c001_1",
+                     "verdict": "contradiction", "note": "x"}],
                 bait_sources={"doc-a#c002": "doc-a#c001"})
     errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=1)
     assert any("within the same document" in e for e in errors)
@@ -477,10 +481,50 @@ def test_contradiction_pair_invalid_verdict_is_flagged(tmp_path):
     meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
     _write_index(tmp_path, meta, all_texts,
                 contradiction_pairs=[
-                    {"a": "doc-a#c003", "b": "doc-b#c002", "verdict": "maybe", "note": "x"}],
+                    {"a": "doc-a#c003", "b": "doc-b#c002",
+                     "claim_a": "a_c003_1", "claim_b": "b_c002_1",
+                     "verdict": "maybe", "note": "x"}],
                 bait_sources={"doc-a#c002": "doc-a#c001"})
     errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=0)
     assert any("invalid verdict" in e and "'maybe'" in e for e in errors)
+
+
+def test_contradiction_pair_missing_claim_ids_is_malformed(tmp_path):
+    meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
+    _write_index(tmp_path, meta, all_texts,
+                contradiction_pairs=[
+                    {"a": "doc-a#c003", "b": "doc-b#c002",
+                     "verdict": "contradiction", "note": "x"}],  # no claim_a/claim_b
+                bait_sources={"doc-a#c002": "doc-a#c001"})
+    errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=0)
+    assert any("malformed contradiction pair" in e and "claim_a" in e for e in errors)
+
+
+def test_contradiction_pair_unknown_claim_id_is_flagged(tmp_path):
+    meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
+    _write_index(tmp_path, meta, all_texts,
+                contradiction_pairs=[
+                    {"a": "doc-a#c003", "b": "doc-b#c002",
+                     "claim_a": "a_ghost_claim", "claim_b": "b_c002_1",
+                     "verdict": "contradiction", "note": "x"}],
+                bait_sources={"doc-a#c002": "doc-a#c001"})
+    errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=1)
+    assert any("claim_a='a_ghost_claim'" in e and "not found" in e for e in errors)
+
+
+def test_contradiction_pair_claim_not_citing_pair_chunk_is_flagged(tmp_path):
+    meta, all_texts = _build_two_doc_corpus_for_contradiction_tests(tmp_path)
+    # a_c001_1 is a real doc-a claim, but it cites doc-a#c001 -- not the
+    # pair's a-side chunk doc-a#c003 -- so the gold pin points at evidence
+    # the model would never be shown for this pair.
+    _write_index(tmp_path, meta, all_texts,
+                contradiction_pairs=[
+                    {"a": "doc-a#c003", "b": "doc-b#c002",
+                     "claim_a": "a_c001_1", "claim_b": "b_c002_1",
+                     "verdict": "contradiction", "note": "x"}],
+                bait_sources={"doc-a#c002": "doc-a#c001"})
+    errors = validate(tmp_path, quotas=_TINY_QUOTAS, total_range=(0, 100), min_contradiction_pairs=1)
+    assert any("claim_a='a_c001_1'" in e and "does not cite the pair's chunk" in e for e in errors)
 
 
 def test_contradiction_pair_bare_list_is_malformed(tmp_path):

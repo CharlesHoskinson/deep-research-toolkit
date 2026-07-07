@@ -14,9 +14,13 @@ loudly instead of silently degrading eval numbers:
   - bait chunks (near-copies of a same-doc source sentence) are recorded in
     "bait_sources" and actually contain a near-copy (>=80% word overlap, not
     identical) of a sentence in their source chunk
-  - contradiction_pairs are {"a", "b", "verdict", "note"} objects; verdicts are
-    "contradiction" or "not_contradiction"; locators exist; "contradiction"
-    pairs span different documents; enough pairs carry verdict "contradiction"
+  - contradiction_pairs are {"a", "b", "claim_a", "claim_b", "verdict", "note"}
+    objects; verdicts are "contradiction" or "not_contradiction"; locators
+    exist; "contradiction" pairs span different documents; enough pairs carry
+    verdict "contradiction"; claim_a/claim_b name real reference claims (in
+    the a-side/b-side doc respectively) whose supporting_evidence cites the
+    pair's own chunk -- the explicit gold the eval runner's adjudicate
+    protocol builds its candidates from
   - corpus_version (sha256 over sorted chunk texts) matches what's on disk
 
 Usage:
@@ -116,10 +120,13 @@ def compute_corpus_version(chunk_texts: dict[str, str]) -> str:
 def _walk_docs(corpus_dir: Path, word_range: tuple[int, int]) -> dict:
     """Read every doc dir's manifest/chunks/reference-claims, collecting
     structural errors plus the data later checks need (chunk texts, per-chunk
-    reference-claim citation counts)."""
+    reference-claim citation counts, per-doc claim evidence locators)."""
     errors: list[str] = []
     chunk_texts: dict[str, str] = {}
     claim_citations: dict[str, int] = {}
+    # doc_id -> claim_id -> set of evidence locators, for the contradiction
+    # pairs' claim_a/claim_b checks.
+    claim_evidence: dict[str, dict[str, set[str]]] = {}
 
     doc_dirs = sorted(p for p in corpus_dir.iterdir() if p.is_dir())
     if not doc_dirs:
@@ -187,6 +194,7 @@ def _walk_docs(corpus_dir: Path, word_range: tuple[int, int]) -> dict:
             errors.append(f"{doc_id}: reference-claims.jsonl has invalid JSON: {e}")
             claim_rows = []
 
+        doc_claim_evidence = claim_evidence.setdefault(doc_id, {})
         for row in claim_rows:
             claim_id = row.get("claim_id", "<unknown>")
             evidence = row.get("supporting_evidence") or []
@@ -204,10 +212,12 @@ def _walk_docs(corpus_dir: Path, word_range: tuple[int, int]) -> dict:
                     errors.append(f"{doc_id}: claim {claim_id!r} quote is not verbatim in "
                                   f"{loc!r}: {quote!r}")
                 locs_in_claim.add(loc)
+            doc_claim_evidence[claim_id] = locs_in_claim
             for loc in locs_in_claim:
                 claim_citations[loc] = claim_citations.get(loc, 0) + 1
 
-    return {"errors": errors, "chunk_texts": chunk_texts, "claim_citations": claim_citations}
+    return {"errors": errors, "chunk_texts": chunk_texts,
+            "claim_citations": claim_citations, "claim_evidence": claim_evidence}
 
 
 def validate(
@@ -246,6 +256,7 @@ def validate(
     errors: list[str] = list(walked["errors"])
     chunk_texts: dict[str, str] = walked["chunk_texts"]
     claim_citations: dict[str, int] = walked["claim_citations"]
+    claim_evidence: dict[str, dict[str, set[str]]] = walked["claim_evidence"]
 
     total = len(chunk_texts)
     if not (total_range[0] <= total <= total_range[1]):
@@ -297,8 +308,10 @@ def validate(
     pairs = index.get("contradiction_pairs") or []
     genuine = 0
     for pair in pairs:
-        if not isinstance(pair, dict) or not all(k in pair for k in ("a", "b", "verdict")):
-            errors.append(f"malformed contradiction pair (needs 'a', 'b', 'verdict'): {pair!r}")
+        if not isinstance(pair, dict) or \
+                not all(k in pair for k in ("a", "b", "claim_a", "claim_b", "verdict")):
+            errors.append(f"malformed contradiction pair (needs 'a', 'b', 'claim_a', "
+                          f"'claim_b', 'verdict'): {pair!r}")
             continue
         a, b, verdict = pair["a"], pair["b"], pair["verdict"]
         if verdict not in VALID_VERDICTS:
@@ -311,6 +324,20 @@ def validate(
             errors.append(f"contradiction pair references unknown locator {a!r}")
         if not b_ok:
             errors.append(f"contradiction pair references unknown locator {b!r}")
+        # claim_a/claim_b are the explicit gold the eval runner's adjudicate
+        # candidates are built from: each must be a real reference claim in
+        # the corresponding side's doc, and must actually cite the pair's
+        # chunk -- otherwise the eval would score models against evidence
+        # they were never shown.
+        for side_loc, claim_key in ((a, "claim_a"), (b, "claim_b")):
+            claim_id = pair[claim_key]
+            doc_claims = claim_evidence.get(_doc_of(side_loc)) or {}
+            if claim_id not in doc_claims:
+                errors.append(f"contradiction pair ({a!r}, {b!r}): {claim_key}={claim_id!r} "
+                              f"not found in {_doc_of(side_loc)}'s reference-claims.jsonl")
+            elif side_loc not in doc_claims[claim_id]:
+                errors.append(f"contradiction pair ({a!r}, {b!r}): {claim_key}={claim_id!r} "
+                              f"does not cite the pair's chunk {side_loc!r}")
         if verdict == "contradiction":
             genuine += 1
             if a_ok and b_ok and _doc_of(a) == _doc_of(b):

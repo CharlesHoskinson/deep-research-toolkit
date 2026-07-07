@@ -77,6 +77,33 @@ def test_quote_overlap_one_produced_claim_can_recall_multiple_references():
     assert out["matched_produced"] == {"p1"}
 
 
+def test_quote_overlap_short_substring_does_not_match():
+    # "42" is a substring of the reference quote, but the shorter quote is
+    # under the 12-char floor -- coincidental containment must not count.
+    produced = [_claim("p1", "42")]
+    reference = [_claim("r1", "the answer to everything is 42 exactly")]
+    out = quote_overlap_match(produced, reference)
+    assert out["recalled"] == []
+    assert out["matched_produced"] == set()
+
+
+def test_quote_overlap_short_exact_equality_still_matches():
+    # Equality always counts, even below the substring-length floor.
+    produced = [_claim("p1", "42")]
+    reference = [_claim("r1", "42")]
+    out = quote_overlap_match(produced, reference)
+    assert out["recalled"] == reference
+    assert out["matched_produced"] == {"p1"}
+
+
+def test_quote_overlap_twelve_char_substring_matches():
+    # Exactly at the floor: a 12-char shorter quote in either direction counts.
+    produced = [_claim("p1", "abcdefghijkl")]  # 12 chars
+    reference = [_claim("r1", "xx abcdefghijkl yy")]
+    out = quote_overlap_match(produced, reference)
+    assert out["recalled"] == reference
+
+
 # --------------------------------------------------------------------------
 # extract_metrics
 # --------------------------------------------------------------------------

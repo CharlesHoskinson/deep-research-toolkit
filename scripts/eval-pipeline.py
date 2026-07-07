@@ -21,26 +21,34 @@ touching a live model. Only backend *construction* (`get_backend`, which opens
 a real HTTP client lazily) and the wiki_write/synthesize/conflict_adjudicate
 live calls are reserved for the live tier / the Task 8 runbook.
 
-ADJUDICATE SYNTHETIC-CANDIDATE PROTOCOL ("pair-claims-v1"):
-corpus-index.json's `contradiction_pairs` are objects {a, b, verdict, note} --
-two chunk locators, a gold verdict, and a human note describing the
-conflicting fact (e.g. "MCB v2 release year: 2020 vs 2021"). There is no
-compiled relation graph in this eval (that lives downstream of the knowledge
-compiler, out of scope here), so a `kind: "relation"` candidate is
-synthesized directly from each pair's two gold reference claims instead of
-mechanically-extracted relations:
-  - subject: the note's leading phrase (before the first ":"), slugified,
+ADJUDICATE SYNTHETIC-CANDIDATE PROTOCOL ("pair-claims-v2"):
+corpus-index.json's `contradiction_pairs` are objects {a, b, claim_a,
+claim_b, verdict, note} -- two chunk locators, the two gold claim_ids that
+STATE the conflicting fact (one per side, pinned explicitly in the index and
+enforced by scripts/check-eval-corpus.py: each must exist in its side's
+reference-claims.jsonl and cite the pair's own chunk), a gold verdict, and a
+human note describing the conflict (e.g. "MCB v2 release year: 2020 vs
+2021"). There is no compiled relation graph in this eval (that lives
+downstream of the knowledge compiler, out of scope here), so a
+`kind: "relation"` candidate is synthesized directly from each pair's two
+pinned gold claims instead of mechanically-extracted relations:
+  - subject: the pair's full note, slugified and truncated (~60 chars),
     deduplicated against subject collisions across pairs.
   - predicate: the literal string "asserts".
-  - objects: [claimA.claim, claimB.claim] -- the actual claim text picked
-    from each side's chunk by keyword overlap with the note's topic phrase
-    (falls back to the chunk's only/first claim when no claim scores > 0).
-  - relation_ids: [claimA.claim_id, claimB.claim_id].
+  - objects: [claim_a.claim, claim_b.claim] -- the claim rows looked up by
+    id across the corpus's reference-claims.jsonl files.
+  - relation_ids: [claim_a, claim_b] (the two pinned gold claim_ids).
+A pair whose claim_a/claim_b cannot be looked up is skipped (never a crash)
+and recorded in the role result's `pair_warnings` list.
 Scoring: model verdict == pair's gold verdict -> 1.0; "insufficient_evidence"
 -> 0.5; anything else (wrong verdict, missing/invalid row) -> 0.0. Accuracy is
-the mean over all pairs. Every adjudicate report row carries
-`"adjudicate_protocol": "pair-claims-v1"` so a future, richer candidate
+the mean over all scored pairs. Every adjudicate report row carries
+`"adjudicate_protocol": "pair-claims-v2"` so a future, richer candidate
 construction is a visible, versioned change rather than a silent drift.
+(v1 derived the claims by keyword overlap with the note's pre-colon topic
+phrase; that phrase drops the distinguishing values, so on half the corpus
+pairs v1 picked claims that never stated the conflicting fact -- v2 pins the
+gold explicitly instead.)
 """
 from __future__ import annotations
 
@@ -150,15 +158,21 @@ def select_docs_for_limit(corpus_dir: Path, limit: int | None) -> list[tuple[str
     return selected
 
 
-def stratified_sample_chunks(index: dict, k: int, seed: int = 7) -> list[str]:
+def stratified_sample_chunks(index: dict, k: int, seed: int = 7,
+                             claims_by_chunk: dict | None = None) -> list[str]:
     """Deterministic round-robin sample of up to `k` chunk locators, drawing
     across every slice tag present in corpus-index.json's `chunks` map so the
     wiki_write/synthesize sample isn't accidentally all-prose. Each slice's
     pool is shuffled with `random.Random(seed)` before the round-robin draw,
-    so the same (index, k, seed) always yields the same sample."""
+    so the same (index, k, seed) always yields the same sample. When
+    `claims_by_chunk` is given, chunks with zero gold claims are excluded up
+    front -- a prose role can't be exercised on a chunk with nothing to cite,
+    so sampling one would silently shrink the effective K."""
     chunks = index.get("chunks") or {}
     by_slice: dict[str, list[str]] = {}
     for locator, meta in chunks.items():
+        if claims_by_chunk is not None and not claims_by_chunk.get(locator):
+            continue
         for s in (meta or {}).get("slices") or ["prose"]:
             by_slice.setdefault(s, []).append(locator)
 
@@ -348,75 +362,80 @@ def run_prose_role_with_backend(role: str, sampled_locators: list[str], claims_b
 
 
 # ---------------------------------------------------------------------------
-# conflict_adjudicate: the "pair-claims-v1" synthetic-candidate protocol
+# conflict_adjudicate: the "pair-claims-v2" synthetic-candidate protocol
 # ---------------------------------------------------------------------------
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
-_WORD_RE = re.compile(r"[a-z0-9]+")
+_SUBJECT_MAX_LEN = 60
 
 
 def slugify(text: str) -> str:
     return _SLUG_RE.sub("-", text.lower()).strip("-") or "topic"
 
 
-def pick_claim_for_pair(locator: str, topic: str, claims_by_chunk: dict) -> dict | None:
-    """Picks the reference claim from `locator`'s chunk whose text has the
-    most word overlap with `topic` (the pair note's leading phrase); falls
-    back to the chunk's first claim when nothing scores above zero. None
-    when the chunk has no reference claims at all."""
-    candidates = claims_by_chunk.get(locator) or []
-    if not candidates:
-        return None
-    topic_words = set(_WORD_RE.findall(topic.lower()))
-
-    def score(c: dict) -> int:
-        words = set(_WORD_RE.findall((c.get("claim") or "").lower()))
-        return len(words & topic_words)
-
-    return max(candidates, key=score)
+def load_claims_by_id(corpus_dir: Path) -> dict[str, dict]:
+    """Map every reference claim_id to its claim row, across every doc dir in
+    the corpus -- the lookup the pair-claims-v2 candidates are built from.
+    Read-only over the corpus."""
+    by_id: dict[str, dict] = {}
+    for doc_dir in sorted(p for p in corpus_dir.iterdir() if p.is_dir()):
+        for claim in _read_jsonl(doc_dir / "reference-claims.jsonl"):
+            cid = claim.get("claim_id")
+            if cid:
+                by_id[cid] = claim
+    return by_id
 
 
-def build_adjudicate_candidates(pairs: list[dict], claims_by_chunk: dict) -> tuple[list[dict], list[dict]]:
-    """The "pair-claims-v1" protocol documented in the module docstring:
-    one kind="relation" candidate per corpus-index.json contradiction pair,
-    synthesized from the two claims picked out of each side's chunk. Returns
-    (candidates for adjudicate_candidates(), parallel scoring metadata)."""
+def build_adjudicate_candidates(pairs: list[dict],
+                                claims_by_id: dict) -> tuple[list[dict], list[dict], list[str]]:
+    """The "pair-claims-v2" protocol documented in the module docstring: one
+    kind="relation" candidate per corpus-index.json contradiction pair, built
+    from the pair's explicitly pinned gold claims (claim_a/claim_b looked up
+    by id). A pair whose pinned claim id cannot be resolved is skipped and
+    recorded as a warning -- never a crash. Returns (candidates for
+    adjudicate_candidates(), parallel scoring metadata, warnings)."""
     used_subjects: set[str] = set()
     candidates: list[dict] = []
     meta: list[dict] = []
+    warnings: list[str] = []
     for pair in pairs:
         note = pair.get("note") or ""
-        topic = note.split(":", 1)[0].strip()
-        subject = slugify(topic)
+        claim_a = claims_by_id.get(pair.get("claim_a"))
+        claim_b = claims_by_id.get(pair.get("claim_b"))
+        if claim_a is None or claim_b is None:
+            missing = [f"{key}={pair.get(key)!r}" for key in ("claim_a", "claim_b")
+                       if claims_by_id.get(pair.get(key)) is None]
+            warnings.append(
+                f"pair ({pair.get('a')!r}, {pair.get('b')!r}): gold claim id(s) not found in "
+                f"reference-claims: {', '.join(missing)} -- pair skipped")
+            continue
+
+        subject = slugify(note)[:_SUBJECT_MAX_LEN].rstrip("-")
         base, n = subject, 2
         while subject in used_subjects:
             subject = f"{base}-{n}"
             n += 1
         used_subjects.add(subject)
 
-        claim_a = pick_claim_for_pair(pair["a"], topic, claims_by_chunk)
-        claim_b = pick_claim_for_pair(pair["b"], topic, claims_by_chunk)
         candidates.append({
             "kind": "relation",
             "subject": subject,
             "predicate": "asserts",
-            "objects": [(claim_a or {}).get("claim") or "", (claim_b or {}).get("claim") or ""],
-            "relation_ids": [
-                (claim_a or {}).get("claim_id") or f"{pair['a']}-unresolved",
-                (claim_b or {}).get("claim_id") or f"{pair['b']}-unresolved",
-            ],
+            "objects": [claim_a.get("claim") or "", claim_b.get("claim") or ""],
+            "relation_ids": [pair["claim_a"], pair["claim_b"]],
             "source_ids": [pair["a"], pair["b"]],
         })
-        meta.append({"subject": subject, "predicate": "asserts", "gold_verdict": pair["verdict"], "note": note})
-    return candidates, meta
+        meta.append({"subject": subject, "predicate": "asserts",
+                     "gold_verdict": pair["verdict"], "note": note})
+    return candidates, meta, warnings
 
 
 def score_adjudicate(result: dict, meta: list[dict]) -> dict:
-    """Scores adjudicate_candidates()'s output against the pair-claims-v1
+    """Scores adjudicate_candidates()'s output against the pair-claims-v2
     metadata: exact verdict match -> 1.0, "insufficient_evidence" -> 0.5,
     anything else (wrong verdict, or no verdict at all -- invalid/parse-failed
-    rows never reach `verdicts`) -> 0.0. `accuracy` is the mean over all pairs
-    (None when there are no pairs to score)."""
+    rows never reach `verdicts`) -> 0.0. `accuracy` is the mean over all
+    scored pairs (None when there are no pairs to score)."""
     verdict_by_key = {(v.get("subject"), v.get("predicate")): v.get("verdict")
                       for v in result.get("verdicts") or []}
     scores = []
@@ -434,14 +453,16 @@ def score_adjudicate(result: dict, meta: list[dict]) -> dict:
         "schema_valid": len(result.get("verdicts") or []),
         "schema_invalid": len(result.get("invalid") or []),
         "parse_failures": result.get("parse_failures", 0),
-        "adjudicate_protocol": "pair-claims-v1",
+        "adjudicate_protocol": "pair-claims-v2",
     }
 
 
-def run_adjudicate_with_backend(pairs: list[dict], claims_by_chunk: dict, backend) -> dict:
-    candidates, meta = build_adjudicate_candidates(pairs, claims_by_chunk)
+def run_adjudicate_with_backend(pairs: list[dict], claims_by_id: dict, backend) -> dict:
+    candidates, meta, warnings = build_adjudicate_candidates(pairs, claims_by_id)
     result = adjudicate_candidates(candidates, backend)
-    return score_adjudicate(result, meta)
+    scored = score_adjudicate(result, meta)
+    scored["pair_warnings"] = warnings
+    return scored
 
 
 # ---------------------------------------------------------------------------
@@ -485,29 +506,45 @@ def build_report(corpus_dir: str, join_keys: dict, role_results: dict, ts: str |
     }
 
 
+#: Bulky per-run detail that belongs in the run report only -- history.jsonl
+#: rows are the flat summary time series, so these keys are stripped there.
+_HISTORY_EXCLUDED_KEYS = {"per_doc", "missed_claim_ids", "per_chunk"}
+
+
 def history_lines(report: dict) -> list[dict]:
-    """One flat row per (model, role) -- extract's per-model metrics fan out
-    into one row each; every other role is already one model. Appended,
-    never rewritten, to eval-results/history.jsonl as the run time series."""
+    """One flat summary row per (model, role) -- extract's per-model metrics
+    fan out into one row each; every other role is already one model. Bulky
+    detail structures (per_doc, missed_claim_ids, per_chunk) stay in the run
+    report only. Appended, never rewritten, to eval-results/history.jsonl as
+    the run time series."""
     rows: list[dict] = []
     ts = report.get("ts")
     join_keys = report.get("join_keys") or {}
+
+    def _summary(metrics: dict) -> dict:
+        return {k: v for k, v in metrics.items() if k not in _HISTORY_EXCLUDED_KEYS}
+
     for role, data in (report.get("roles") or {}).items():
         data = data or {}
         if "models" in data:
             for model, metrics in (data.get("models") or {}).items():
-                rows.append({"ts": ts, "role": role, "model": model, **join_keys, **(metrics or {})})
+                rows.append({"ts": ts, "role": role, "model": model, **join_keys,
+                             **_summary(metrics or {})})
         else:
             metrics = {k: v for k, v in data.items() if k != "model"}
-            rows.append({"ts": ts, "role": role, "model": data.get("model"), **join_keys, **metrics})
+            rows.append({"ts": ts, "role": role, "model": data.get("model"), **join_keys,
+                         **_summary(metrics)})
     return rows
 
 
 def compare_reports(current: dict, baseline: dict, tolerance: float = DEFAULT_TOLERANCE) -> list[str]:
     """Diffs the extract role's gate_pass_rate/recall per model against a
-    baseline report; a drop beyond `tolerance` is a regression. Models absent
-    from the baseline (new additions) are never flagged. Returns human
-    -readable regression strings, empty when the run is clean."""
+    baseline report; a drop beyond `tolerance` is a regression. A metric that
+    was numeric in the baseline but is None in the current run also counts as
+    a regression -- a metric silently degrading to unmeasurable must not read
+    as "no drop". Models absent from the baseline (new additions) are never
+    flagged. Returns human-readable regression strings, empty when the run is
+    clean."""
     regressions: list[str] = []
     cur_models = (((current.get("roles") or {}).get("extract") or {}).get("models")) or {}
     base_models = (((baseline.get("roles") or {}).get("extract") or {}).get("models")) or {}
@@ -518,7 +555,12 @@ def compare_reports(current: dict, baseline: dict, tolerance: float = DEFAULT_TO
         for metric in ("gate_pass_rate", "recall"):
             cur_v = cur_metrics.get(metric)
             base_v = base_metrics.get(metric)
-            if cur_v is None or base_v is None:
+            if base_v is None:
+                continue
+            if cur_v is None:
+                regressions.append(
+                    f"{model}/{metric}: baseline {base_v:.3f} -> current None "
+                    f"(metric became unmeasurable)")
                 continue
             drop = base_v - cur_v
             if drop > tolerance:
@@ -606,7 +648,11 @@ def main(argv: list[str] | None = None) -> int:
 
         if models and len(extract_models) > 1:
             # Cross-model A/B: paired bootstrap over per-doc recall deltas
-            # against the first named model (design doc §3.4).
+            # against the first named model (design doc §3.4). n here is the
+            # doc count (~10), well below the plan's per-chunk granularity --
+            # small-n bootstrap CIs are wide, so treat "significant" as a
+            # strong signal and "not significant" as inconclusive rather than
+            # as evidence of parity.
             baseline_model = extract_models[0]
             baseline_per_doc = per_model[baseline_model]["per_doc"]
             ab: dict[str, dict | None] = {}
@@ -622,7 +668,7 @@ def main(argv: list[str] | None = None) -> int:
             role_results["extract"]["ab_vs_" + baseline_model] = ab
 
     k = min(STRATIFIED_K, len(index.get("chunks") or {}))
-    sampled = stratified_sample_chunks(index, k=k, seed=7) if k else []
+    sampled = stratified_sample_chunks(index, k=k, seed=7, claims_by_chunk=claims_by_chunk) if k else []
 
     if "wiki_write" in roles:
         backend = get_backend(config, role="wiki_write")
@@ -637,7 +683,8 @@ def main(argv: list[str] | None = None) -> int:
     if "conflict_adjudicate" in roles:
         backend = get_backend(config, role="conflict_adjudicate")
         pairs = index.get("contradiction_pairs") or []
-        result = run_adjudicate_with_backend(pairs, claims_by_chunk, backend)
+        claims_by_id = load_claims_by_id(corpus_dir)
+        result = run_adjudicate_with_backend(pairs, claims_by_id, backend)
         role_results["conflict_adjudicate"] = {"model": config.llm_roles["conflict_adjudicate"]["model"], **result}
 
     join_keys = {
