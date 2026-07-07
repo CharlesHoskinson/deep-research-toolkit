@@ -60,6 +60,14 @@ class OllamaEmbedder:
     embedding than MiniLM. Vector dimension is whatever the model returns (LanceDB
     infers it), so 4B/8B swap cleanly with no schema change."""
 
+    #: Bounded retry for a transient runner-not-ready failure: when Ollama evicts
+    #: the embedding model under memory pressure (e.g. e4b + a 31B/30B role both
+    #: resident during an eval), the next /v1/embeddings call can hit a
+    #: connection-refused on the model's ephemeral runner port before Ollama has
+    #: reloaded it. Retrying with backoff lets the reload complete rather than
+    #: silently dropping entailment metrics for the whole run.
+    _MAX_ATTEMPTS = 5
+
     def __init__(self, model: str, base_url: str = "http://localhost:11434/v1",
                  api_key: str = "not-needed") -> None:
         self.model = model
@@ -80,8 +88,19 @@ class OllamaEmbedder:
         return self._client
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        resp = self._client_().embeddings.create(model=self.model, input=list(texts))
-        return [list(d.embedding) for d in resp.data]
+        import time
+
+        last_exc: Exception | None = None
+        for attempt in range(self._MAX_ATTEMPTS):
+            try:
+                resp = self._client_().embeddings.create(model=self.model, input=list(texts))
+                return [list(d.embedding) for d in resp.data]
+            except Exception as exc:  # noqa: BLE001 -- connection/runner-not-ready is transient; retry
+                last_exc = exc
+                if attempt == self._MAX_ATTEMPTS - 1:
+                    break
+                time.sleep(0.5 * (2 ** attempt))  # 0.5, 1, 2, 4s -- lets Ollama reload the runner
+        raise last_exc  # exhausted retries -- surface so the caller's degrade path still runs
 
 
 def get_embedder(model_name: str = "all-MiniLM-L6-v2",

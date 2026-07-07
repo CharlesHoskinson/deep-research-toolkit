@@ -78,7 +78,7 @@ def test_extract_role_is_fast_nonthinking_json():
     assert b.thinking is False
     assert b.response_format == "json"
     assert b.temperature == 0.0
-    assert b.max_tokens == 3000
+    assert b.max_tokens == 8000  # right-sized so a full batch's claims JSON fits in one call
 
 
 def test_synthesize_role_is_thinking_with_large_budget():

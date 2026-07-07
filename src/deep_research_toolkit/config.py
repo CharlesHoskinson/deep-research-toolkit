@@ -27,7 +27,13 @@ DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 #: model, so a single-model setup still works (back-compat) while a real stack
 #: routes each phase to the right model.
 ROLE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "extract":             {"thinking": False, "temperature": 0.0, "max_tokens": 3000,  "response_format": "json"},
+    # max_tokens right-sized to a full DEFAULT_BATCH_SIZE extract so the claims
+    # JSON fits in one call: at 3000 ~44% of e4b batches truncated at the cap and
+    # re-ran as halved batches -- a silent 3-5x call amplification (much worse
+    # under self-consistency `samples>1`). 8000 clears a dense 6-chunk batch with
+    # headroom while staying well under the ~16k processed-token context ceiling;
+    # finish_reason=length telemetry tracks the <5% truncation SLO.
+    "extract":             {"thinking": False, "temperature": 0.0, "max_tokens": 8000,  "response_format": "json"},
     "wiki_write":          {"thinking": False, "temperature": 0.2, "max_tokens": 4096,  "response_format": None},
     "conflict_adjudicate": {"thinking": True,  "temperature": 0.2, "max_tokens": 8192,  "response_format": None},
     "synthesize":          {"thinking": True,  "temperature": 0.4, "max_tokens": 12000, "response_format": None},
