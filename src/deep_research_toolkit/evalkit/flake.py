@@ -17,6 +17,8 @@ def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, flo
 def run_flaky(fn, runs: int = 5) -> dict:
     """Run fn() `runs` times; fn returns truthy on pass. Never raises --
     exceptions count as failures and are recorded."""
+    if runs <= 0:
+        return {"runs": 0, "passes": 0, "rate": 0.0, "ci95": (0.0, 1.0), "errors": []}
     passes, errors = 0, []
     for _ in range(runs):
         try:

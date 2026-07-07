@@ -29,7 +29,10 @@ jobs:
           python scripts/check-manifests-in-sync.py
           python scripts/check-skill-templates-in-sync.py
       - name: Fast unit tests (no heavy/network-dependent tests) + coverage
-        run: pytest tests -m "not heavy" -v --cov=deep_research_toolkit --cov-report=term-missing
+        # -m is not cumulative: an explicit expression here REPLACES the
+        # addopts default (-m "not live_model"), so both exclusions must be
+        # composed by hand.
+        run: pytest tests -m "not heavy and not live_model" -v --cov=deep_research_toolkit --cov-report=term-missing
       - name: ruff
         run: ruff check src/ skills/
 

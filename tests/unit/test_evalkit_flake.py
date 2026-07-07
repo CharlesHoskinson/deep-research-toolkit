@@ -87,3 +87,11 @@ def test_run_flaky_falsy_return_counts_as_failure_not_error():
     result = run_flaky(lambda: False, runs=3)
     assert result["passes"] == 0
     assert result["errors"] == []
+
+
+def test_run_flaky_zero_runs_returns_empty_result_without_raising():
+    # Honors the "never raises" docstring contract -- runs=0 must not divide
+    # by zero, and the ci95 degrades to the fully uninformative unit range.
+    result = run_flaky(lambda: True, runs=0)
+    assert result == {"runs": 0, "passes": 0, "rate": 0.0,
+                      "ci95": (0.0, 1.0), "errors": []}

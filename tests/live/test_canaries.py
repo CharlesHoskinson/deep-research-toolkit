@@ -74,52 +74,112 @@ def _find_31b_model(config) -> str | None:
     return None
 
 
+def _leak_channels(message: dict) -> dict:
+    """The three channels reasoning can leak through on an OpenAI-compatible
+    route: a `reasoning` message field (measured non-empty on this machine --
+    Ollama 0.31.1, gemma4:31b, thinking on, 2026-07-05 probes), a
+    `reasoning_content` field (vLLM/DeepSeek convention), or literal <think>
+    tags in the RAW content, checked before any strip_think normalization."""
+    content = message.get("content") or ""
+    return {
+        "reasoning_field": message.get("reasoning"),
+        "reasoning_content_field": message.get("reasoning_content"),
+        "think_tag_in_content": "<think>" in content,
+    }
+
+
+def _any_leak(channels: dict) -> bool:
+    return (bool(channels["reasoning_field"])
+            or bool(channels["reasoning_content_field"])
+            or channels["think_tag_in_content"])
+
+
 def test_reasoning_suppression(live_backend_config, canary_report):
     """extract-role calls must actually answer (thinking=False), and a raw
-    reasoning_effort:"none" call must not leak a non-empty reasoning field."""
+    reasoning_effort:"none" call must leak reasoning through NONE of the
+    three channels. A positive control (same model, thinking left on, a
+    prompt that invites deliberation) is recorded -- never asserted -- to
+    prove the probe reads the channel this serving stack actually populates;
+    a control showing no reasoning anywhere is flagged control_inconclusive
+    in the report rather than failed."""
     config = live_backend_config
     backend = get_backend(config, role="extract")
     reply = backend.complete("Reply with the word OK only.", "Say OK.")
     assert reply.strip() != ""
 
     model = config.llm_roles["extract"]["model"]
-    resp = _raw_chat(config.llm_local["base_url"], {
+    base_url = config.llm_local["base_url"]
+
+    # Positive control: no reasoning_effort suppression (gemma4 thinks by
+    # default on this stack); generous max_tokens so the reasoning pass has
+    # budget to show up in whichever channel the stack uses.
+    control_resp = _raw_chat(base_url, {
+        "model": model,
+        "messages": [{"role": "user", "content":
+                      "What is 17 * 23? Reply with the number only."}],
+        "max_tokens": 2000,
+    }, timeout=120.0)
+    control = _leak_channels(control_resp["choices"][0]["message"])
+
+    resp = _raw_chat(base_url, {
         "model": model,
         "messages": [{"role": "user", "content": "Say OK."}],
         "reasoning_effort": "none",
         "max_tokens": 20,
     })
-    message = resp["choices"][0]["message"]
-    reasoning = message.get("reasoning")
-    canary_report["reasoning_suppression"] = {"model": model, "reasoning_field": reasoning}
-    assert not reasoning
+    suppressed = _leak_channels(resp["choices"][0]["message"])
+
+    # The control's reasoning trace can run hundreds of tokens -- record
+    # presence per channel, not the trace itself.
+    control_summary = {
+        "reasoning_field_present": bool(control["reasoning_field"]),
+        "reasoning_content_field_present": bool(control["reasoning_content_field"]),
+        "think_tag_in_content": control["think_tag_in_content"],
+    }
+    record = {"model": model, **suppressed, "control": control_summary}
+    if not _any_leak(control):
+        record["control_inconclusive"] = True
+    canary_report["reasoning_suppression"] = record
+
+    assert not suppressed["reasoning_field"]
+    assert not suppressed["reasoning_content_field"]
+    assert not suppressed["think_tag_in_content"]
 
 
 def test_context_ceiling(live_backend_config, canary_report):
     """The ~6k-token sentinel probe must find the codeword (hard assertion).
     12k/20k/40k probes are recorded only -- this is where a real truncation
-    ceiling shows up (see README "Serving knobs that matter")."""
+    ceiling shows up (see README "Serving knobs that matter"). Each probe's
+    result lands in canary_report the moment it completes (the list is
+    already referenced by the session report), so partial results survive a
+    later probe failing or timing out. Nominal sizes are filler estimates;
+    the response's usage.prompt_tokens is the real measured prompt size."""
     config = live_backend_config
     model = config.llm_roles["extract"]["model"]
     base_url = config.llm_local["base_url"]
+    probes: list[dict] = []
+    canary_report["context_ceiling"] = probes
 
-    def _probe(target_tokens: int) -> bool:
-        prompt = _sentinel_prompt(target_tokens)
+    def _probe(nominal: int) -> bool:
+        prompt = _sentinel_prompt(nominal)
         resp = _raw_chat(base_url, {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "reasoning_effort": "none",
             "temperature": 0.0,
             "max_tokens": 50,
-        }, timeout=120.0)
+        }, timeout=180.0)
         content = resp["choices"][0]["message"].get("content") or ""
-        return "ZEPHYR" in content.upper()
+        found = "ZEPHYR" in content.upper()
+        usage = resp.get("usage") or {}
+        probes.append({"nominal": nominal,
+                       "prompt_tokens": usage.get("prompt_tokens"),
+                       "found": found})
+        return found
 
-    ceiling = {6000: _probe(6000)}
-    assert ceiling[6000], "6k-token sentinel probe failed to recover the codeword"
+    assert _probe(6000), "6k-token sentinel probe failed to recover the codeword"
     for size in (12000, 20000, 40000):
-        ceiling[size] = _probe(size)
-    canary_report["context_ceiling"] = ceiling
+        _probe(size)
 
 
 def test_structured_output_with_think_off(live_backend_config):
@@ -177,21 +237,31 @@ def test_long_prompt_liveness_31b(live_backend_config, canary_report):
     prompt = _filler_block(8000) + "\n\nSummarize the above in one short sentence."
 
     def _call():
+        # Inner socket timeout (300s) deliberately EXCEEDS the outer
+        # future.result timeout (180s): the documented hang path must
+        # surface as concurrent.futures.TimeoutError -> the remediation
+        # message below, not as a bare urllib socket error from the worker.
         return _raw_chat(base_url, {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 64,
-        }, timeout=170.0)
+        }, timeout=300.0)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(_call)
-        try:
-            resp = future.result(timeout=180)
-        except concurrent.futures.TimeoutError:
-            pytest.fail(
-                "31B long-prompt call exceeded 180s -- see ollama/ollama#15368 "
-                "(flash-attention hang); try OLLAMA_FLASH_ATTENTION=0"
-            )
+    # No `with` block: its __exit__ would wait for the stuck worker. On
+    # timeout the worker thread is abandoned by design (Python threads can't
+    # be killed) -- shutdown(wait=False) lets it die with its 300s socket
+    # timeout or the process, while the test fails immediately.
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(_call)
+    try:
+        resp = future.result(timeout=180)
+    except concurrent.futures.TimeoutError:
+        pool.shutdown(wait=False, cancel_futures=True)
+        pytest.fail(
+            "31B long-prompt call exceeded 180s -- see ollama/ollama#15368 "
+            "(flash-attention hang); try OLLAMA_FLASH_ATTENTION=0"
+        )
+    pool.shutdown(wait=False)
     content = resp["choices"][0]["message"].get("content") or ""
     canary_report["long_prompt_liveness_31b"] = {"model": model, "non_empty": bool(content.strip())}
     assert content.strip() != ""
