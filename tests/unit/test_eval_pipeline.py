@@ -349,7 +349,7 @@ def test_run_extract_for_model_aggregates_recall_across_docs(tmp_path):
 
     assert out["recall"] == pytest.approx(1 / 3)     # 1 of 3 pooled reference claims
     assert out["gate_pass_rate"] == 1.0              # nothing dropped
-    assert out["precision_proxy"] == 1.0             # the one produced claim matched
+    assert out["gold_match_rate"] == 1.0             # the one produced claim matched
     assert out["docs"] == 2
     assert out["per_doc"]["doc-a"]["recall"] == pytest.approx(0.5)   # 1 of doc-a's 2
     assert out["per_doc"]["doc-b"]["recall"] == 0.0                  # doc-b's 1 missed
