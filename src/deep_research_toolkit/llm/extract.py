@@ -2,16 +2,16 @@
 under llm.provider=local).
 
 The prompt is a *task brief*, not a rigid schema dump: it hands a reasoning
-model (e.g. Ornith-1.0) the goal, the output contract, the hard verbatim-quote
+model (e.g. Ornith-1.0) the goal, the output contract, the hard character-span
 invariant, and the extraction rules, then lets the model plan and self-verify
 its own approach before emitting -- playing to a self-scaffolding, coding-tuned
 model's strengths. The model reasons freely, then emits the final JSON inside
 <output>...</output> so parsing is robust to the reasoning trace.
 
-The verbatim gate is still applied here mechanically as the backstop: every
-supporting quote must be an exact substring of the chunk text the model was
-shown, so an off-label local model can only under-produce, never corrupt the
-corpus.
+The span gate is still applied here mechanically as the backstop: every
+supporting_evidence points at its source by start_char/end_char offsets that
+slice the chunk text the model was shown to exactly the supporting span, so an
+off-label local model can only under-produce, never corrupt the corpus.
 """
 from __future__ import annotations
 
@@ -56,7 +56,8 @@ rather than approximate: if no single contiguous span supports the claim, drop i
 
 RULES:
 - One checkable assertion per claim (split compound sentences).
-- Quote first, then write the claim around the quote you found.
+- Find the supporting span first, then write the claim around it and report its
+  start_char/end_char offsets into the chunk.
 - Merge mentions of the same thing under one entity_id (most formal name; other
   forms as aliases). mentions are the chunk_ids the entity appears in.
 - Only emit a relation a claim actually asserts. Do not force claims, entities,
@@ -66,16 +67,17 @@ RULES:
 
 _TAIL_THINKING = """\
 METHOD (build your own approach; this is your harness):
-Plan, identify the entities, draft each claim with a candidate quote, re-read
-each quote against its chunk to confirm it is an exact substring, revise or drop,
-then emit. Reason freely first.
+Plan, identify the entities, draft each claim with a candidate span, re-check
+each claim's start_char/end_char against its chunk to confirm they slice to
+exactly the supporting text, revise or drop, then emit. Reason freely first.
 
 FORMAT: After reasoning, emit ONLY the final JSON object inside <output> and
 </output> tags -- nothing else inside those tags."""
 
 _TAIL_DIRECT = """\
-Work through the chunks and copy each quote exactly. Output ONLY the JSON object
-matching the contract above -- no reasoning, no commentary, no markdown fences."""
+Work through the chunks and compute exact character offsets for each supporting
+span. Output ONLY the JSON object matching the contract above -- no reasoning,
+no commentary, no markdown fences."""
 
 _PDF_EVIDENCE = '{"node_id": "<chunk_id>", "start_char": <int>, "end_char": <int>, "page": <int>}'
 _WEB_EVIDENCE = '{"locator": "<chunk_id>", "start_char": <int>, "end_char": <int>, "url": "<source url or null>"}'
