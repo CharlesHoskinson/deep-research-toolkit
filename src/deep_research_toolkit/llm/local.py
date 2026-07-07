@@ -126,6 +126,17 @@ class LocalOpenAIBackend:
 
     def complete(self, system: str, user: str, *,
                  response_format: str | dict | None = None, **sampling) -> str:
+        return self.complete_with_meta(system, user,
+                                       response_format=response_format, **sampling)[0]
+
+    def complete_with_meta(self, system: str, user: str, *,
+                           response_format: str | dict | None = None,
+                           **sampling) -> tuple[str, str | None]:
+        """Like complete(), but returns ``(text, finish_reason)`` so a caller
+        gets THIS call's finish_reason as a return value -- no read of shared
+        backend state, which under concurrent callers (threaded extraction
+        fan-out) another thread's call may have overwritten in the meantime.
+        ``last_finish_reason`` is still set for the trace and back-compat."""
         if response_format is not None:
             sampling["response_format"] = response_format
         import time
@@ -146,14 +157,17 @@ class LocalOpenAIBackend:
         # "length" means the model hit max_tokens mid-answer -- the silent
         # truncation this telemetry exists to surface. Guard the read: fakes
         # and some servers omit the field.
-        self.last_finish_reason = getattr(choice, "finish_reason", None)
+        finish_reason = getattr(choice, "finish_reason", None)
+        self.last_finish_reason = finish_reason
         content = strip_think(choice.message.content or "")
         if self.trace_path is not None:
-            self._write_trace(elapsed, prompt_tokens, completion_tokens, content)
-        return content
+            self._write_trace(elapsed, prompt_tokens, completion_tokens, content,
+                              finish_reason)
+        return content, finish_reason
 
     def _write_trace(self, elapsed: float, prompt_tokens: int,
-                     completion_tokens: int, content: str) -> None:
+                     completion_tokens: int, content: str,
+                     finish_reason: str | None) -> None:
         """Append one JSONL ledger line for a completed call. A trace failure
         must never break a call, so every error is swallowed."""
         try:
@@ -165,7 +179,9 @@ class LocalOpenAIBackend:
                 "latency_s": elapsed,
                 "role": self.role,
                 "ok": bool(content),
-                "finish_reason": self.last_finish_reason,
+                # The call's own finish_reason, passed down rather than read
+                # from self.last_finish_reason (racy under threaded callers).
+                "finish_reason": finish_reason,
             }
             with open(self.trace_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(row) + "\n")

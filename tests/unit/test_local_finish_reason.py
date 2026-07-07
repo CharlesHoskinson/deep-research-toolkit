@@ -54,6 +54,32 @@ def test_finish_reason_defaults_to_none_before_any_call():
     assert _backend().last_finish_reason is None
 
 
+def test_complete_with_meta_returns_text_and_finish_reason():
+    # The thread-safe channel: callers get this call's finish_reason as a
+    # return value instead of reading shared backend state after the fact.
+    b = _backend()
+    b._client = _fake_client(_resp("length"))
+    text, reason = b.complete_with_meta("s", "u")
+    assert text == '{"ok": 1}'
+    assert reason == "length"
+    assert b.last_finish_reason == "length"  # still set for trace/back-compat
+
+
+def test_complete_with_meta_missing_attribute_is_none():
+    b = _backend()
+    b._client = _fake_client(_resp(...))  # response without the attribute
+    text, reason = b.complete_with_meta("s", "u")
+    assert text == '{"ok": 1}' and reason is None
+
+
+def test_complete_delegates_to_complete_with_meta():
+    b = _backend()
+    b._client = _fake_client(_resp("stop"))
+    assert b.complete("s", "u") == '{"ok": 1}'
+    assert b.last_finish_reason == "stop"
+    assert b.stats["calls"] == 1  # stats counted once, not double-counted
+
+
 def test_trace_record_includes_finish_reason(tmp_path):
     trace = tmp_path / "trace.jsonl"
     b = _backend(trace_path=trace, role="extract")

@@ -119,3 +119,31 @@ def test_last_finish_reason_proxies_on_miss_and_resets_on_hit(tmp_path):
     cb.complete("s", "u", temperature=0.0)  # HIT -> no model call this turn
     assert inner.calls == 1
     assert cb.last_finish_reason is None
+
+
+class MetaInner(FinishReasonInner):
+    """Inner backend that exposes the per-call meta channel."""
+    def complete_with_meta(self, system, user, **kw):
+        return self.complete(system, user, **kw), "length"
+
+
+def test_complete_with_meta_miss_then_hit(tmp_path):
+    inner = MetaInner()
+    cb = CachingBackend(inner, cache_dir=tmp_path, enabled=True, role="extract")
+    text, reason = cb.complete_with_meta("s", "u", temperature=0.0)  # MISS
+    assert (text, reason) == ("REPLY", "length")
+    assert cb.last_finish_reason == "length"
+    text, reason = cb.complete_with_meta("s", "u", temperature=0.0)  # HIT
+    assert (text, reason) == ("REPLY", None)  # cached: no model call, no reason
+    assert cb.last_finish_reason is None
+    assert inner.calls == 1
+
+
+def test_complete_with_meta_falls_back_for_plain_inner(tmp_path):
+    # Inner without complete_with_meta (older fakes, other providers): the
+    # cache falls back to complete() + last_finish_reason.
+    inner = FinishReasonInner()
+    cb = CachingBackend(inner, cache_dir=tmp_path, enabled=True, role="extract")
+    assert cb.complete_with_meta("s", "u", temperature=0.0) == ("REPLY", "length")
+    disabled = CachingBackend(FinishReasonInner(), cache_dir=tmp_path, enabled=False)
+    assert disabled.complete_with_meta("s", "u") == ("REPLY", "length")

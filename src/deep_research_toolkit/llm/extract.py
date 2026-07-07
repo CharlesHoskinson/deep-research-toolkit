@@ -18,10 +18,18 @@ from __future__ import annotations
 import json
 import re
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import NamedTuple
 
 from ..common.verbatim import slice_span, span_ok
 from .selfconsistency import union_claims
+
+# Parallelism note: ``extract_claims_to_run(parallel=N)`` fans the N sample
+# passes out on a bounded ThreadPoolExecutor. Size the worker count from the
+# server's true concurrency -- OLLAMA_NUM_PARALLEL (2-4 is right for an e4b
+# model) -- and NEVER set it high for a 31B model: extra workers just queue on
+# the server and add timeout risk without adding throughput.
 
 SCHEMA_VERSION = "2.0"  # evidence now carries character spans, not a copied quote
 
@@ -203,10 +211,35 @@ _COVERAGE_NOTE = (
 )
 
 
+def _complete_meta(backend, system, user, **sampling) -> tuple[str, str | None]:
+    """One backend call returning ``(text, finish_reason)``. Prefers the
+    backend's per-call meta channel (thread-safe: the reason comes back as a
+    return value, not shared state); falls back to ``complete()`` +
+    ``last_finish_reason`` for plain backends (older fakes, other providers) --
+    correct when calls don't overlap, which is the only way they're run."""
+    if hasattr(backend, "complete_with_meta"):
+        return backend.complete_with_meta(system, user, **sampling)
+    return (backend.complete(system, user, **sampling),
+            getattr(backend, "last_finish_reason", None))
+
+
+class _PassResult(NamedTuple):
+    """Everything one extraction pass produced, returned by value so a pass
+    can run on a worker thread without writing any shared mutable state."""
+    kept: list[dict]
+    entities_by_id: dict[str, dict]
+    relations: list[dict]
+    truncated: int        #: calls this pass saw finish_reason == "length"
+    parse_failures: int   #: batches this pass gave up on after halving
+    batches: int          #: batches this pass successfully parsed
+    dropped: list[dict]   #: gate-failed claims, in call order
+
+
 def extract_claims_to_run(run_dir, producer: str, config, backend,
                           batch_size: int = DEFAULT_BATCH_SIZE,
                           samples: int = 1, min_support: int = 1,
-                          coverage_passes: int = 0) -> dict:
+                          coverage_passes: int = 0,
+                          parallel: int = 1) -> dict:
     """Read chunks.jsonl, have the backend extract claims/entities/relations in
     bounded batches, drop any claim whose quote is not verbatim in its chunk, and
     write claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
@@ -228,6 +261,16 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     that many more times with the already-found claim texts, asking for additional
     claims only, and stops early once a pass adds nothing new. Defaults
     (``samples=1, coverage_passes=0``) reproduce single-pass behavior exactly.
+
+    ``parallel`` > 1 runs the sample passes concurrently on a bounded
+    ``ThreadPoolExecutor`` (workers clamped to ``min(parallel, samples)``).
+    Each pass returns its results by value and all merging happens after the
+    futures join, in submission order, so the output is deterministic and
+    identical to a sequential run. Size ``parallel`` from the server's real
+    concurrency (``OLLAMA_NUM_PARALLEL``; 2-4 for an e4b-class model, never
+    high for 31B). ``parallel=1`` (default) runs passes sequentially, exactly
+    as before. Coverage passes always run sequentially -- each depends on the
+    claims found so far.
     """
     run_dir = Path(run_dir)
     source_id = run_dir.name if producer == "web" else \
@@ -253,14 +296,10 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         return bare[0] if len(bare) == 1 else None
 
     id_key = "node_id" if producer == "pdf" else "locator"
-    dropped: list[dict] = []
-    parse_failures = 0
-    truncated_calls = 0  # calls the backend reports as cut off at max_tokens
     batch_list = list(_batches(chunks, max(1, batch_size)))
-    multi = len(batch_list) > 1
+    multi_batch = len(batch_list) > 1  # read-only under the fan-out
 
     thinking = getattr(backend, "thinking", True)
-    batch_no = 0
     # Each pass is an independent LLM call that restarts its own claim_id
     # numbering (c_0001...), and the batch prefix is only applied when batched --
     # so on a single-batch source pass 0 and pass k would mint DIFFERENT claims
@@ -271,19 +310,31 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     multipass = samples > 1 or coverage_passes > 0
 
     def _extract_one_pass(pass_no: int, extra_sampling: dict, extra_user: str = "",
-                          retry_on_empty: bool = True) -> tuple[list[dict], dict, list[dict]]:
+                          retry_on_empty: bool = True) -> _PassResult:
         """One full extraction pass over all batches: the original single-pass
         batch/parse/gate loop, verbatim. ``extra_sampling`` is merged into each
         call's sampling dict (so a pass can raise temperature); ``extra_user`` is
         appended to each user prompt (the coverage-loop note). A coverage pass
         sets ``retry_on_empty=False`` because an empty claims array is a valid
         answer there, not a parse failure to halve-and-retry. ``pass_no`` gives
-        every id this pass mints a unique per-pass tag when running multi-pass."""
-        nonlocal parse_failures, truncated_calls, batch_no, multi
+        every id this pass mints a unique per-pass tag when running multi-pass.
+
+        Thread-safety contract (the fan-out runs this on worker threads):
+        everything a pass produces -- kept/dropped claims, entities, relations,
+        the truncated/parse-failure/batch counters -- lives in LOCALS and is
+        RETURNED by value; the enclosing scope is only ever read. The per-call
+        finish_reason comes back from ``_complete_meta`` as a return value,
+        never from shared backend state another thread could overwrite."""
         pass_tag = f"p{pass_no}_" if multipass else ""
         kept: list[dict] = []
+        dropped: list[dict] = []
         entities_by_id: dict[str, dict] = {}
         relations: list[dict] = []
+        truncated = 0       # calls cut off at max_tokens (finish_reason "length")
+        parse_failures = 0
+        batch_no = 0        # this pass's own numbering; the pass tag keeps
+        #                     prefixes unique across passes
+        use_prefix = multi_batch
         # A work queue rather than a fixed loop, so a batch whose output can't be
         # parsed (usually token truncation) is retried as smaller halves instead of
         # silently lost -- bounded by depth so it terminates.
@@ -298,12 +349,12 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                 user = user + "\n\n" + _RETRY_NOTE
                 sampling = {"temperature": 0.25}
             sampling = {**sampling, **extra_sampling}
-            raw = backend.complete(system, user, **sampling)
-            if getattr(backend, "last_finish_reason", None) == "length":
+            raw, finish_reason = _complete_meta(backend, system, user, **sampling)
+            if finish_reason == "length":
                 # The model hit max_tokens mid-answer: silent truncation that
                 # amplifies cost via the halve-and-retry path. Counted into the
                 # summary as the <5% truncation SLO signal.
-                truncated_calls += 1
+                truncated += 1
             parsed = parse_extraction_response(raw)
             if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
                 if not retry_on_empty:
@@ -312,7 +363,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                     mid = len(batch) // 2
                     queue.appendleft((batch[mid:], depth + 1))
                     queue.appendleft((batch[:mid], depth + 1))
-                    multi = True  # splitting a lone batch means ids now need a prefix
+                    use_prefix = True  # splitting a lone batch means ids now need a prefix
                 else:
                     parse_failures += 1
                 continue
@@ -321,7 +372,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
             # across batches, plus a per-pass tag (only when multi-pass) so ids
             # minted in different passes can't collide -- while keeping each
             # relation's supporting_claim reference valid within its own pass.
-            prefix = pass_tag + (f"b{batch_no:02d}_" if multi else "")
+            prefix = pass_tag + (f"b{batch_no:02d}_" if use_prefix else "")
             batch_no += 1
             for claim in parsed["claims"]:
                 if not isinstance(claim, dict):
@@ -370,7 +421,11 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                 if rel.get("supporting_claim"):
                     rel["supporting_claim"] = prefix + str(rel["supporting_claim"])
                 relations.append(rel)
-        return kept, entities_by_id, relations
+        return _PassResult(kept, entities_by_id, relations,
+                           truncated, parse_failures, batch_no, dropped)
+
+    def _pass_sampling(pass_no: int) -> dict:
+        return {"temperature": round(0.2 * pass_no, 3)} if pass_no else {}
 
     # Pass 0 is deterministic (identical to single-pass behavior); each later
     # pass k re-samples at temperature 0.2*k for claim recall. Entities and
@@ -378,15 +433,33 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     # entities/relations stay canonical. Because pass 0 runs first and
     # union_claims keeps the first-seen dict per key, every pass-0 claim id
     # survives into `kept`, so pass-0 relations still resolve below.
-    claim_passes: list[list[dict]] = []
-    entities_by_id: dict[str, dict] = {}
-    relations: list[dict] = []
-    for pass_no in range(max(1, samples)):
-        extra_sampling = {"temperature": round(0.2 * pass_no, 3)} if pass_no else {}
-        pass_kept, pass_entities, pass_relations = _extract_one_pass(pass_no, extra_sampling)
-        claim_passes.append(pass_kept)
-        if pass_no == 0:
-            entities_by_id, relations = pass_entities, pass_relations
+    n_passes = max(1, samples)
+    if parallel > 1 and n_passes > 1:
+        # Bounded fan-out: passes are independent by construction (see the
+        # thread-safety contract on _extract_one_pass), so overlap them. The
+        # openai client is thread-safe. Results are collected IN SUBMISSION
+        # ORDER, so the union input -- and therefore the output -- is the same
+        # as a sequential run.
+        with ThreadPoolExecutor(max_workers=max(1, min(parallel, n_passes))) as ex:
+            futures = [ex.submit(_extract_one_pass, p, _pass_sampling(p))
+                       for p in range(n_passes)]
+            results = [f.result() for f in futures]
+    else:
+        results = [_extract_one_pass(p, _pass_sampling(p)) for p in range(n_passes)]
+
+    # All merging happens here, after the passes have returned -- single-threaded.
+    claim_passes: list[list[dict]] = [r.kept for r in results]
+    entities_by_id: dict[str, dict] = results[0].entities_by_id
+    relations: list[dict] = results[0].relations
+    dropped: list[dict] = []
+    truncated_calls = 0  # calls the backend reports as cut off at max_tokens
+    parse_failures = 0
+    batches = 0
+    for r in results:
+        dropped.extend(r.dropped)
+        truncated_calls += r.truncated
+        parse_failures += r.parse_failures
+        batches += r.batches
 
     support_filtered = 0
     if samples > 1:
@@ -397,16 +470,20 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
 
     # Bounded coverage loop: re-prompt with the claims found so far and ask for
     # additional ones only; stop early once a pass contributes nothing new.
+    # Always sequential -- each pass's prompt depends on the claims so far.
     for k in range(max(0, coverage_passes)):
         listing = "\n".join(f"- {c.get('claim', '')}" for c in kept)
         note = "ALREADY-EXTRACTED CLAIMS:\n" + listing + "\n\n" + _COVERAGE_NOTE
         # Give each coverage pass a pass_no past the sample passes so its ids
         # can't collide with sample-pass ids either.
-        extra_kept, _ents, _rels = _extract_one_pass(
-            samples + k, {}, extra_user=note, retry_on_empty=False)
-        if not extra_kept:
+        cov = _extract_one_pass(samples + k, {}, extra_user=note, retry_on_empty=False)
+        dropped.extend(cov.dropped)
+        truncated_calls += cov.truncated
+        parse_failures += cov.parse_failures
+        batches += cov.batches
+        if not cov.kept:
             break
-        merged = union_claims([kept, extra_kept], min_support=1)
+        merged = union_claims([kept, cov.kept], min_support=1)
         if len(merged) == len(kept):
             break  # everything it returned was already known
         kept = merged
@@ -426,9 +503,10 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         "dropped": [c.get("claim_id") for c in dropped],
         "entities": len(entities_by_id),
         "relations": len(relations),
-        "batches": batch_no,
+        "batches": batches,
         "parse_failures": parse_failures,
         "truncated_calls": truncated_calls,
         "samples": samples,
+        "parallel": parallel,
         "support_filtered": support_filtered,
     }

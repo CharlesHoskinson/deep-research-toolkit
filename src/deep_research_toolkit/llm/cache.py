@@ -44,8 +44,24 @@ class CachingBackend:
     _GEN_ATTRS = ("temperature", "top_p", "top_k", "max_tokens", "thinking")
 
     def complete(self, system, user, **sampling) -> str:
+        return self.complete_with_meta(system, user, **sampling)[0]
+
+    def _inner_with_meta(self, system, user, **sampling) -> tuple[str, str | None]:
+        """One real inner call, returning (text, finish_reason). Prefers the
+        inner backend's per-call meta channel; falls back to complete() +
+        last_finish_reason for backends that predate it."""
+        if hasattr(self.inner, "complete_with_meta"):
+            return self.inner.complete_with_meta(system, user, **sampling)
+        return (self.inner.complete(system, user, **sampling),
+                getattr(self.inner, "last_finish_reason", None))
+
+    def complete_with_meta(self, system, user, **sampling) -> tuple[str, str | None]:
+        """Like complete(), but returns ``(text, finish_reason)`` so callers
+        get THIS call's finish_reason without reading shared backend state
+        (racy under the threaded extraction fan-out). A cache HIT returns
+        ``(cached_text, None)`` -- no model call happened, nothing truncated."""
         if not self.enabled:
-            return self.inner.complete(system, user, **sampling)
+            return self._inner_with_meta(system, user, **sampling)
         # Resolve the effective params from the inner backend's defaults,
         # overlaid with any per-call sampling overrides. response_format is
         # keyed separately as `schema`, so keep it out of the params sub-dict.
@@ -55,11 +71,11 @@ class CachingBackend:
         key = cache_key(self.model, self.role, system, user, params, schema)
         if key in self._mem:
             self.last_finish_reason = None  # served from cache, no model call
-            return self._mem[key]
-        reply = self.inner.complete(system, user, **sampling)
-        self.last_finish_reason = getattr(self.inner, "last_finish_reason", None)
+            return self._mem[key], None
+        reply, reason = self._inner_with_meta(system, user, **sampling)
+        self.last_finish_reason = reason
         self._mem[key] = reply
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"key": key, "reply": reply}, ensure_ascii=False) + "\n")
-        return reply
+        return reply, reason
