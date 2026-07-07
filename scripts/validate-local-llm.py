@@ -11,9 +11,9 @@ What it does:
   - Copies the reference run (default: tests/fixtures/reference-run-hydra-settlement)
     into a temp directory, minus its claims.jsonl, so the fixture is never touched.
   - Runs extract_claims_to_run against the copy: the local model reads
-    chunks.jsonl and proposes claims; any claim whose evidence quote is not a
-    verbatim substring of the source is auto-dropped (the model can only
-    under-produce, never corrupt).
+    chunks.jsonl and proposes claims; any claim whose evidence span is
+    out-of-bounds (or whose echoed quote does not equal the slice it points
+    at) is auto-dropped (the model can only under-produce, never corrupt).
   - Diffs the produced claims.jsonl against the reference claims.jsonl and
     reports how many reference claims were recovered (matched by overlapping
     verbatim evidence quotes), plus the verbatim-pass/drop summary.
@@ -35,6 +35,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from deep_research_toolkit.common.verbatim import chunk_text_by_locator, slice_span  # noqa: E402
 from deep_research_toolkit.config import load_config  # noqa: E402
 from deep_research_toolkit.llm.backend import LLMBackendNotConfigured, get_backend  # noqa: E402
 from deep_research_toolkit.llm.extract import extract_claims_to_run  # noqa: E402
@@ -48,18 +49,32 @@ def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _quotes(claim: dict) -> list[str]:
-    return [ev.get("quote") or "" for ev in claim.get("supporting_evidence") or []]
+def _quotes(claim: dict, chunk_texts: dict[str, str]) -> list[str]:
+    """Evidence quotes for matching. Evidence now points at its source by a
+    character span (start_char/end_char); the persisted quote is the derived
+    slice. Rows that carry a span but no quote get theirs re-derived by
+    slicing the cited chunk, so span-only evidence still matches."""
+    out = []
+    for ev in claim.get("supporting_evidence") or []:
+        quote = ev.get("quote")
+        if not quote and "start_char" in ev:
+            cid = ev.get("node_id") or ev.get("locator") or ""
+            quote = slice_span(chunk_texts.get(cid, ""),
+                               ev.get("start_char"), ev.get("end_char"))
+        out.append(quote or "")
+    return out
 
 
-def _recovered(reference: list[dict], produced: list[dict]) -> tuple[list[dict], list[dict]]:
+def _recovered(reference: list[dict], produced: list[dict],
+               chunk_texts: dict[str, str]) -> tuple[list[dict], list[dict]]:
     """A reference claim counts as recovered when any produced claim carries an
     evidence quote that overlaps one of its quotes (either is a substring of the
-    other). Both sides are verbatim-gated, so quote overlap is a strong match."""
-    produced_quotes = [q for c in produced for q in _quotes(c) if q]
+    other). Both sides are span/verbatim-gated, so quote overlap is a strong
+    match."""
+    produced_quotes = [q for c in produced for q in _quotes(c, chunk_texts) if q]
     hit, missed = [], []
     for ref in reference:
-        ref_quotes = [q for q in _quotes(ref) if q]
+        ref_quotes = [q for q in _quotes(ref, chunk_texts) if q]
         if any(q in p or p in q for q in ref_quotes for p in produced_quotes):
             hit.append(ref)
         else:
@@ -136,7 +151,7 @@ def main() -> int:
               f"{stats['seconds']:.1f}s total ({stats['seconds']/stats['calls']:.1f}s/call)")
 
     if reference:
-        hit, missed = _recovered(reference, produced)
+        hit, missed = _recovered(reference, produced, chunk_text_by_locator(run_dir))
         print(f"reference diff: recovered {len(hit)}/{len(reference)} reference claim(s) "
               f"from {reference_path}")
         for ref in missed:

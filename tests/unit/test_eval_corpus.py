@@ -27,6 +27,28 @@ ALL_SLICES = ("prose", "dense-facts", "table", "list", "unicode", "math", "long"
 # Mini-corpus builders
 # ---------------------------------------------------------------------------
 
+def _with_spans(claim: dict, chunks: dict[str, str]) -> dict:
+    """Fill start_char/end_char on evidence rows that lack them by locating the
+    quote in its chunk (the span shape the corpus now carries). A quote that
+    does not occur verbatim gets a deliberate (0, len(quote)) span so the
+    checker's span gate flags it -- used by the negative test."""
+    out = dict(claim)
+    evs = []
+    for ev in claim.get("supporting_evidence") or []:
+        ev = dict(ev)
+        if "start_char" not in ev:
+            text = chunks.get(ev.get("locator")) or ""
+            quote = ev.get("quote") or ""
+            start = text.find(quote)
+            if start < 0:
+                start = 0
+            ev["start_char"] = start
+            ev["end_char"] = start + len(quote)
+        evs.append(ev)
+    out["supporting_evidence"] = evs
+    return out
+
+
 def _write_doc(root: Path, doc_id: str, chunks: dict[str, str], claims: list[dict]) -> None:
     doc_dir = root / doc_id
     doc_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +67,7 @@ def _write_doc(root: Path, doc_id: str, chunks: dict[str, str], claims: list[dic
             }, ensure_ascii=False) + "\n")
     with open(doc_dir / "reference-claims.jsonl", "w", encoding="utf-8") as f:
         for c in claims:
-            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+            f.write(json.dumps(_with_spans(c, chunks), ensure_ascii=False) + "\n")
 
 
 def _claim(claim_id: str, doc_id: str, locator: str, quote: str) -> dict:
@@ -228,6 +250,62 @@ _TINY_TOTAL_RANGE = (0, 100)
 
 def _build_doc_a(root: Path) -> None:
     _write_doc(root, "doc-a", _DOC_A_CHUNKS, list(_DOC_A_CLAIMS))
+
+
+# ---------------------------------------------------------------------------
+# validate_claim_evidence: the per-claim span gate (span shape, Task 3)
+# ---------------------------------------------------------------------------
+
+_SPAN_CHUNK = _DOC_A_CHUNKS["doc-a#c001"]
+
+
+def _span_claim(start: int, end: int, quote: str) -> dict:
+    return {
+        "claim_id": "span_claim", "source_id": "doc-a",
+        "claim": "A span-shaped claim.",
+        "supporting_evidence": [
+            {"locator": "doc-a#c001", "start_char": start, "end_char": end,
+             "quote": quote, "url": None},
+        ],
+    }
+
+
+def test_validate_claim_evidence_accepts_span_that_slices_to_its_quote():
+    quote = "The Nimbus consensus protocol"
+    start = _SPAN_CHUNK.find(quote)
+    claim = _span_claim(start, start + len(quote), quote)
+    assert check_eval_corpus.validate_claim_evidence(claim, _SPAN_CHUNK) is True
+
+
+def test_validate_claim_evidence_rejects_out_of_bounds_span():
+    quote = "The Nimbus consensus protocol"
+    claim = _span_claim(len(_SPAN_CHUNK) + 1, len(_SPAN_CHUNK) + 1 + len(quote), quote)
+    assert check_eval_corpus.validate_claim_evidence(claim, _SPAN_CHUNK) is False
+
+
+def test_validate_claim_evidence_rejects_span_whose_slice_differs_from_quote():
+    quote = "The Nimbus consensus protocol"
+    start = _SPAN_CHUNK.find(quote)
+    claim = _span_claim(start + 1, start + 1 + len(quote), quote)  # off by one
+    assert check_eval_corpus.validate_claim_evidence(claim, _SPAN_CHUNK) is False
+
+
+def test_validate_claim_evidence_rejects_missing_span_fields():
+    # Old-shape evidence (quote only, no offsets) must be rejected outright.
+    claim = {
+        "claim_id": "span_claim", "source_id": "doc-a",
+        "claim": "An old-shape claim.",
+        "supporting_evidence": [
+            {"locator": "doc-a#c001", "quote": "The Nimbus consensus protocol", "url": None},
+        ],
+    }
+    assert check_eval_corpus.validate_claim_evidence(claim, _SPAN_CHUNK) is False
+
+
+def test_validate_claim_evidence_rejects_empty_evidence():
+    claim = {"claim_id": "span_claim", "source_id": "doc-a",
+             "claim": "No evidence.", "supporting_evidence": []}
+    assert check_eval_corpus.validate_claim_evidence(claim, _SPAN_CHUNK) is False
 
 
 # ---------------------------------------------------------------------------
