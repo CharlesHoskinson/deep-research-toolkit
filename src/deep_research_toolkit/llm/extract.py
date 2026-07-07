@@ -265,6 +265,11 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
             evidence = claim.get("supporting_evidence") or []
             ok = bool(evidence)
             for ev in evidence:
+                if not isinstance(ev, dict):
+                    # Measured live (gemma4:26b): a bare-string evidence row.
+                    # It can't carry a locatable verbatim quote -> gate failure.
+                    ok = False
+                    continue
                 real = _resolve(str(ev.get(id_key) or ev.get("node_id") or ev.get("locator") or ""))
                 if real and verbatim_ok(ev.get("quote") or "", chunk_text_by_id[real]):
                     ev[id_key] = real  # rewrite to the canonical chunk id

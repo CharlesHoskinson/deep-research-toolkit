@@ -260,6 +260,32 @@ def test_extract_tolerates_bare_string_claims(tmp_path):
     assert result["written"] == 1 and result["entities"] == 1  # only the well-formed items survive
 
 
+def test_extract_tolerates_bare_string_evidence_rows(tmp_path):
+    # Measured live (gemma4:26b, 2026-07-07): a claim object whose
+    # supporting_evidence list holds a bare STRING instead of an evidence
+    # object. A malformed evidence row can't pass the verbatim gate, so the
+    # claim is dropped -- never a crash.
+    run = tmp_path / "research-runs" / "src-e"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Snails are molluscs.", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-e:c01", "text": "Snails are molluscs."}) + "\n",
+                                      encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps({
+        "claims": [
+            {"claim_id": "c1", "claim": "bad evidence row",
+             "supporting_evidence": ["Snails are molluscs"]},  # string, not object
+            {"claim_id": "c2", "claim": "good",
+             "supporting_evidence": [{"locator": "src-e:c01", "quote": "Snails are molluscs", "url": None}]},
+        ],
+        "entities": [], "relations": [],
+    })
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
+    written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    assert [c["claim_id"] for c in written] == ["c2"]
+    assert result["dropped"] == ["c1"] and result["written"] == 1
+
+
 def test_extract_batches_sources_and_merges_entities(tmp_path):
     # A source larger than batch_size is extracted in bounded batches; claim ids
     # are prefixed for uniqueness and the same entity seen in two batches merges.
