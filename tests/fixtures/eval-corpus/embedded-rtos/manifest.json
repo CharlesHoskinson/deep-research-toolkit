@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "embedded-rtos",
+  "title": "Quill: A Statically Allocated Hard Real-Time Operating System",
+  "source_url": "https://example.org/eval-corpus/embedded-rtos",
+  "content_hash": "sha256:2ecf0da3f8b8598d",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 15
+}

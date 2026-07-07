@@ -91,6 +91,7 @@ class Config:
     llm_provider: str
     llm_model: str
     llm_api_key_env: str
+    llm_trace: bool
     scrapling_default_mode: str
     scrapling_rate_limit_seconds: float
     raw: dict[str, Any] = field(default_factory=dict)
@@ -126,6 +127,7 @@ def _default_config(project_root: Path) -> Config:
         llm_provider="anthropic",
         llm_model="claude-sonnet-4-5",
         llm_api_key_env="ANTHROPIC_API_KEY",
+        llm_trace=False,
         scrapling_default_mode="http",
         scrapling_rate_limit_seconds=1.0,
         raw={},
@@ -184,6 +186,7 @@ def load_config(start: Path | None = None) -> Config:
         llm_provider=llm.get("provider", "anthropic"),
         llm_model=llm.get("model", "claude-sonnet-4-5"),
         llm_api_key_env=llm.get("api_key_env", "ANTHROPIC_API_KEY"),
+        llm_trace=bool(llm.get("trace", False)),
         scrapling_default_mode=scrapling.get("default_mode", "http"),
         scrapling_rate_limit_seconds=float(scrapling.get("rate_limit_seconds", 1.0)),
         raw=raw,

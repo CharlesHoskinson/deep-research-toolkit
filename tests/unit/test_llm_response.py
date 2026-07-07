@@ -1,5 +1,7 @@
 from deep_research_toolkit.llm.response import (
     extract_claim_ids,
+    generate_cited,
+    has_repetition_loop,
     normalize_claim_markers,
     parse_json_block,
     unfence,
@@ -83,3 +85,75 @@ def test_normalize_claim_markers_leaves_unknown_and_prefixed_alone():
 def test_normalize_claim_markers_empty_allowed_is_identity():
     text = "Anything [c1] at all."
     assert normalize_claim_markers(text, []) == text
+
+
+def test_repetition_loop_detected_on_repeated_phrase():
+    text = "The ledger records " + ("the same value " * 30)
+    assert has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_normal_prose():
+    text = ("Hydra is a family of Layer-2 protocols. Transactions settle "
+            "instantly among participants. The main chain reconciles state "
+            "when the head closes. Four phases structure the lifecycle.")
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_short_texts():
+    assert not has_repetition_loop("yes yes yes")
+
+
+def test_repetition_loop_found_inside_json_string():
+    import json as _json
+    reply = "<output>" + _json.dumps([{"rationale": "loop " * 50}]) + "</output>"
+    assert has_repetition_loop(reply)
+
+
+_VARIED_PROSE = (
+    "The settlement layer batches transactions before anchoring them on the "
+    "main chain, while validators rotate through committee assignments each "
+    "epoch. Fee markets respond to congestion by repricing inclusion, and "
+    "light clients verify headers without replaying full state transitions. "
+    "Checkpoint intervals bound how far any rollback can reach."
+)
+
+
+def test_repetition_loop_ignores_table_separator_rows():
+    text = ("| col | col | col |\n|---|---|---|\n"
+            "| a | 1 | x |\n| b | 2 | y |\n" + _VARIED_PROSE)
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_ignores_na_cells():
+    text = "| n/a | n/a | n/a | n/a | n/a |\n" + _VARIED_PROSE
+    assert not has_repetition_loop(text)
+
+
+def test_repetition_loop_catches_punctuation_jitter():
+    reps = "".join(["Error occurred, retrying." if i % 2 else "Error occurred retrying!" for i in range(30)])
+    assert has_repetition_loop(reps.replace(".", ". ").replace("!", "! "))
+
+
+class _StubBackend:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls = []
+
+    def complete(self, system, user, **kw):
+        self.calls.append((system, user, kw))
+        return self.replies.pop(0)
+
+
+def test_generate_cited_happy_path_single_call():
+    reply = "Alpha holds [claim:c1]. Beta holds [claim:c2]."
+    backend = _StubBackend([reply])
+    out = generate_cited(
+        backend, "sys", "user prompt", ["c1", "c2"],
+        min_coverage=0.5, kind="page body",
+        correction_unknown="bad ids: {bad}",
+        correction_low_coverage="cited {n}/{total}; rewrite the {kind}",
+        citation_error=ValueError)
+    assert out["text"] == reply
+    assert out["citations"]["coverage"] == 1.0
+    assert len(backend.calls) == 1
+    assert backend.calls[0][2].get("temperature") is None

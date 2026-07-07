@@ -1,0 +1,710 @@
+{
+  "ts": "2026-07-07T06:32:07.609046+00:00",
+  "corpus_dir": "C:\\deep-research-toolkit\\tests\\fixtures\\eval-corpus",
+  "join_keys": {
+    "prompt_version": "sha256:9c7eb327e6ec2a5a2b7b2fb4a3e6d622d294a2b73fb101d952690ce41b5745a8",
+    "corpus_version": "sha256:d42ff7147f435997fc318e070681536474e4b77a575fc86464ec083cc5e36452",
+    "ollama_version": "0.31.1"
+  },
+  "roles": {
+    "extract": {
+      "models": {
+        "gemma4:e4b": {
+          "gate_pass_rate": 0.9971671388101983,
+          "recall": 0.6854990583804144,
+          "precision_proxy": 0.18039772727272727,
+          "atomicity": 1.3258003766478343,
+          "parse_failures": 12,
+          "recalled": 364,
+          "missed_claim_ids": [
+            "bft_networking_c0019",
+            "bft_networking_c0020",
+            "bft_networking_c0022",
+            "bft_networking_c0024",
+            "bft_networking_c0026",
+            "bft_networking_c0028",
+            "bft_networking_c0034",
+            "bft_networking_c0035",
+            "bft_networking_c0036",
+            "bft_networking_c0037",
+            "bft_networking_c0038",
+            "bft_networking_c0039",
+            "bft_networking_c0040",
+            "bft_networking_c0041",
+            "bft_networking_c0042",
+            "bft_networking_c0044",
+            "bft_networking_c0045",
+            "bft_networking_c0046",
+            "bft_networking_c0047",
+            "bft_networking_c0051",
+            "bft_networking_c0055",
+            "compiler_ir_design_c0021",
+            "compiler_ir_design_c0022",
+            "compiler_ir_design_c0024",
+            "compiler_ir_design_c0025",
+            "compiler_ir_design_c0030",
+            "compiler_ir_design_c0031",
+            "compiler_ir_design_c0032",
+            "compiler_ir_design_c0033",
+            "distributed_consensus_c0004",
+            "distributed_consensus_c0005",
+            "distributed_consensus_c0009",
+            "distributed_consensus_c0012",
+            "distributed_consensus_c0023",
+            "distributed_consensus_c0026",
+            "distributed_consensus_c0032",
+            "distributed_consensus_c0033",
+            "distributed_consensus_c0034",
+            "distributed_consensus_c0035",
+            "distributed_consensus_c0040",
+            "distributed_consensus_c0041",
+            "distributed_consensus_c0044",
+            "distributed_consensus_c0045",
+            "distributed_consensus_c0046",
+            "distributed_consensus_c0047",
+            "distributed_consensus_c0048",
+            "distributed_consensus_c0049",
+            "distributed_consensus_c0050",
+            "distributed_consensus_c0052",
+            "distributed_consensus_c0054",
+            "distributed_consensus_c0055",
+            "distributed_consensus_c0056",
+            "distributed_consensus_c0057",
+            "distributed_consensus_c0066",
+            "distributed_consensus_c0067",
+            "distributed_consensus_c0068",
+            "embedded_rtos_c0004",
+            "embedded_rtos_c0007",
+            "embedded_rtos_c0011",
+            "embedded_rtos_c0024",
+            "embedded_rtos_c0032",
+            "embedded_rtos_c0033",
+            "embedded_rtos_c0034",
+            "embedded_rtos_c0039",
+            "formal_verification_c0009",
+            "formal_verification_c0017",
+            "formal_verification_c0022",
+            "formal_verification_c0026",
+            "formal_verification_c0028",
+            "formal_verification_c0029",
+            "formal_verification_c0032",
+            "formal_verification_c0033",
+            "formal_verification_c0039",
+            "formal_verification_c0040",
+            "formal_verification_c0041",
+            "formal_verification_c0042",
+            "formal_verification_c0045",
+            "formal_verification_c0046",
+            "formal_verification_c0047",
+            "formal_verification_c0052",
+            "gpu_scheduling_c0007",
+            "gpu_scheduling_c0012",
+            "gpu_scheduling_c0017",
+            "gpu_scheduling_c0022",
+            "gpu_scheduling_c0024",
+            "gpu_scheduling_c0028",
+            "gpu_scheduling_c0033",
+            "gpu_scheduling_c0034",
+            "gpu_scheduling_c0035",
+            "gpu_scheduling_c0037",
+            "gpu_scheduling_c0039",
+            "lsm_storage_engines_c0024",
+            "lsm_storage_engines_c0027",
+            "lsm_storage_engines_c0028",
+            "lsm_storage_engines_c0029",
+            "lsm_storage_engines_c0030",
+            "lsm_storage_engines_c0031",
+            "lsm_storage_engines_c0036",
+            "lsm_storage_engines_c0037",
+            "lsm_storage_engines_c0038",
+            "lsm_storage_engines_c0039",
+            "lsm_storage_engines_c0040",
+            "lsm_storage_engines_c0041",
+            "lsm_storage_engines_c0042",
+            "lsm_storage_engines_c0043",
+            "lsm_storage_engines_c0044",
+            "lsm_storage_engines_c0046",
+            "lsm_storage_engines_c0047",
+            "lsm_storage_engines_c0048",
+            "lsm_storage_engines_c0049",
+            "lsm_storage_engines_c0053",
+            "lsm_storage_engines_c0057",
+            "mempool_design_c0024",
+            "mempool_design_c0026",
+            "mempool_design_c0028",
+            "mempool_design_c0030",
+            "mempool_design_c0031",
+            "mempool_design_c0040",
+            "mempool_design_c0043",
+            "mempool_design_c0044",
+            "mempool_design_c0045",
+            "mempool_design_c0046",
+            "mempool_design_c0047",
+            "mempool_design_c0048",
+            "mempool_design_c0050",
+            "mempool_design_c0051",
+            "mempool_design_c0053",
+            "mempool_design_c0057",
+            "mempool_design_c0062",
+            "oceanographic_sensors_c0003",
+            "oceanographic_sensors_c0004",
+            "oceanographic_sensors_c0005",
+            "oceanographic_sensors_c0006",
+            "oceanographic_sensors_c0009",
+            "oceanographic_sensors_c0012",
+            "oceanographic_sensors_c0019",
+            "oceanographic_sensors_c0022",
+            "oceanographic_sensors_c0023",
+            "oceanographic_sensors_c0024",
+            "oceanographic_sensors_c0025",
+            "oceanographic_sensors_c0033",
+            "oceanographic_sensors_c0034",
+            "oceanographic_sensors_c0037",
+            "zk_proofs_c0010",
+            "zk_proofs_c0020",
+            "zk_proofs_c0021",
+            "zk_proofs_c0027",
+            "zk_proofs_c0031",
+            "zk_proofs_c0032",
+            "zk_proofs_c0033",
+            "zk_proofs_c0034",
+            "zk_proofs_c0039",
+            "zk_proofs_c0043",
+            "zk_proofs_c0044",
+            "zk_proofs_c0045",
+            "zk_proofs_c0046",
+            "zk_proofs_c0047",
+            "zk_proofs_c0048",
+            "zk_proofs_c0049",
+            "zk_proofs_c0050",
+            "zk_proofs_c0051",
+            "zk_proofs_c0053",
+            "zk_proofs_c0057",
+            "zk_proofs_c0062",
+            "zk_proofs_c0063",
+            "zk_proofs_c0064",
+            "zk_proofs_c0067"
+          ],
+          "bait_rejection": 0.861111111111111,
+          "docs": 10,
+          "per_doc": {
+            "bft-networking": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.6181818181818182,
+              "precision_proxy": 0.6119402985074627,
+              "atomicity": 1.2181818181818183,
+              "parse_failures": 2,
+              "recalled": 34,
+              "missed_claim_ids": [
+                "bft_networking_c0019",
+                "bft_networking_c0020",
+                "bft_networking_c0022",
+                "bft_networking_c0024",
+                "bft_networking_c0026",
+                "bft_networking_c0028",
+                "bft_networking_c0034",
+                "bft_networking_c0035",
+                "bft_networking_c0036",
+                "bft_networking_c0037",
+                "bft_networking_c0038",
+                "bft_networking_c0039",
+                "bft_networking_c0040",
+                "bft_networking_c0041",
+                "bft_networking_c0042",
+                "bft_networking_c0044",
+                "bft_networking_c0045",
+                "bft_networking_c0046",
+                "bft_networking_c0047",
+                "bft_networking_c0051",
+                "bft_networking_c0055"
+              ]
+            },
+            "compiler-ir-design": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.813953488372093,
+              "precision_proxy": 0.5974025974025974,
+              "atomicity": 1.7906976744186047,
+              "parse_failures": 1,
+              "recalled": 35,
+              "missed_claim_ids": [
+                "compiler_ir_design_c0021",
+                "compiler_ir_design_c0022",
+                "compiler_ir_design_c0024",
+                "compiler_ir_design_c0025",
+                "compiler_ir_design_c0030",
+                "compiler_ir_design_c0031",
+                "compiler_ir_design_c0032",
+                "compiler_ir_design_c0033"
+              ]
+            },
+            "distributed-consensus": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.6142857142857143,
+              "precision_proxy": 0.6521739130434783,
+              "atomicity": 0.9857142857142858,
+              "parse_failures": 3,
+              "recalled": 43,
+              "missed_claim_ids": [
+                "distributed_consensus_c0004",
+                "distributed_consensus_c0005",
+                "distributed_consensus_c0009",
+                "distributed_consensus_c0012",
+                "distributed_consensus_c0023",
+                "distributed_consensus_c0026",
+                "distributed_consensus_c0032",
+                "distributed_consensus_c0033",
+                "distributed_consensus_c0034",
+                "distributed_consensus_c0035",
+                "distributed_consensus_c0040",
+                "distributed_consensus_c0041",
+                "distributed_consensus_c0044",
+                "distributed_consensus_c0045",
+                "distributed_consensus_c0046",
+                "distributed_consensus_c0047",
+                "distributed_consensus_c0048",
+                "distributed_consensus_c0049",
+                "distributed_consensus_c0050",
+                "distributed_consensus_c0052",
+                "distributed_consensus_c0054",
+                "distributed_consensus_c0055",
+                "distributed_consensus_c0056",
+                "distributed_consensus_c0057",
+                "distributed_consensus_c0066",
+                "distributed_consensus_c0067",
+                "distributed_consensus_c0068"
+              ]
+            },
+            "embedded-rtos": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.8048780487804879,
+              "precision_proxy": 0.5666666666666667,
+              "atomicity": 1.4634146341463414,
+              "parse_failures": 0,
+              "recalled": 33,
+              "missed_claim_ids": [
+                "embedded_rtos_c0004",
+                "embedded_rtos_c0007",
+                "embedded_rtos_c0011",
+                "embedded_rtos_c0024",
+                "embedded_rtos_c0032",
+                "embedded_rtos_c0033",
+                "embedded_rtos_c0034",
+                "embedded_rtos_c0039"
+              ]
+            },
+            "formal-verification": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.6981132075471698,
+              "precision_proxy": 0.5657894736842105,
+              "atomicity": 1.4339622641509433,
+              "parse_failures": 0,
+              "recalled": 37,
+              "missed_claim_ids": [
+                "formal_verification_c0009",
+                "formal_verification_c0017",
+                "formal_verification_c0022",
+                "formal_verification_c0026",
+                "formal_verification_c0028",
+                "formal_verification_c0029",
+                "formal_verification_c0032",
+                "formal_verification_c0033",
+                "formal_verification_c0039",
+                "formal_verification_c0040",
+                "formal_verification_c0041",
+                "formal_verification_c0042",
+                "formal_verification_c0045",
+                "formal_verification_c0046",
+                "formal_verification_c0047",
+                "formal_verification_c0052"
+              ]
+            },
+            "gpu-scheduling": {
+              "gate_pass_rate": 0.9824561403508771,
+              "recall": 0.7317073170731707,
+              "precision_proxy": 0.5892857142857143,
+              "atomicity": 1.3658536585365855,
+              "parse_failures": 0,
+              "recalled": 30,
+              "missed_claim_ids": [
+                "gpu_scheduling_c0007",
+                "gpu_scheduling_c0012",
+                "gpu_scheduling_c0017",
+                "gpu_scheduling_c0022",
+                "gpu_scheduling_c0024",
+                "gpu_scheduling_c0028",
+                "gpu_scheduling_c0033",
+                "gpu_scheduling_c0034",
+                "gpu_scheduling_c0035",
+                "gpu_scheduling_c0037",
+                "gpu_scheduling_c0039"
+              ]
+            },
+            "lsm-storage-engines": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.631578947368421,
+              "precision_proxy": 0.5138888888888888,
+              "atomicity": 1.263157894736842,
+              "parse_failures": 1,
+              "recalled": 36,
+              "missed_claim_ids": [
+                "lsm_storage_engines_c0024",
+                "lsm_storage_engines_c0027",
+                "lsm_storage_engines_c0028",
+                "lsm_storage_engines_c0029",
+                "lsm_storage_engines_c0030",
+                "lsm_storage_engines_c0031",
+                "lsm_storage_engines_c0036",
+                "lsm_storage_engines_c0037",
+                "lsm_storage_engines_c0038",
+                "lsm_storage_engines_c0039",
+                "lsm_storage_engines_c0040",
+                "lsm_storage_engines_c0041",
+                "lsm_storage_engines_c0042",
+                "lsm_storage_engines_c0043",
+                "lsm_storage_engines_c0044",
+                "lsm_storage_engines_c0046",
+                "lsm_storage_engines_c0047",
+                "lsm_storage_engines_c0048",
+                "lsm_storage_engines_c0049",
+                "lsm_storage_engines_c0053",
+                "lsm_storage_engines_c0057"
+              ]
+            },
+            "mempool-design": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.7258064516129032,
+              "precision_proxy": 0.5444444444444444,
+              "atomicity": 1.4516129032258065,
+              "parse_failures": 1,
+              "recalled": 45,
+              "missed_claim_ids": [
+                "mempool_design_c0024",
+                "mempool_design_c0026",
+                "mempool_design_c0028",
+                "mempool_design_c0030",
+                "mempool_design_c0031",
+                "mempool_design_c0040",
+                "mempool_design_c0043",
+                "mempool_design_c0044",
+                "mempool_design_c0045",
+                "mempool_design_c0046",
+                "mempool_design_c0047",
+                "mempool_design_c0048",
+                "mempool_design_c0050",
+                "mempool_design_c0051",
+                "mempool_design_c0053",
+                "mempool_design_c0057",
+                "mempool_design_c0062"
+              ]
+            },
+            "oceanographic-sensors": {
+              "gate_pass_rate": 0.9824561403508771,
+              "recall": 0.6666666666666666,
+              "precision_proxy": 0.5714285714285714,
+              "atomicity": 1.3333333333333333,
+              "parse_failures": 1,
+              "recalled": 28,
+              "missed_claim_ids": [
+                "oceanographic_sensors_c0003",
+                "oceanographic_sensors_c0004",
+                "oceanographic_sensors_c0005",
+                "oceanographic_sensors_c0006",
+                "oceanographic_sensors_c0009",
+                "oceanographic_sensors_c0012",
+                "oceanographic_sensors_c0019",
+                "oceanographic_sensors_c0022",
+                "oceanographic_sensors_c0023",
+                "oceanographic_sensors_c0024",
+                "oceanographic_sensors_c0025",
+                "oceanographic_sensors_c0033",
+                "oceanographic_sensors_c0034",
+                "oceanographic_sensors_c0037"
+              ]
+            },
+            "zk-proofs": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.6417910447761194,
+              "precision_proxy": 0.5555555555555556,
+              "atomicity": 1.208955223880597,
+              "parse_failures": 3,
+              "recalled": 43,
+              "missed_claim_ids": [
+                "zk_proofs_c0010",
+                "zk_proofs_c0020",
+                "zk_proofs_c0021",
+                "zk_proofs_c0027",
+                "zk_proofs_c0031",
+                "zk_proofs_c0032",
+                "zk_proofs_c0033",
+                "zk_proofs_c0034",
+                "zk_proofs_c0039",
+                "zk_proofs_c0043",
+                "zk_proofs_c0044",
+                "zk_proofs_c0045",
+                "zk_proofs_c0046",
+                "zk_proofs_c0047",
+                "zk_proofs_c0048",
+                "zk_proofs_c0049",
+                "zk_proofs_c0050",
+                "zk_proofs_c0051",
+                "zk_proofs_c0053",
+                "zk_proofs_c0057",
+                "zk_proofs_c0062",
+                "zk_proofs_c0063",
+                "zk_proofs_c0064",
+                "zk_proofs_c0067"
+              ]
+            }
+          },
+          "backend_stats": {
+            "calls": 166,
+            "prompt_tokens": 185237,
+            "completion_tokens": 408638,
+            "seconds": 2171.673331700731
+          }
+        }
+      }
+    },
+    "wiki_write": {
+      "model": "gemma4:12b",
+      "per_chunk": {
+        "compiler-ir-design#c015": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "embedded-rtos#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c011": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c020": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c017": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c005": {
+          "runs": 5,
+          "passes": 0,
+          "rate": 0.0,
+          "ci95": [
+            0.0,
+            0.434
+          ],
+          "errors": [
+            "CitationError: model cited unknown claim ids after retry: ['mempool_design_c010']",
+            "CitationError: model cited unknown claim ids after retry: ['mempool_design_c010']",
+            "CitationError: model cited unknown claim ids after retry: ['mempool_design_c010']"
+          ]
+        },
+        "gpu-scheduling#c010": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "bft-networking#c014": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c023": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        }
+      },
+      "mean_pass_rate": 0.9,
+      "mean_coverage": 0.962962962962963,
+      "bare_marker_rate": 0.0,
+      "marker_counts": {
+        "bare": 0,
+        "prefixed": 167
+      }
+    },
+    "synthesize": {
+      "model": "gemma4:31b",
+      "per_chunk": {
+        "compiler-ir-design#c015": {
+          "runs": 5,
+          "passes": 3,
+          "rate": 0.6,
+          "ci95": [
+            0.231,
+            0.882
+          ],
+          "errors": [
+            "ValueError: synthesis cites 0/2 supplied claims (coverage 0.00 < 0.3)",
+            "ValueError: synthesis cites 0/2 supplied claims (coverage 0.00 < 0.3)"
+          ]
+        },
+        "embedded-rtos#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c011": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c020": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c017": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c005": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c010": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "bft-networking#c014": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c023": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        }
+      },
+      "mean_pass_rate": 0.96,
+      "mean_coverage": 0.9930555555555555,
+      "bare_marker_rate": 0.0,
+      "marker_counts": {
+        "bare": 0,
+        "prefixed": 153
+      }
+    },
+    "conflict_adjudicate": {
+      "model": "gemma4:31b",
+      "accuracy": 1.0,
+      "n_pairs": 12,
+      "schema_valid": 12,
+      "schema_invalid": 0,
+      "parse_failures": 0,
+      "adjudicate_protocol": "pair-claims-v2",
+      "pair_warnings": []
+    }
+  }
+}

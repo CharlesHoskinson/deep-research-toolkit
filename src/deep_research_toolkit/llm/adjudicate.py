@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from .response import parse_json_block
+from .response import has_repetition_loop, parse_json_block
 
 VERDICTS = ("contradiction", "not_contradiction", "insufficient_evidence")
 
@@ -87,6 +87,8 @@ def adjudicate_candidates(candidates: list[dict], backend,
                 problems.append("relation_ids empty")
             if not (row.get("rationale") or "").strip():
                 problems.append("empty rationale")
+            if has_repetition_loop(row.get("rationale") or ""):
+                problems.append("rationale degenerated into repetition")
             if cand is not None and key in seen_keys and not problems:
                 problems.append("duplicate verdict for this candidate")
             if problems:

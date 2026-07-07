@@ -185,6 +185,45 @@ def test_extract_retries_failed_batch_by_splitting(tmp_path):
     assert result["written"] == 2 and result["parse_failures"] == 0  # the split recovered both
 
 
+def test_extract_retry_batches_get_failure_note_and_temperature(tmp_path):
+    # A full 2-chunk batch fails to parse; each halved 1-chunk retry batch must
+    # carry the parse-failure note appended to its user prompt and a temperature
+    # override, per the retry-mutation contract (identical-prompt retries
+    # reproduce identical failures).
+    run = tmp_path / "research-runs" / "src-rn"
+    run.mkdir(parents=True)
+    with open(run / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps({"node_id": "src-rn:c01", "text": "Alpha fact."}) + "\n")
+        f.write(json.dumps({"node_id": "src-rn:c02", "text": "Beta fact."}) + "\n")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+
+    class _FailOnce:
+        def __init__(self):
+            self.calls = []
+
+        def complete(self, system, user, **kw):
+            self.calls.append((user, kw))
+            if len(self.calls) == 1:
+                return "garbage, no json object at all"
+            cid, q = ("src-rn:c01", "Alpha fact") if "src-rn:c01" in user else ("src-rn:c02", "Beta fact")
+            return "<output>" + json.dumps({
+                "claims": [{"claim_id": "c1", "claim": q,
+                            "supporting_evidence": [{"locator": cid, "quote": q, "url": None}]}],
+                "entities": [], "relations": []}) + "</output>"
+
+    backend = _FailOnce()
+    result = extract_claims_to_run(run, "web", cfg, backend, batch_size=2)
+    assert result["written"] == 2 and result["parse_failures"] == 0
+    assert len(backend.calls) == 3
+    first_user, first_kw = backend.calls[0]
+    assert "NOTE: a previous attempt" not in first_user
+    assert first_kw.get("temperature") is None
+    for retry_user, retry_kw in backend.calls[1:]:
+        assert "NOTE: a previous attempt on these chunks failed to parse as the required JSON. " \
+               "Emit ONLY the contract JSON." in retry_user
+        assert retry_kw.get("temperature") == 0.25
+
+
 def test_extract_ambiguous_abbreviated_id_is_not_resolved(tmp_path):
     run = tmp_path / "research-runs" / "src-am"
     run.mkdir(parents=True)
@@ -219,6 +258,32 @@ def test_extract_tolerates_bare_string_claims(tmp_path):
     })
     result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
     assert result["written"] == 1 and result["entities"] == 1  # only the well-formed items survive
+
+
+def test_extract_tolerates_bare_string_evidence_rows(tmp_path):
+    # Measured live (gemma4:26b, 2026-07-07): a claim object whose
+    # supporting_evidence list holds a bare STRING instead of an evidence
+    # object. A malformed evidence row can't pass the verbatim gate, so the
+    # claim is dropped -- never a crash.
+    run = tmp_path / "research-runs" / "src-e"
+    run.mkdir(parents=True)
+    (run / "source.md").write_text("Snails are molluscs.", encoding="utf-8")
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-e:c01", "text": "Snails are molluscs."}) + "\n",
+                                      encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps({
+        "claims": [
+            {"claim_id": "c1", "claim": "bad evidence row",
+             "supporting_evidence": ["Snails are molluscs"]},  # string, not object
+            {"claim_id": "c2", "claim": "good",
+             "supporting_evidence": [{"locator": "src-e:c01", "quote": "Snails are molluscs", "url": None}]},
+        ],
+        "entities": [], "relations": [],
+    })
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend(payload))
+    written = [json.loads(line) for line in (run / "claims.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    assert [c["claim_id"] for c in written] == ["c2"]
+    assert result["dropped"] == ["c1"] and result["written"] == 1
 
 
 def test_extract_batches_sources_and_merges_entities(tmp_path):

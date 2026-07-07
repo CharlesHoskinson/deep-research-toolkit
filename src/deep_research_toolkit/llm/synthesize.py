@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from .response import normalize_claim_markers, unfence, validate_citations
+from .response import generate_cited
 from .wiki import CitationError
 
 _SYSTEM = """You write the synthesis section of an evidence dossier.
@@ -22,6 +22,9 @@ OUTPUT CONTRACT:
   markers referencing the supplied claims -- the literal claim: prefix is
   required; [<claim_id>] alone is wrong. Do not invent ids.
 - If the claims cannot answer the question, say exactly what is missing.
+- Example of a correctly cited sentence: "Settlement is final once all
+  parties sign [claim:b00_c_0008]." (illustrative id -- cite only ids that
+  appear in the supplied claims)
 """
 
 _CORRECTION = (
@@ -29,14 +32,20 @@ _CORRECTION = (
     "claim_ids may appear in [claim:...] markers. Rewrite the full synthesis."
 )
 
+_LOW_COVERAGE_CORRECTION = (
+    "Your previous reply cited only {n}/{total} of the supplied claims. Rewrite "
+    "the full {kind}, grounding every factual sentence in a supplied claim marker."
+)
+
 
 def synthesize_thesis(question: str, dossier: dict, backend,
                       min_coverage: float = 0.3) -> dict:
     """Returns {"thesis": str, "citations": validate_citations report}.
 
-    Raises CitationError if the model cites unknown ids twice; ValueError on
-    an empty dossier or when the accepted thesis's coverage falls below
-    min_coverage."""
+    Raises CitationError when the model cites unknown ids after a retry;
+    ValueError on an empty dossier, when coverage still falls below
+    min_coverage after one low-coverage retry, or when a reply degenerates
+    into repetition (raised by the shared loop guard)."""
     included = dossier.get("included") or []
     if not included:
         raise ValueError("dossier has no included claims -- nothing to synthesize")
@@ -45,19 +54,10 @@ def synthesize_thesis(question: str, dossier: dict, backend,
              "quotes": [e.get("quote") for e in (c.get("evidence") or [])]}
             for c in included]
     user = f"QUESTION: {question}\n\nINCLUDED CLAIMS:\n" + json.dumps(rows, ensure_ascii=False, indent=1)
-    thesis = normalize_claim_markers(unfence(backend.complete(_SYSTEM, user)), allowed)
-    report = validate_citations(thesis, allowed)
-    if report["unknown"]:
-        thesis = normalize_claim_markers(
-            unfence(backend.complete(
-                _SYSTEM, user + "\n\n" + _CORRECTION.format(bad=", ".join(report["unknown"])))),
-            allowed)
-        report = validate_citations(thesis, allowed)
-        if report["unknown"]:
-            raise CitationError(f"model cited unknown claim ids after retry: {report['unknown']}")
-    if report["coverage"] < min_coverage:
-        raise ValueError(
-            f"synthesis cites {len(report['cited'])}/{len(allowed)} included claims "
-            f"(coverage {report['coverage']:.2f} < {min_coverage})"
-        )
-    return {"thesis": thesis, "citations": report}
+    out = generate_cited(
+        backend, _SYSTEM, user, allowed,
+        min_coverage=min_coverage, kind="synthesis",
+        correction_unknown=_CORRECTION,
+        correction_low_coverage=_LOW_COVERAGE_CORRECTION,
+        citation_error=CitationError)
+    return {"thesis": out["text"], "citations": out["citations"]}

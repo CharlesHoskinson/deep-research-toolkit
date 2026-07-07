@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "bft-networking",
+  "title": "Halcyon: An Erasure-Coded Byzantine Fault Tolerant Networking Layer",
+  "source_url": "https://example.org/eval-corpus/bft-networking",
+  "content_hash": "sha256:e58e1eacb304b7b5",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 19
+}

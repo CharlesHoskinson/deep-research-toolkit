@@ -1,0 +1,1243 @@
+{
+  "chunks": {
+    "distributed-consensus#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c017": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c018": {
+      "slices": [
+        "math"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c019": {
+      "slices": [
+        "math"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c020": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c021": {
+      "slices": [
+        "long"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c022": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "distributed-consensus#c023": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "distributed-consensus"
+    },
+    "zk-proofs#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c017": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c018": {
+      "slices": [
+        "math"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c019": {
+      "slices": [
+        "math"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c020": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c021": {
+      "slices": [
+        "long"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c022": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "zk-proofs"
+    },
+    "zk-proofs#c023": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "zk-proofs"
+    },
+    "mempool-design#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c017": {
+      "slices": [
+        "math"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c018": {
+      "slices": [
+        "math"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c019": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c021": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "mempool-design"
+    },
+    "mempool-design#c022": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "mempool-design"
+    },
+    "lsm-storage-engines#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c016": {
+      "slices": [
+        "math"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c017": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "lsm-storage-engines#c020": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "lsm-storage-engines"
+    },
+    "bft-networking#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c012": {
+      "slices": [
+        "list"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c015": {
+      "slices": [
+        "math"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c016": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "bft-networking"
+    },
+    "bft-networking#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "bft-networking"
+    },
+    "formal-verification#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c012": {
+      "slices": [
+        "list"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c015": {
+      "slices": [
+        "math"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c016": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "formal-verification"
+    },
+    "formal-verification#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "formal-verification"
+    },
+    "gpu-scheduling#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c011": {
+      "slices": [
+        "list"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c014": {
+      "slices": [
+        "long"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "gpu-scheduling#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "gpu-scheduling"
+    },
+    "embedded-rtos#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c011": {
+      "slices": [
+        "list"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c014": {
+      "slices": [
+        "long"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "embedded-rtos#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "embedded-rtos"
+    },
+    "compiler-ir-design#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c011": {
+      "slices": [
+        "list"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c014": {
+      "slices": [
+        "long"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "compiler-ir-design#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "compiler-ir-design"
+    },
+    "oceanographic-sensors#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c011": {
+      "slices": [
+        "list"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c014": {
+      "slices": [
+        "long"
+      ],
+      "doc": "oceanographic-sensors"
+    },
+    "oceanographic-sensors#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "oceanographic-sensors"
+    }
+  },
+  "contradiction_pairs": [
+    {
+      "a": "distributed-consensus#c010",
+      "b": "bft-networking#c008",
+      "claim_a": "distributed_consensus_c0023",
+      "claim_b": "bft_networking_c0017",
+      "verdict": "contradiction",
+      "note": "MCB v2 release year: 2020 vs 2021"
+    },
+    {
+      "a": "distributed-consensus#c011",
+      "b": "oceanographic-sensors#c007",
+      "claim_a": "distributed_consensus_c0026",
+      "claim_b": "oceanographic_sensors_c0013",
+      "verdict": "contradiction",
+      "note": "Neptune-9 array deployment year: 2016 vs 2018"
+    },
+    {
+      "a": "zk-proofs#c011",
+      "b": "mempool-design#c010",
+      "claim_a": "zk_proofs_c0025",
+      "claim_b": "mempool_design_c0022",
+      "verdict": "contradiction",
+      "note": "Sable mainnet launch year: 2022 vs 2020"
+    },
+    {
+      "a": "zk-proofs#c010",
+      "b": "formal-verification#c008",
+      "claim_a": "zk_proofs_c0022",
+      "claim_b": "formal_verification_c0017",
+      "verdict": "contradiction",
+      "note": "Same formally verified Groth-Delta-style ceremony study: 199 vs 175 participants"
+    },
+    {
+      "a": "mempool-design#c009",
+      "b": "compiler-ir-design#c009",
+      "claim_a": "mempool_design_c0019",
+      "claim_b": "compiler_ir_design_c0019",
+      "verdict": "contradiction",
+      "note": "Helios minimum relay fee: 1,000 vs 1,500 fee units"
+    },
+    {
+      "a": "lsm-storage-engines#c009",
+      "b": "gpu-scheduling#c008",
+      "claim_a": "lsm_storage_engines_c0019",
+      "claim_b": "gpu_scheduling_c0017",
+      "verdict": "not_contradiction",
+      "note": "ALCB dataset 2.1 vs 1.8 TB: gpu text version-scopes its figure and attributes variance to dataset regeneration between suite versions -- reconcilable"
+    },
+    {
+      "a": "lsm-storage-engines#c010",
+      "b": "gpu-scheduling#c007",
+      "claim_a": "lsm_storage_engines_c0022",
+      "claim_b": "gpu_scheduling_c0015",
+      "verdict": "not_contradiction",
+      "note": "Tessera concurrent-kernel ceiling 96 vs 128: as-configured-for-the-study vs current release -- version-scoped and consistent"
+    },
+    {
+      "a": "bft-networking#c009",
+      "b": "embedded-rtos#c008",
+      "claim_a": "bft_networking_c0020",
+      "claim_b": "embedded_rtos_c0017",
+      "verdict": "contradiction",
+      "note": "RTOS-Cert Level 4 task jitter bound: 80 vs 50 microseconds"
+    },
+    {
+      "a": "formal-verification#c009",
+      "b": "compiler-ir-design#c008",
+      "claim_a": "formal_verification_c0020",
+      "claim_b": "compiler_ir_design_c0016",
+      "verdict": "contradiction",
+      "note": "CIRWG v1 ratification year: 2019 vs 2021"
+    },
+    {
+      "a": "gpu-scheduling#c009",
+      "b": "embedded-rtos#c009",
+      "claim_a": "gpu_scheduling_c0020",
+      "claim_b": "embedded_rtos_c0020",
+      "verdict": "not_contradiction",
+      "note": "Zephyx latest version 4.4 vs 4.2: both are 'as of' each project's own report date -- differently dated observations, not a conflict"
+    },
+    {
+      "a": "formal-verification#c009",
+      "b": "compiler-ir-design#c001",
+      "claim_a": "formal_verification_c0050",
+      "claim_b": "compiler_ir_design_c0041",
+      "verdict": "contradiction",
+      "note": "CIRWG v1 core IR operation count: 42 vs 56"
+    },
+    {
+      "a": "distributed-consensus#c011",
+      "b": "oceanographic-sensors#c014",
+      "claim_a": "distributed_consensus_c0066",
+      "claim_b": "oceanographic_sensors_c0040",
+      "verdict": "contradiction",
+      "note": "Neptune-9 production array size: 300 vs 340 buoys"
+    }
+  ],
+  "bait_sources": {
+    "distributed-consensus#c022": "distributed-consensus#c002",
+    "distributed-consensus#c023": "distributed-consensus#c008",
+    "zk-proofs#c022": "zk-proofs#c001",
+    "zk-proofs#c023": "zk-proofs#c008",
+    "mempool-design#c021": "mempool-design#c001",
+    "mempool-design#c022": "mempool-design#c009",
+    "lsm-storage-engines#c019": "lsm-storage-engines#c001",
+    "lsm-storage-engines#c020": "lsm-storage-engines#c009",
+    "bft-networking#c018": "bft-networking#c001",
+    "bft-networking#c019": "bft-networking#c008",
+    "formal-verification#c018": "formal-verification#c001",
+    "formal-verification#c019": "formal-verification#c007",
+    "gpu-scheduling#c015": "gpu-scheduling#c001",
+    "embedded-rtos#c015": "embedded-rtos#c001",
+    "compiler-ir-design#c015": "compiler-ir-design#c001",
+    "oceanographic-sensors#c015": "oceanographic-sensors#c001"
+  },
+  "corpus_version": "sha256:d42ff7147f435997fc318e070681536474e4b77a575fc86464ec083cc5e36452"
+}

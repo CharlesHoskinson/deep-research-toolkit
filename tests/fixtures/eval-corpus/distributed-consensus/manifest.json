@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "distributed-consensus",
+  "title": "Solstice: A Committee-Based Byzantine Fault Tolerant Consensus Protocol",
+  "source_url": "https://example.org/eval-corpus/distributed-consensus",
+  "content_hash": "sha256:973808f4ea7829b4",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 23
+}

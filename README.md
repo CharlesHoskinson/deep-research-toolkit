@@ -1260,6 +1260,29 @@ truncates it mid-thought -- and keep the documented sampling
 (`temperature` 0.6, `top_p` 0.95, `top_k` 20): lowering the temperature
 for "determinism" backfires into repetition on this model family.
 
+**Serving knobs that matter.** A handful of Ollama settings change
+measured behavior enough to call out on their own:
+
+- `keep_alive -1` (or another long duration) keeps the model and its
+  prefix cache resident between calls during batch runs -- the default
+  five-minute idle timeout unloads it silently.
+- `OLLAMA_MAX_LOADED_MODELS` decides how many models stay resident
+  when role-routing hops across e4b/12b/31b: on 32 GB, e4b and 12b
+  co-reside comfortably, but adding 31b does not -- budget accordingly,
+  or every role switch reloads a model from disk.
+- `OLLAMA_FLASH_ATTENTION=0` works around the 31B long-prompt hang
+  (ollama/ollama#15368: hybrid 256/512-dim attention heads mishandled)
+  at a throughput cost -- roughly 15 tok/s reported.
+- `OLLAMA_NUM_PARALLEL=2-4` raises aggregate throughput for
+  high-volume extraction, but only with VRAM headroom to spare --
+  each parallel slot multiplies KV-cache memory.
+- Context ceilings are real, not theoretical: measured on Ollama
+  0.31.1, Gemma 4 prompts of 20.7k tokens processed fully at defaults
+  while ~41k-token prompts were silently truncated. That budget is
+  shared with the output side (`max_tokens`), so keep any single
+  call's prompt under ~16k tokens; the live canary suite
+  (`tests/live/`) tracks the measured ceiling across upgrades.
+
 Embeddings are a separate axis, set by `llm.embedding_model` and routed
 by the shape of the name: a plain sentence-transformers name
 (`all-MiniLM-L6-v2`, the default) runs through sentence-transformers,

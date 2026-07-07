@@ -86,6 +86,23 @@ def test_object_wrapped_array_is_unwrapped():
     assert len(out["verdicts"]) == 1
 
 
+def test_looping_rationale_row_is_invalid_but_clean_row_is_kept():
+    # One parseable reply: row 1's rationale degenerated into a >=40-word loop,
+    # row 2 is clean -- row-level gating keeps the clean verdict.
+    reply = _reply([
+        {"subject": "praos", "predicate": "introduced_in", "verdict": "contradiction",
+         "rationale": "years differ " * 25, "relation_ids": ["r1", "r2"]},
+        {"subject": "ouroboros", "predicate": "extends", "verdict": "not_contradiction",
+         "rationale": "extensions coexist", "relation_ids": ["r3"]},
+    ])
+    out = adjudicate_candidates(CANDS2, StubBackend(reply))
+    assert out["parse_failures"] == 0
+    assert len(out["verdicts"]) == 1
+    assert out["verdicts"][0]["subject"] == "ouroboros"
+    assert len(out["invalid"]) == 1
+    assert "repetition" in out["invalid"][0]["reason"]
+
+
 def test_batching_isolates_parse_failures():
     class PerCallBackend:
         def __init__(self, replies):

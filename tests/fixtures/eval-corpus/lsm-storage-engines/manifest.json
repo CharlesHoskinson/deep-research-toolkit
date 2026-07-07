@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "lsm-storage-engines",
+  "title": "Anvil: A Configurable Log-Structured Merge-Tree Storage Engine",
+  "source_url": "https://example.org/eval-corpus/lsm-storage-engines",
+  "content_hash": "sha256:649110114a8800eb",
+  "fetched_at": "2026-01-15T00:00:00Z",
+  "chunk_count": 20
+}

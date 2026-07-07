@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -30,7 +33,8 @@ class LocalOpenAIBackend:
     def __init__(self, base_url: str, model: str, api_key: str,
                  temperature: float, top_p: float, top_k: int,
                  max_tokens: int = 16000, thinking: bool = True,
-                 response_format: str | dict | None = None) -> None:
+                 response_format: str | dict | None = None,
+                 trace_path: Path | None = None, role: str | None = None) -> None:
         self.base_url = base_url
         self.model = model
         self.api_key = api_key
@@ -48,6 +52,11 @@ class LocalOpenAIBackend:
         # "json" -> OpenAI json_object mode (grammar-constrained valid JSON); a
         # dict is passed through as a full response_format (e.g. json_schema).
         self.response_format = response_format
+        # Opt-in per-call JSONL ledger (OTel GenAI field names, no OTel
+        # dependency) -- None disables tracing entirely. `role` is the pipeline
+        # phase (e.g. "extract"), recorded alongside each line for join-back.
+        self.trace_path = trace_path
+        self.role = role
         self._client = None
         # Cumulative usage over this backend's lifetime; read by the eval
         # harness to report cost/latency per model. Never reset internally.
@@ -98,10 +107,37 @@ class LocalOpenAIBackend:
         import time
         t0 = time.perf_counter()
         resp = self._client_complete(system, user, **sampling)
+        elapsed = time.perf_counter() - t0
         self.stats["calls"] += 1
-        self.stats["seconds"] += time.perf_counter() - t0
+        self.stats["seconds"] += elapsed
         usage = getattr(resp, "usage", None)
+        prompt_tokens = 0
+        completion_tokens = 0
         if usage is not None:
-            self.stats["prompt_tokens"] += getattr(usage, "prompt_tokens", 0) or 0
-            self.stats["completion_tokens"] += getattr(usage, "completion_tokens", 0) or 0
-        return strip_think(resp.choices[0].message.content or "")
+            prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+            self.stats["prompt_tokens"] += prompt_tokens
+            self.stats["completion_tokens"] += completion_tokens
+        content = strip_think(resp.choices[0].message.content or "")
+        if self.trace_path is not None:
+            self._write_trace(elapsed, prompt_tokens, completion_tokens, content)
+        return content
+
+    def _write_trace(self, elapsed: float, prompt_tokens: int,
+                     completion_tokens: int, content: str) -> None:
+        """Append one JSONL ledger line for a completed call. A trace failure
+        must never break a call, so every error is swallowed."""
+        try:
+            row = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "gen_ai.request.model": self.model,
+                "gen_ai.usage.input_tokens": prompt_tokens,
+                "gen_ai.usage.output_tokens": completion_tokens,
+                "latency_s": elapsed,
+                "role": self.role,
+                "ok": bool(content),
+            }
+            with open(self.trace_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except Exception:  # noqa: BLE001 -- tracing is best-effort by contract
+            pass
