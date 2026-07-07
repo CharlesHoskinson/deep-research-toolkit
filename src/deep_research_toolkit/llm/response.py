@@ -35,6 +35,26 @@ def normalize_claim_markers(text: str, allowed_ids: list[str]) -> str:
     return bare.sub(r"[claim:\1]", text)
 
 
+def allowed_ids_block(allowed_ids: list[str]) -> str:
+    """Fenced closed-set note for a prose role's task prompt: the enum of
+    citable ids plus one positive and one decline exemplar. This is the
+    prompt-side lever against invented ids (the mempool-design#c005 failure
+    mode); validate_citations in generate_cited stays the mechanical
+    backstop that guarantees correctness regardless of the model."""
+    ids = [str(i) for i in allowed_ids if i]
+    example_id = ids[0] if ids else "<id>"
+    return (
+        "```\n"
+        "Valid claim ids (cite ONLY these, in [claim:<id>] form):\n"
+        f"  {', '.join(ids)}\n"
+        "Example -- cite a listed id that supports the sentence: "
+        f'"Fees rise under load [claim:{example_id}]."\n'
+        "Example -- if no listed id supports a sentence, write it WITHOUT a "
+        "citation; never invent an id.\n"
+        "```"
+    )
+
+
 def extract_claim_ids(text: str) -> list[str]:
     seen: dict[str, None] = {}
     for m in CLAIM_MARKER_RE.finditer(text):

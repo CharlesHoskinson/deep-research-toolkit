@@ -39,6 +39,17 @@ def test_unknown_id_retries_then_raises():
     assert "c9" in backend.calls[1][1]
 
 
+def test_task_prompt_carries_allowed_id_enum_and_exemplars():
+    reply = "Praos, introduced in 2018 [claim:c1], tolerates delays [claim:c2]."
+    backend = StubBackend([reply])
+    synthesize_thesis("q", DOSSIER, backend)
+    user = backend.calls[0][1]
+    assert "Valid claim ids (cite ONLY these, in [claim:<id>] form):" in user
+    assert "c1, c2" in user
+    assert "[claim:c1]" in user  # positive exemplar cites a listed id
+    assert "never invent an id" in user  # decline exemplar
+
+
 def test_empty_dossier_is_an_error():
     with pytest.raises(ValueError):
         synthesize_thesis("q", {"included": [], "rejected": []}, StubBackend(["x"]))

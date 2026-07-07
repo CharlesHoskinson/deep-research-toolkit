@@ -36,6 +36,17 @@ def test_unknown_marker_retries_once_then_raises():
     assert "nope" in backend.calls[1][1]  # correction prompt names the bad id
 
 
+def test_task_prompt_carries_allowed_id_enum_and_exemplars():
+    body = "Praos arrived in 2018 [claim:c1] and tolerates delays [claim:c2]."
+    backend = StubBackend([body])
+    write_wiki_body("Praos", "Concept", CLAIMS, backend)
+    user = backend.calls[0][1]
+    assert "Valid claim ids (cite ONLY these, in [claim:<id>] form):" in user
+    assert "c1, c2" in user
+    assert "[claim:c1]" in user  # positive exemplar cites a listed id
+    assert "never invent an id" in user  # decline exemplar
+
+
 def test_empty_claims_is_an_error():
     with pytest.raises(ValueError):
         write_wiki_body("Praos", "Concept", [], StubBackend(["x"]))

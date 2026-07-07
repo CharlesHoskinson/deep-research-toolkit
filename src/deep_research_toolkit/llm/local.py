@@ -49,8 +49,11 @@ class LocalOpenAIBackend:
         # `think` control) -- right for high-volume, well-specified extraction,
         # where a hidden deliberation pass is wasted time.
         self.thinking = thinking
-        # "json" -> OpenAI json_object mode (grammar-constrained valid JSON); a
-        # dict is passed through as a full response_format (e.g. json_schema).
+        # "json" -> OpenAI json_object mode (grammar-constrained valid JSON).
+        # A dict with an OpenAI type (json_object/json_schema/text) is passed
+        # through as a full response_format; any other dict is treated as a
+        # bare JSON schema and wrapped in the json_schema envelope, which
+        # Ollama's compat layer turns into its native `format`.
         self.response_format = response_format
         # Opt-in per-call JSONL ledger (OTel GenAI field names, no OTel
         # dependency) -- None disables tracing entirely. `role` is the pipeline
@@ -100,10 +103,27 @@ class LocalOpenAIBackend:
         if rf == "json":
             kwargs["response_format"] = {"type": "json_object"}
         elif isinstance(rf, dict):
-            kwargs["response_format"] = rf
+            if rf.get("type") in ("text", "json_object", "json_schema"):
+                # Already a full OpenAI response_format -- forward unchanged.
+                kwargs["response_format"] = rf
+            else:
+                # A bare JSON schema. Ollama's OpenAI-compatible endpoint has
+                # no top-level `format` field (unknown body fields are
+                # dropped); its compat layer copies
+                # response_format.json_schema.schema into the native
+                # request's `format`, so ride the same response_format
+                # plumbing "json" mode uses above. vLLM's json_schema
+                # guided decoding accepts the identical envelope.
+                kwargs["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": "response", "schema": rf},
+                }
         return client.chat.completions.create(**kwargs)
 
-    def complete(self, system: str, user: str, **sampling) -> str:
+    def complete(self, system: str, user: str, *,
+                 response_format: str | dict | None = None, **sampling) -> str:
+        if response_format is not None:
+            sampling["response_format"] = response_format
         import time
         t0 = time.perf_counter()
         resp = self._client_complete(system, user, **sampling)
