@@ -40,3 +40,27 @@ def chunk_text_by_locator(run_dir) -> dict[str, str]:
             if cid:
                 out[cid] = chunk.get("text", "")
     return out
+
+
+def slice_span(source_text: str, start: int, end: int) -> str | None:
+    """Return source_text[start:end] iff the span is a valid, non-empty,
+    in-bounds forward slice; else None. The span replaces the free-text quote:
+    a claim points AT its evidence by character offsets instead of copying it,
+    so 'almost a quote' (near-quote bait) cannot be represented at all."""
+    if not isinstance(start, int) or not isinstance(end, int):
+        return None
+    if start < 0 or end > len(source_text) or start >= end:
+        return None
+    return source_text[start:end]
+
+
+def span_ok(start: int, end: int, source_text: str,
+            claimed_quote: str | None = None) -> bool:
+    """The span-contract analogue of verbatim_ok: the span must be in-bounds and
+    non-empty, and if the model also echoed a `quote`, the slice it points at
+    must equal that quote exactly (no near-copy). This is an O(1) slice-compare,
+    not a substring search."""
+    sliced = slice_span(source_text, start, end)
+    if sliced is None:
+        return False
+    return claimed_quote is None or sliced == claimed_quote
