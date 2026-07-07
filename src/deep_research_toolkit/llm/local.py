@@ -64,6 +64,10 @@ class LocalOpenAIBackend:
         # Cumulative usage over this backend's lifetime; read by the eval
         # harness to report cost/latency per model. Never reset internally.
         self.stats = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+        # finish_reason of the most recent call ("stop", "length", ...). Callers
+        # (e.g. extract) read it after complete() to count truncated calls;
+        # None until the first call or when the server omits the field.
+        self.last_finish_reason: str | None = None
 
     def _load_client(self):
         if self._client is None:
@@ -138,7 +142,12 @@ class LocalOpenAIBackend:
             completion_tokens = getattr(usage, "completion_tokens", 0) or 0
             self.stats["prompt_tokens"] += prompt_tokens
             self.stats["completion_tokens"] += completion_tokens
-        content = strip_think(resp.choices[0].message.content or "")
+        choice = resp.choices[0]
+        # "length" means the model hit max_tokens mid-answer -- the silent
+        # truncation this telemetry exists to surface. Guard the read: fakes
+        # and some servers omit the field.
+        self.last_finish_reason = getattr(choice, "finish_reason", None)
+        content = strip_think(choice.message.content or "")
         if self.trace_path is not None:
             self._write_trace(elapsed, prompt_tokens, completion_tokens, content)
         return content
@@ -156,6 +165,7 @@ class LocalOpenAIBackend:
                 "latency_s": elapsed,
                 "role": self.role,
                 "ok": bool(content),
+                "finish_reason": self.last_finish_reason,
             }
             with open(self.trace_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(row) + "\n")

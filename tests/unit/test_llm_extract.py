@@ -343,6 +343,37 @@ def test_extract_reports_parse_failures_on_truncation(tmp_path):
     assert result["written"] == 0 and result["parse_failures"] == 1
 
 
+def test_extract_counts_truncated_calls_across_passes(tmp_path):
+    # A backend that reports finish_reason == "length" on some calls: those
+    # calls are counted into the summary as truncated_calls, aggregated over
+    # every pass (here 2 sample passes over 1 batch -> both calls truncated).
+    run = tmp_path / "research-runs" / "src-t"
+    run.mkdir(parents=True)
+    (run / "chunks.jsonl").write_text(json.dumps(
+        {"node_id": "src-t:c01", "text": "Hydra settles instantly."}) + "\n", encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    payload = json.dumps([  # chunk[6:23] == "settles instantly"
+        {"claim_id": "c1", "claim": "good", "supporting_evidence": [
+            {"locator": "src-t:c01", "start_char": 6, "end_char": 23, "url": None}]}])
+
+    class _Truncating(_FakeBackend):
+        last_finish_reason = "length"
+
+    result = extract_claims_to_run(run, "web", cfg, _Truncating(payload), samples=2)
+    assert result["truncated_calls"] == 2  # one truncated call per pass
+
+
+def test_extract_truncated_calls_zero_without_finish_reason(tmp_path):
+    # A backend with no last_finish_reason attribute (older fakes, other
+    # providers) must not break the counter -- it just stays 0.
+    run = tmp_path / "research-runs" / "src-u"
+    run.mkdir(parents=True)
+    (run / "chunks.jsonl").write_text(json.dumps({"node_id": "src-u:c01", "text": "x"}) + "\n", encoding="utf-8")
+    cfg = SimpleNamespace(pdf_runs_path=tmp_path / "pdf-runs", research_runs_path=tmp_path / "research-runs")
+    result = extract_claims_to_run(run, "web", cfg, _FakeBackend('{"claims": [], "entities": [], "relations": []}'))
+    assert result["truncated_calls"] == 0
+
+
 def test_parse_extraction_reads_output_block_and_ignores_reasoning():
     text = ('<think>I will plan, draft, verify each quote, then emit.</think>\n'
             'Here is the result:\n<output>\n'

@@ -211,7 +211,15 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     bounded batches, drop any claim whose quote is not verbatim in its chunk, and
     write claims.jsonl / entities.jsonl / relations.jsonl into the run directory.
     Returns a summary dict (including ``parse_failures``: batches whose output
-    could not be parsed, usually reasoning-token truncation).
+    could not be parsed, usually reasoning-token truncation, and
+    ``truncated_calls``: calls the backend reported as cut off at max_tokens,
+    i.e. ``finish_reason == "length"``).
+
+    Size ``batch_size`` so a full extract of one batch fits under the
+    backend's max_tokens: right-size num_predict/max_tokens to the batch
+    rather than relying on a fixed cap (e.g. 3000) to be enough. A truncated
+    call amplifies cost -- the halve-and-retry path re-runs the same chunks --
+    so ``truncated_calls`` should stay near zero (<5% of ``batches``).
 
     ``samples`` > 1 runs the whole extraction N times (pass 0 deterministic, each
     later pass at a raised temperature) and UNIONs the gate-passing claims, keeping
@@ -247,6 +255,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
     id_key = "node_id" if producer == "pdf" else "locator"
     dropped: list[dict] = []
     parse_failures = 0
+    truncated_calls = 0  # calls the backend reports as cut off at max_tokens
     batch_list = list(_batches(chunks, max(1, batch_size)))
     multi = len(batch_list) > 1
 
@@ -270,7 +279,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         sets ``retry_on_empty=False`` because an empty claims array is a valid
         answer there, not a parse failure to halve-and-retry. ``pass_no`` gives
         every id this pass mints a unique per-pass tag when running multi-pass."""
-        nonlocal parse_failures, batch_no, multi
+        nonlocal parse_failures, truncated_calls, batch_no, multi
         pass_tag = f"p{pass_no}_" if multipass else ""
         kept: list[dict] = []
         entities_by_id: dict[str, dict] = {}
@@ -289,7 +298,13 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
                 user = user + "\n\n" + _RETRY_NOTE
                 sampling = {"temperature": 0.25}
             sampling = {**sampling, **extra_sampling}
-            parsed = parse_extraction_response(backend.complete(system, user, **sampling))
+            raw = backend.complete(system, user, **sampling)
+            if getattr(backend, "last_finish_reason", None) == "length":
+                # The model hit max_tokens mid-answer: silent truncation that
+                # amplifies cost via the halve-and-retry path. Counted into the
+                # summary as the <5% truncation SLO signal.
+                truncated_calls += 1
+            parsed = parse_extraction_response(raw)
             if not (parsed["claims"] or parsed["entities"] or parsed["relations"]):
                 if not retry_on_empty:
                     continue
@@ -413,6 +428,7 @@ def extract_claims_to_run(run_dir, producer: str, config, backend,
         "relations": len(relations),
         "batches": batch_no,
         "parse_failures": parse_failures,
+        "truncated_calls": truncated_calls,
         "samples": samples,
         "support_filtered": support_filtered,
     }
