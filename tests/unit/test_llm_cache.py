@@ -56,3 +56,66 @@ def test_get_backend_returns_plain_backend_when_cache_off(tmp_path):
     backend = get_backend(cfg)
     assert isinstance(backend, LocalOpenAIBackend)
     assert not isinstance(backend, CachingBackend)
+
+
+class FakeInner:
+    """Mimics LocalOpenAIBackend's constructor-time generation attributes,
+    which callers never pass through **sampling."""
+    def __init__(self, model="m", temperature=0.0, top_p=0.95, top_k=20,
+                 max_tokens=3000, thinking=False, response_format=None):
+        self.model = model
+        self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.max_tokens = max_tokens
+        self.thinking = thinking
+        self.response_format = response_format
+        self.last_finish_reason = None
+        self.calls = 0
+
+    def complete(self, system, user, **kw):
+        self.calls += 1
+        return "REPLY"
+
+
+def test_cache_key_is_config_sensitive(tmp_path):
+    # Two caches sharing one JSONL file, inner backends differing ONLY in a
+    # constructor-time setting (max_tokens) never passed via sampling. A entry
+    # warmed by backend A must NOT be served to backend B.
+    a_inner = FakeInner(max_tokens=3000)
+    b_inner = FakeInner(max_tokens=9000)
+    a = CachingBackend(a_inner, cache_dir=tmp_path, enabled=True, role="extract")
+    a.complete("s", "u", temperature=0.0)
+    assert a_inner.calls == 1
+    b = CachingBackend(b_inner, cache_dir=tmp_path, enabled=True, role="extract")
+    b.complete("s", "u", temperature=0.0)
+    assert b_inner.calls == 1  # miss: differing max_tokens -> different key
+
+    # And response_format likewise participates in the key (via schema).
+    c_inner = FakeInner(response_format="json")
+    c = CachingBackend(c_inner, cache_dir=tmp_path, enabled=True, role="extract")
+    c.complete("s", "u", temperature=0.0)
+    assert c_inner.calls == 1
+
+
+class FinishReasonInner:
+    thinking = False
+    def __init__(self):
+        self.model = "m"
+        self.calls = 0
+        self.last_finish_reason = None
+    def complete(self, system, user, **kw):
+        self.calls += 1
+        self.last_finish_reason = "length"
+        return "REPLY"
+
+
+def test_last_finish_reason_proxies_on_miss_and_resets_on_hit(tmp_path):
+    inner = FinishReasonInner()
+    cb = CachingBackend(inner, cache_dir=tmp_path, enabled=True, role="extract")
+    assert cb.last_finish_reason is None  # initialized
+    cb.complete("s", "u", temperature=0.0)  # MISS -> real inner call
+    assert cb.last_finish_reason == "length"
+    cb.complete("s", "u", temperature=0.0)  # HIT -> no model call this turn
+    assert inner.calls == 1
+    assert cb.last_finish_reason is None
