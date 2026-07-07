@@ -22,6 +22,8 @@ OUTPUT CONTRACT:
   markers referencing the supplied claims -- the literal claim: prefix is
   required; [<claim_id>] alone is wrong. Do not invent ids.
 - If the claims cannot answer the question, say exactly what is missing.
+- Example of a correctly cited sentence: "Settlement is final once all
+  parties sign [claim:b00_c_0008]."
 """
 
 _CORRECTION = (

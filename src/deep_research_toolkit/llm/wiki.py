@@ -24,6 +24,8 @@ OUTPUT CONTRACT:
 - A sentence may carry several markers. Do not invent claim ids.
 - Organize with ## sections when the material warrants it; otherwise a single
   coherent body. Neutral, precise register. No filler.
+- Example of a correctly cited sentence: "The Head settles instantly among
+  participants [claim:b00_c_0002]."
 """
 
 _CORRECTION = (

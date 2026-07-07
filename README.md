@@ -1247,6 +1247,28 @@ is "does this serving stack, at this version, honor that switch" --
 and the only way to answer it is to test the exact (model, server,
 version) triple you intend to run.
 
+**Serving knobs that matter.** A handful of Ollama settings change
+measured behavior enough to call out on their own:
+
+- `keep_alive -1` (or another long duration) keeps the model and its
+  prefix cache resident between calls during batch runs -- the default
+  five-minute idle timeout unloads it silently.
+- `OLLAMA_MAX_LOADED_MODELS` decides how many models stay resident
+  when role-routing hops across e4b/12b/31b: on 32 GB, e4b and 12b
+  co-reside comfortably, but adding 31b does not -- budget accordingly,
+  or every role switch reloads a model from disk.
+- `OLLAMA_FLASH_ATTENTION=0` works around the 31B long-prompt hang
+  (ollama/ollama#15368: hybrid 256/512-dim attention heads mishandled)
+  at a throughput cost -- roughly 15 tok/s reported.
+- `OLLAMA_NUM_PARALLEL=2-4` raises aggregate throughput for
+  high-volume extraction, but only with VRAM headroom to spare --
+  each parallel slot multiplies KV-cache memory.
+- Context ceilings are real, not theoretical: measured on Ollama
+  0.31.1, Gemma 4 prompts of 20.7k tokens processed fully at defaults
+  while ~41k-token prompts were silently truncated. Keep any single
+  call under ~16k prompt tokens; the live canary suite (`tests/live/`)
+  tracks the measured ceiling across upgrades.
+
 Getting a reasoning model to work at all involves two more serving
 details. First, the model needs its real chat template: the stock
 `Ornith-1.0-9B-GGUF` on Hugging Face ships without one, so Ollama falls
