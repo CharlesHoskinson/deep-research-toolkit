@@ -51,8 +51,10 @@ deep_research_toolkit = ["skill_templates/**/*"]
 [tool.pytest.ini_options]
 markers = [
     "heavy: slow, dependency-heavy tests (real Docling/Scrapling calls) -- run explicitly, not on every push",
+    "live_model: needs a live local-model serving endpoint (e.g. Ollama) -- excluded by default addopts, run explicitly via `pytest -m live_model`",
 ]
 testpaths = ["tests"]
+addopts = "-m \"not live_model\""
 
 [tool.ruff]
 target-version = "py310"

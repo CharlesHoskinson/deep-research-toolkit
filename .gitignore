@@ -12,3 +12,8 @@ compiled/
 knowledge_base/
 *-runs/
 .deepresearch/
+
+# live-model eval tier output -- run artifacts, not source (baseline is the
+# one exception: a committed reference point for --compare, see Task 7)
+eval-results/*
+!eval-results/baseline.json
