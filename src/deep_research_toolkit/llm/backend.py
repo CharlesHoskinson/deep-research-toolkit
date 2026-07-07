@@ -31,6 +31,8 @@ def get_backend(config, role: str | None = None) -> Backend:
         from .local import LocalOpenAIBackend
         roles = getattr(config, "llm_roles", None) or {}
         spec = roles[role] if role and role in roles else config.llm_local
+        # Intentionally CWD-relative: one global ledger per invocation
+        # directory, unlike the config paths resolved against project_root.
         trace_path = Path("llm-trace.jsonl") if getattr(config, "llm_trace", False) else None
         return LocalOpenAIBackend(
             base_url=spec["base_url"], model=spec["model"],

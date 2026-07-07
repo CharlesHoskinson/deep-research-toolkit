@@ -120,18 +120,24 @@ class LocalOpenAIBackend:
             self.stats["completion_tokens"] += completion_tokens
         content = strip_think(resp.choices[0].message.content or "")
         if self.trace_path is not None:
-            try:
-                row = {
-                    "ts": datetime.now(timezone.utc).isoformat(),
-                    "gen_ai.request.model": self.model,
-                    "gen_ai.usage.input_tokens": prompt_tokens,
-                    "gen_ai.usage.output_tokens": completion_tokens,
-                    "latency_s": elapsed,
-                    "role": self.role,
-                    "ok": bool(content),
-                }
-                with open(self.trace_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(row) + "\n")
-            except OSError:
-                pass
+            self._write_trace(elapsed, prompt_tokens, completion_tokens, content)
         return content
+
+    def _write_trace(self, elapsed: float, prompt_tokens: int,
+                     completion_tokens: int, content: str) -> None:
+        """Append one JSONL ledger line for a completed call. A trace failure
+        must never break a call, so every error is swallowed."""
+        try:
+            row = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "gen_ai.request.model": self.model,
+                "gen_ai.usage.input_tokens": prompt_tokens,
+                "gen_ai.usage.output_tokens": completion_tokens,
+                "latency_s": elapsed,
+                "role": self.role,
+                "ok": bool(content),
+            }
+            with open(self.trace_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except Exception:  # noqa: BLE001 -- tracing is best-effort by contract
+            pass

@@ -62,6 +62,23 @@ def test_trace_path_none_writes_no_file(tmp_path):
     assert not trace_path.exists()
 
 
+def test_trace_records_ok_false_when_reply_strips_to_empty(tmp_path):
+    # The silent-structural-failure case the ledger exists to catch: the call
+    # "succeeds" but the payload is only a <think> trace, so strip_think
+    # empties it. The traced row must say ok=False even though complete()
+    # returns normally.
+    trace_path = tmp_path / "t.jsonl"
+    b = _backend(trace_path=trace_path, role="extract")
+    b._client.chat.completions.create = lambda **kw: SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="<think>reasoning only</think>"))],
+        usage=SimpleNamespace(prompt_tokens=11, completion_tokens=7),
+    )
+    result = b.complete("sys", "user")
+    assert result == ""
+    row = json.loads(trace_path.read_text(encoding="utf-8").strip())
+    assert row["ok"] is False
+
+
 def test_trace_write_failure_is_swallowed(tmp_path):
     trace_dir = tmp_path / "t.jsonl"
     trace_dir.mkdir()  # a directory at the trace path makes open() raise OSError
