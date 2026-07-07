@@ -180,10 +180,126 @@ Fine-tuning (still gated on the 200-chunk corpus results — this suite IS
 the gate), vLLM serving configs, span-offset extraction pilot, escalation
 cascade implementation (measured first as a suite experiment), dashboards.
 
-## 6. Success criteria
-- Fast suite unchanged and green; live tier one-command runnable.
-- Corpus: ~200 gate-verified chunks across all slices, committed.
+## 6. Success criteria — actuals (2026-07-07)
+- Fast suite unchanged and green — **met**: 329 unit tests pass in ~3.8s
+  with the live tier excluded by default; live tier is one-command runnable
+  (`pytest -m live_model tests/live/` and `scripts/eval-pipeline.py`).
+- Corpus: ~200 gate-verified chunks across all slices, committed — **met**:
+  186 chunks / 10 docs / 8 slices (prose 70, dense-facts 32, table 16,
+  list 16, long 16, bait 16, unicode 13, math 13), 12 contradiction pairs,
+  16 bait chunks; checker-clean (`scripts/check-eval-corpus.py`).
 - One full eval run across the validated role map completes and produces a
-  comparable JSON report + committed baseline.
-- Flow items 1–5 landed with unit tests; 6–7 landed or explicitly deferred
-  with a note in this doc.
+  comparable JSON report + committed baseline — **met**: full `--runs 5`
+  run 2026-07-07 (58 min wall), report `run-20260707T063207Z.json` promoted
+  to `eval-results/baseline.json`; self-compare clean, doctored-drop
+  detection verified. Results in §7.
+- Flow items 1–5 landed with unit tests — **met** (repetition gate, retry
+  mutation, JSONL tracing, marker exemplars, README serving knobs). Items
+  6–7 (response cache, threaded extraction concurrency) — **deferred**: the
+  live baseline consumed the session budget (two multi-hour runs plus a
+  crash-fix rerun, §7.5); both remain tier-2 candidates unblocked by
+  anything in this design.
+
+## 7. Baseline results (2026-07-07)
+
+Stack: Ollama 0.31.1, single RTX 5090, role map extract=gemma4:e4b,
+wiki_write=gemma4:12b, synthesize=gemma4:31b, conflict_adjudicate=gemma4:31b.
+Join keys: prompt_version `9c7eb327…`, corpus_version `d42ff714…`. Session
+trace ledger: 1,367 calls, 1.40M input + 2.71M output tokens, 294.6 min
+GPU-busy, 0 empty replies.
+
+### 7.1 Canaries — 6/6 pass
+- Reasoning suppression: `reasoning_effort:"none"` leaks through none of the
+  three channels; positive control confirms the `reasoning` field is the
+  channel this stack populates when thinking is on.
+- Context ceiling: sentinel recovered at 5,503 / 10,926 / 18,176 measured
+  prompt tokens; the ~40k nominal probe silently truncated (usage reported
+  16,387 processed tokens, sentinel lost) — same ceiling as the 2026-07-06
+  probes, no drift.
+- Structured output (JSON mode + thinking off): valid JSON.
+- Marker fidelity smoke: 0 bare / 2 prefixed markers (bare rate 0.0).
+- 31B long-prompt liveness: ~8k-token prompt returned in ~14s, no FA hang.
+  (First engagement of this canary found a canary bug, not a serving bug:
+  with reasoning unsuppressed, the default thinking pass exhausted the
+  probe's max_tokens=64 entirely on `reasoning`, leaving empty content —
+  fixed by suppressing reasoning in the probe payload.)
+- Determinism smoke: two temp-0 calls byte-identical on this stack. The
+  aggregate ledger agrees: the gemma4:12b extract leg emitted an identical
+  call count and total output tokens (36 / 61,151) in two separate runs.
+
+### 7.2 Full role-map run (`--runs 5`, 58 min wall)
+
+| Role (model) | Metric | Value |
+| --- | --- | --- |
+| extract (gemma4:e4b) | gate_pass_rate | 0.997 |
+| | recall | 0.685 |
+| | precision_proxy | 0.180 |
+| | atomicity | 1.326 |
+| | bait_rejection | 0.861 |
+| | parse_failures | 12 |
+| | latency | 166 calls, 35.8 min (med ~14.6s/call) |
+| wiki_write (gemma4:12b) | pass rate (Wilson N=5) | 0.90 (9/10 chunks at 1.0) |
+| | mean coverage | 0.963 |
+| | bare-marker rate | 0.0 (0 bare / 167 prefixed) |
+| | latency | med ~1.6s/call |
+| synthesize (gemma4:31b) | pass rate (Wilson N=5) | 0.96 |
+| | mean coverage | 0.993 |
+| | bare-marker rate | 0.0 (0 bare / 153 prefixed) |
+| | latency | med ~12.2s, p95 ~51.3s/call |
+| conflict_adjudicate (gemma4:31b) | verdict accuracy | 1.00 (12/12 pairs) |
+| | schema valid / invalid / parse fails | 12 / 0 / 0 |
+| | latency | 1 batch call, ~59s |
+
+The two prose-role failures are informative, not noise: wiki_write fails
+`mempool-design#c005` on all 5 runs by citing the same unknown id
+(`mempool_design_c010`) — a deterministic, chunk-specific temptation — and
+synthesize drops to 0.6 on `compiler-ir-design#c015`, a 2-claim input where
+one uncited claim already breaches the 0.3 coverage floor.
+
+### 7.3 Extract A/B (5 models, full corpus, 112 min wall)
+
+| Model | gate_pass | recall | prec_proxy | atomicity | bait_rej | parse_fails | Δrecall vs e4b (95% CI) | sig |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gemma4:e4b | 0.999 | 0.736 | 0.177 | 1.47 | 0.865 | 6 | — (baseline) | — |
+| gemma4:12b | 0.984 | 0.392 | 0.160 | 0.57 | 0.718 | 0 | −0.346 (−0.380, −0.309) | yes |
+| gemma4:26b | 0.954 | 0.401 | 0.146 | 0.58 | 0.694 | 0 | −0.335 (−0.369, −0.295) | yes |
+| gemma4:31b | 0.998 | 0.531 | 0.149 | 0.92 | 0.750 | 0 | −0.200 (−0.252, −0.143) | yes |
+| qwen3:30b-a3b-instr-q4 | 0.995 | 0.746 | 0.155 | 1.43 | 0.959 | 14 | +0.000 (−0.052, +0.055) | no |
+
+Leg wall times: e4b 35.8 min (166 calls), 12b 8.4 min (36), 26b 6.0 min
+(36), 31b 30.6 min (48), qwen3-30b 28.5 min (188). Paired bootstrap is over
+per-doc recall deltas (n=10 docs, B=2000).
+
+### 7.4 Interpretation
+
+The suite discriminates where it was designed to: recall separates the
+models into an eager tier (e4b, qwen3-30b — atomicity ~1.4, recall ~0.74)
+and a terse tier (12b/26b — atomicity ~0.57, recall ~0.40, both
+significantly below e4b), so mid-size Gemmas lose recall by under-producing
+claims, not by failing the gate. Every model clears the 95% gate-pass
+fine-tune bar (min: 26b at 0.954); gate_pass_rate is near-saturated and is
+the wrong axis for model choice — recall, atomicity, and bait rejection are
+where models actually differ. qwen3-30b is a statistical tie with e4b on
+recall while posting the best bait rejection (0.959 vs 0.865) at ~4× the
+weights; e4b remains the right extract default on value-per-GB, with
+qwen3-30b the strongest candidate if bait discipline becomes the binding
+constraint. precision_proxy sits at 0.15–0.18 for every model and mostly
+measures gold-set non-exhaustiveness rather than model quality — expected
+for authored-gold recall corpora, but worth renaming or reweighting before
+anyone reads it as precision. Run-to-run recall variance on the same model
+and corpus was ~0.05 (e4b 0.685 full run vs 0.736 A/B), so single-run
+deltas under ~5 points should not be over-read — the paired-bootstrap CI is
+the decision rule. Extract's max_tokens=3000 is the main throughput lever:
+~44% of e4b extract calls truncated at the cap and re-ran as halved batches
+(166 calls for 31 base batches), a silent 3–5× call amplification that a
+larger cap or smaller default batch would largely remove.
+
+### 7.5 Bug found live (fixed during the run)
+
+The first A/B attempt crashed mid-run: gemma4:26b emitted a claim whose
+`supporting_evidence` array held a bare string instead of an evidence
+object, and the extraction gate's evidence loop called `.get()` on it
+(AttributeError). Malformed evidence rows now fail the gate — claim
+dropped and counted — instead of crashing the pipeline
+(`test_extract_tolerates_bare_string_evidence_rows`). This is precisely
+the class of live-model shape drift the eval tier exists to surface.
