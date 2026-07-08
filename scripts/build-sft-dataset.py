@@ -36,6 +36,7 @@ from deep_research_toolkit.llm.backend import get_backend  # noqa: E402
 from deep_research_toolkit.llm.extract import build_extraction_prompt  # noqa: E402
 from deep_research_toolkit.tunekit.dataset import (  # noqa: E402
     DEFAULT_K_LADDER,
+    DEFAULT_MAX_COMPLETIONS_PER_CHUNK,
     DEFAULT_ROUTER_TABLE,
     DEFAULT_TEACHER_ROUTE,
     DEFAULT_YIELD_FLOOR,
@@ -154,6 +155,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--val-fraction", type=float, default=0.10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--max-completions-per-chunk", type=int,
+                        default=DEFAULT_MAX_COMPLETIONS_PER_CHUNK,
+                        help="Hard per-chunk teacher-completion budget across the whole "
+                             f"escalation ladder (default {DEFAULT_MAX_COMPLETIONS_PER_CHUNK})")
+    parser.add_argument("--max-total-completions", type=int, default=None,
+                        help="Global teacher-completion budget across the whole build; "
+                             "chunks past the budget are skipped and logged "
+                             "(default: unlimited, total usage logged)")
     parser.add_argument("--teachers-module", default=None,
                         help="Python module path exposing get_teachers(config, producer) -> dict; "
                              "overrides/extends the default local-backend wiring (needed for the "
@@ -187,7 +196,9 @@ def main(argv: list[str] | None = None) -> int:
             chunks, teachers, contamination_index,
             k_ladder=k_ladder, yield_floor=args.yield_floor, temperature=args.temperature,
             producer=args.producer, val_fraction=args.val_fraction, seed=args.seed,
-            source_corpus_hash=None)
+            source_corpus_hash=None,
+            max_completions_per_chunk=args.max_completions_per_chunk,
+            max_total_completions=args.max_total_completions)
     except ContaminationError as e:
         print(f"contamination guard tripped: {e}", file=sys.stderr)
         return 1

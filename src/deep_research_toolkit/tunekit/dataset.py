@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import random
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +31,8 @@ from ..common.verbatim import slice_span, span_ok
 from ..llm.extract import build_extraction_prompt, parse_claims_response
 from ..llm.selfconsistency import claim_key
 
+logger = logging.getLogger(__name__)
+
 #: DART-style difficulty escalation ladder (design doc §6.1: "escalate k
 #: (4 -> 16 -> 64) on low-yield / bait / high-density chunks").
 DEFAULT_K_LADDER: tuple[int, ...] = (4, 16, 64)
@@ -36,6 +40,12 @@ DEFAULT_K_LADDER: tuple[int, ...] = (4, 16, 64)
 #: A chunk accepted at least this many gate-passing claims in a round is
 #: considered adequately sampled; below this, escalate to the next k.
 DEFAULT_YIELD_FLOOR = 1
+
+#: Hard per-chunk teacher-call budget: no chunk may consume more completions
+#: than this across its whole escalation ladder (the default ladder sums to
+#: 4+16+64 = 84, comfortably under). A rung that would exceed the budget is
+#: not attempted -- runaway escalation cannot blow the generation bill.
+DEFAULT_MAX_COMPLETIONS_PER_CHUNK = 96
 
 #: Slice tags (matching tests/fixtures/eval-corpus/corpus-index.json's
 #: `chunks.<locator>.slices` vocabulary) that mark a chunk as a priori hard,
@@ -180,7 +190,8 @@ TeacherFn = Callable[[list[dict], int, float], list[str]]
 def escalating_k_sample(chunk: dict, teacher: TeacherFn,
                         k_ladder: tuple[int, ...] = DEFAULT_K_LADDER,
                         yield_floor: int = DEFAULT_YIELD_FLOOR,
-                        temperature: float = 1.0, producer: str = "web") -> dict:
+                        temperature: float = 1.0, producer: str = "web",
+                        max_completions_per_chunk: int = DEFAULT_MAX_COMPLETIONS_PER_CHUNK) -> dict:
     """Samples the teacher at increasing k (design doc §6.1: "escalate k
     (4 -> 16 -> 64) on low-yield/bait/high-density chunks"), gate-filtering
     each round's candidates, and stopping at the first round whose accepted
@@ -195,31 +206,54 @@ def escalating_k_sample(chunk: dict, teacher: TeacherFn,
     exact production parser -- lenient to a fenced/prose-wrapped reply) and
     every parsed claim is passed through `gate_claim`.
 
-    Returns `{"claims": [gate-passed claim, ...], "rounds": [{"k", "raw",
-    "accepted"}, ...], "escalated": bool}`. `claims` is the LAST round's
-    accepted set (escalation replaces, not accumulates, across ladder rungs
-    -- a higher k re-samples the whole chunk, it does not top up the
-    previous round)."""
+    Budget: a rung that would push this chunk past
+    `max_completions_per_chunk` teacher completions is not attempted --
+    `budget_exhausted` is set instead, so runaway escalation cannot blow the
+    generation bill.
+
+    Returns `{"claims": [...], "rounds": [{"k", "completions", "parsed",
+    "accepted"}, ...], "escalated": bool, "completions_used": int,
+    "budget_exhausted": bool}`. Round counters are in CLAIM units where they
+    name claims: `parsed` is the number of claims parsed out of the round's
+    completions (a completion can carry many claims), `accepted` how many of
+    those passed the gate -- `parsed - accepted` IS the round's
+    gate-rejection count. `completions` is the completion (teacher-call
+    output) count, kept separately and never mixed into claim arithmetic.
+    `claims` is the LAST round's accepted set (escalation replaces, not
+    accumulates, across ladder rungs -- a higher k re-samples the whole
+    chunk, it does not top up the previous round)."""
     start_idx = 1 if is_a_priori_difficult(chunk) and len(k_ladder) > 1 else 0
     rounds: list[dict] = []
     accepted: list[dict] = []
+    completions_used = 0
+    budget_exhausted = False
 
     for k in k_ladder[start_idx:]:
+        if completions_used + k > max_completions_per_chunk:
+            budget_exhausted = True
+            break
         raw_completions = teacher([chunk], k, temperature)
+        completions_used += len(raw_completions)
+        round_parsed = 0
         round_accepted: list[dict] = []
         for raw in raw_completions:
             for claim in parse_claims_response(raw):
                 if not isinstance(claim, dict):
                     continue
+                round_parsed += 1
                 gated = gate_claim(claim, chunk, producer=producer)
                 if gated is not None:
                     round_accepted.append(gated)
-        rounds.append({"k": k, "raw": len(raw_completions), "accepted": len(round_accepted)})
+        rounds.append({"k": k, "completions": len(raw_completions),
+                       "parsed": round_parsed, "accepted": len(round_accepted)})
         accepted = round_accepted
         if len(round_accepted) >= yield_floor:
             break
 
-    return {"claims": accepted, "rounds": rounds, "escalated": start_idx > 0 or len(rounds) > 1}
+    return {"claims": accepted, "rounds": rounds,
+            "escalated": start_idx > 0 or len(rounds) > 1,
+            "completions_used": completions_used,
+            "budget_exhausted": budget_exhausted}
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +289,15 @@ class ContaminationError(ValueError):
     match against the eval corpus's actual chunk text."""
 
 
+_WS_RUN_RE = re.compile(r"\s+")
+
+
 def _normalized_text_hash(text: str) -> str:
-    return hashlib.sha256((text or "").strip().encode("utf-8")).hexdigest()
+    """Content hash over case-folded, whitespace-collapsed text -- so a copy
+    of an eval chunk that differs only by case or by reflowed/duplicated
+    whitespace still hashes identically and is still caught by the guard."""
+    normalized = _WS_RUN_RE.sub(" ", (text or "").strip().lower())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def load_contamination_index(eval_corpus_dir) -> dict:
@@ -265,20 +306,32 @@ def load_contamination_index(eval_corpus_dir) -> dict:
     named in `corpus-index.json`'s `chunks` map, PLUS the content hash of
     every chunk's actual text read from each doc dir's `chunks.jsonl` (when
     present) -- so a differently-locatored duplicate/copy of an eval chunk's
-    text is caught too, not just an exact locator match. A missing
-    `corpus-index.json` or missing per-doc `chunks.jsonl` degrades to an
-    empty set for that half of the check rather than raising (the guard
-    itself must never be the reason a legitimate build fails to run)."""
+    text is caught too, not just an exact locator match. Text hashes are
+    case-folded and whitespace-collapsed (see `_normalized_text_hash`). A
+    missing `corpus-index.json` or missing per-doc `chunks.jsonl` degrades
+    to an empty set for that half of the check rather than raising (the
+    guard itself must never be the reason a legitimate build fails to run)
+    -- but each such gap is WARNED about, because it silently weakens the
+    guard: a doc dir with no readable chunks.jsonl contributes no text
+    hashes, so only the locator half still protects its chunks."""
     eval_corpus_dir = Path(eval_corpus_dir)
     index_path = eval_corpus_dir / "corpus-index.json"
     index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
     locators = set((index.get("chunks") or {}).keys())
+    if not index_path.is_file():
+        logger.warning(
+            "contamination guard: %s has no corpus-index.json -- the locator half "
+            "of the guard is empty", eval_corpus_dir)
 
     text_hashes: set[str] = set()
     if eval_corpus_dir.is_dir():
         for doc_dir in sorted(p for p in eval_corpus_dir.iterdir() if p.is_dir()):
             chunks_path = doc_dir / "chunks.jsonl"
             if not chunks_path.is_file():
+                logger.warning(
+                    "contamination guard: %s has no chunks.jsonl -- its chunk texts "
+                    "contribute no content hashes (locator matching still applies)",
+                    doc_dir)
                 continue
             with open(chunks_path, encoding="utf-8") as f:
                 for line in f:
@@ -380,30 +433,33 @@ def dataset_hash(records: list[dict]) -> str:
 
 
 def build_manifest(train: list[dict], val: list[dict], *, generator_model_digests: dict,
-                   source_corpus_hash: str | None, n_gate_rejected: int,
-                   n_dedup_dropped: int, verbatim_gate_version: str = VERBATIM_GATE_VERSION) -> dict:
+                   source_corpus_hash: str | None, n_accepted_claims: int,
+                   n_gate_rejected: int, n_dedup_dropped: int,
+                   verbatim_gate_version: str = VERBATIM_GATE_VERSION) -> dict:
     """Design doc §6.1's manifest fields: `dataset_hash` is computed over
     train+val TOGETHER (train then val, in that order) so one hash covers
-    the whole shipped dataset; `n_accepted`/`n_rejected`/`acceptance_rate`
-    account for every claim the teacher(s) produced, gate-rejected or
-    dedup-dropped alike, so the rate reflects the true yield of the whole
-    pipeline, not just the post-dedup survivors."""
+    the whole shipped dataset. All acceptance arithmetic is in CLAIM units:
+    `n_accepted` = `n_accepted_claims` (claims surviving gate + dedup),
+    `n_rejected` = gate-rejected + dedup-dropped claims, and
+    `acceptance_rate` = accepted_claims / (accepted + rejected claims) --
+    i.e. accepted / parsed for a single-round build. Record counts (one
+    conversation record per chunk) are reported separately as
+    `n_train`/`n_val`; they must never be mixed into the claim-unit rate."""
     all_records = train + val
-    n_accepted = len(all_records)
     n_rejected = n_gate_rejected + n_dedup_dropped
-    total = n_accepted + n_rejected
+    total = n_accepted_claims + n_rejected
     return {
         "dataset_hash": dataset_hash(all_records),
         "generator_model_digests": dict(generator_model_digests),
         "verbatim_gate_version": verbatim_gate_version,
         "source_corpus_hash": source_corpus_hash,
-        "n_accepted": n_accepted,
+        "n_accepted": n_accepted_claims,
         "n_rejected": n_rejected,
         "n_gate_rejected": n_gate_rejected,
         "n_dedup_dropped": n_dedup_dropped,
         "n_train": len(train),
         "n_val": len(val),
-        "acceptance_rate": (n_accepted / total) if total else None,
+        "acceptance_rate": (n_accepted_claims / total) if total else None,
     }
 
 
@@ -419,7 +475,9 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
                       yield_floor: int = DEFAULT_YIELD_FLOOR,
                       temperature: float = 1.0, producer: str = "web",
                       val_fraction: float = 0.10, seed: int = 42,
-                      source_corpus_hash: str | None = None) -> dict:
+                      source_corpus_hash: str | None = None,
+                      max_completions_per_chunk: int = DEFAULT_MAX_COMPLETIONS_PER_CHUNK,
+                      max_total_completions: int | None = None) -> dict:
     """End-to-end (but network/model-free) dataset build: for every chunk,
     (1) raise on eval-corpus contamination, (2) route to a teacher by slice
     tag, (3) run the DART k-escalation sampler, gate-filtering as it goes.
@@ -436,28 +494,59 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
     a route naming a model not present in `teachers` raises KeyError
     immediately (fail fast, not a silently-skipped chunk).
 
+    Budget: `max_completions_per_chunk` bounds each chunk's escalation
+    ladder; `max_total_completions` (default None = unlimited, but the total
+    used is LOGGED so an unbounded run is at least visible) is a global cap
+    -- once remaining budget cannot fund a chunk's first rung, that chunk
+    and every later one are SKIPPED (recorded in the escalation log with
+    `"skipped"`), never silently half-sampled. The contamination guard runs
+    for every chunk BEFORE any budget skip -- safety is not budget-gated.
+
     Returns `{"train": [...], "val": [...], "manifest": {...},
     "escalation_log": [...]}`."""
     escalation_log: list[dict] = []
     claim_chunk_pairs: list[tuple[dict, dict]] = []  # (claim, its originating chunk)
     generator_digests: dict[str, int] = {}
     n_gate_rejected = 0
+    total_completions_used = 0
 
     for chunk in chunks:
         assert_not_contaminated(chunk, contamination_index)
         route = route_for_chunk(chunk, router_table=router_table, fallback=fallback_route)
         teacher = teachers[route.model]
 
+        chunk_cap = max_completions_per_chunk
+        if max_total_completions is not None:
+            remaining = max_total_completions - total_completions_used
+            chunk_cap = min(chunk_cap, max(0, remaining))
+        if chunk_cap <= 0:
+            logger.warning(
+                "max_total_completions=%s exhausted after %s completions -- skipping "
+                "chunk %s and all later chunks' sampling",
+                max_total_completions, total_completions_used,
+                chunk.get("locator") or chunk.get("node_id"))
+            escalation_log.append({
+                "locator": chunk.get("locator") or chunk.get("node_id"),
+                "teacher_role": route.role,
+                "teacher_model": route.model,
+                "skipped": "total-completions-budget",
+            })
+            continue
+
         result = escalating_k_sample(chunk, teacher, k_ladder=k_ladder, yield_floor=yield_floor,
-                                     temperature=temperature, producer=producer)
+                                     temperature=temperature, producer=producer,
+                                     max_completions_per_chunk=chunk_cap)
+        total_completions_used += result["completions_used"]
         n_accepted_round = len(result["claims"])
-        # A per-chunk gate-rejection count is only meaningful relative to the
-        # LAST round's own raw/accepted pair (a completion can carry >1
-        # claim, and escalation re-samples rather than tops up) -- so the
-        # final round's raw-minus-accepted is the tally, not a sum across
-        # escalation rounds.
-        last_round = result["rounds"][-1] if result["rounds"] else {"raw": 0, "accepted": 0}
-        n_gate_rejected += max(0, last_round["raw"] - last_round["accepted"])
+        # I5 -- gate-rejection is counted in CLAIM units: each round's
+        # parsed-claims minus accepted-claims IS its gate-rejection count
+        # (a completion can carry many claims, so completion counts must
+        # never enter this arithmetic). Summed across escalation rounds:
+        # every parsed-and-rejected claim was a real gate rejection, whichever
+        # rung produced it. (Earlier-round ACCEPTED claims that a re-sampling
+        # escalation replaced are superseded samples -- counted neither as
+        # accepted nor rejected.)
+        n_gate_rejected += sum(r["parsed"] - r["accepted"] for r in result["rounds"])
 
         generator_digests[route.model] = generator_digests.get(route.model, 0) + n_accepted_round
         escalation_log.append({
@@ -466,9 +555,15 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
             "teacher_model": route.model,
             "rounds": result["rounds"],
             "escalated": result["escalated"],
+            "completions_used": result["completions_used"],
+            "budget_exhausted": result["budget_exhausted"],
         })
         for claim in result["claims"]:
             claim_chunk_pairs.append((claim, chunk))
+
+    if max_total_completions is None:
+        logger.info("build_sft_dataset ran without a max_total_completions cap; "
+                    "used %s teacher completions total", total_completions_used)
 
     n_before_dedup = len(claim_chunk_pairs)
     deduped_keys: set[str] = set()
@@ -500,7 +595,7 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
     train, val = split_train_val(records, val_fraction=val_fraction, seed=seed)
     manifest = build_manifest(
         train, val, generator_model_digests=generator_digests,
-        source_corpus_hash=source_corpus_hash, n_gate_rejected=n_gate_rejected,
-        n_dedup_dropped=n_dedup_dropped)
+        source_corpus_hash=source_corpus_hash, n_accepted_claims=len(deduped_pairs),
+        n_gate_rejected=n_gate_rejected, n_dedup_dropped=n_dedup_dropped)
 
     return {"train": train, "val": val, "manifest": manifest, "escalation_log": escalation_log}

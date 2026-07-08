@@ -1,11 +1,12 @@
 """tunekit.dataset: the SFT dataset harness skeleton (design doc §6.1).
 Exercises the DART k-escalation trigger, near-dup dedup, the hard
-contamination guard, the provenance manifest, and output-format fidelity to
-the extract contract -- all against a SCRIPTED fake teacher, never a live
-model."""
+contamination guard, the provenance manifest, teacher-call budgets, and
+output-format fidelity to the extract contract -- all against a SCRIPTED
+fake teacher, never a live model."""
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
@@ -202,6 +203,43 @@ def test_escalating_k_sample_parses_multiple_claims_per_completion():
     assert len(result["claims"]) == 2
 
 
+def test_rounds_record_parsed_claim_counts_not_completion_counts():
+    """I5 probe: ONE completion carrying 5 claims, 4 of which the gate
+    rejects. The round must report parsed=5 / accepted=1 (claim units), so
+    parsed - accepted == 4 gate rejections -- a completion-count round would
+    report raw=1 and make the rejection arithmetic nonsense."""
+    text = "Leaders rotate each epoch."
+    chunk = _chunk("d#c1", text)
+    good = _claim_json("Leaders rotate each epoch", "d#c1", 0, 25, claim_id="ok")
+    bad = [_claim_json(f"bogus {i}", "d#c1", 0, 999, claim_id=f"bad{i}") for i in range(4)]
+
+    def teacher(chunk_batch, k, temperature):
+        return [_completion(good, *bad)]  # ONE completion, five claims
+
+    result = escalating_k_sample(chunk, teacher, k_ladder=(4,), yield_floor=1)
+    assert result["rounds"][0]["completions"] == 1
+    assert result["rounds"][0]["parsed"] == 5
+    assert result["rounds"][0]["accepted"] == 1
+    assert result["rounds"][0]["parsed"] - result["rounds"][0]["accepted"] == 4
+
+
+def test_per_chunk_completion_budget_stops_escalation():
+    """M2: a rung that would exceed max_completions_per_chunk is not
+    attempted -- with cap 10 and ladder (4, 16, 64), only k=4 runs."""
+    chunk = _chunk("d#c1", "text", slices=["prose"])
+    calls = []
+
+    def teacher(chunk_batch, k, temperature):
+        calls.append(k)
+        return [_completion()] * k  # never gate-passable -> wants to escalate
+
+    result = escalating_k_sample(chunk, teacher, k_ladder=(4, 16, 64), yield_floor=1,
+                                 max_completions_per_chunk=10)
+    assert calls == [4]                       # 4+16 > 10 -> k=16 never attempted
+    assert result["budget_exhausted"] is True
+    assert result["completions_used"] == 4
+
+
 # ---------------------------------------------------------------------------
 # dedup_claims
 # ---------------------------------------------------------------------------
@@ -266,6 +304,34 @@ def test_contamination_guard_passes_clean_chunk(tmp_path):
 def test_load_contamination_index_missing_dir_degrades_to_empty(tmp_path):
     index = load_contamination_index(tmp_path / "does-not-exist")
     assert index == {"locators": set(), "text_hashes": set()}
+
+
+def test_contamination_text_hash_ignores_case_and_whitespace(tmp_path):
+    """M1: a copy of an eval chunk that differs only by case or reflowed
+    whitespace must still be caught by the content-hash half of the guard."""
+    corpus_dir = _write_eval_corpus(tmp_path)  # eval text: "Leaders rotate each epoch."
+    index = load_contamination_index(corpus_dir)
+    sneaky = _chunk("training#c777", "  LEADERS   rotate\teach epoch. ")
+    with pytest.raises(ContaminationError):
+        assert_not_contaminated(sneaky, index)
+
+
+def test_load_contamination_index_warns_on_missing_chunks_jsonl(tmp_path, caplog):
+    """M1: a doc dir without chunks.jsonl silently weakens the text-hash
+    half of the guard -- it must WARN, not degrade in silence."""
+    corpus_dir = tmp_path / "eval-corpus"
+    bare_doc = corpus_dir / "doc-without-chunks"
+    bare_doc.mkdir(parents=True)
+    (corpus_dir / "corpus-index.json").write_text(
+        json.dumps({"chunks": {"doc-without-chunks#c001": {"slices": ["prose"]}}}),
+        encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="deep_research_toolkit.tunekit.dataset"):
+        index = load_contamination_index(corpus_dir)
+
+    assert index["locators"] == {"doc-without-chunks#c001"}
+    assert index["text_hashes"] == set()
+    assert any("no chunks.jsonl" in rec.message for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +404,8 @@ def test_build_manifest_stats():
     train = [{"i": 1}, {"i": 2}]
     val = [{"i": 3}]
     manifest = build_manifest(train, val, generator_model_digests={"e4b": 3},
-                              source_corpus_hash="sha256:corpus", n_gate_rejected=5, n_dedup_dropped=2)
+                              source_corpus_hash="sha256:corpus", n_accepted_claims=3,
+                              n_gate_rejected=5, n_dedup_dropped=2)
     assert manifest["n_accepted"] == 3
     assert manifest["n_rejected"] == 7
     assert manifest["n_train"] == 2
@@ -347,9 +414,21 @@ def test_build_manifest_stats():
     assert manifest["dataset_hash"] == dataset_hash(train + val)
 
 
+def test_build_manifest_acceptance_rate_is_in_claim_units():
+    """I5: acceptance_rate must be accepted_claims / parsed_claims -- record
+    counts (n_train/n_val, one per chunk) never enter the rate."""
+    train = [{"one_record_covering": "many claims"}]
+    manifest = build_manifest(train, [], generator_model_digests={"e4b": 6},
+                              source_corpus_hash=None, n_accepted_claims=6,
+                              n_gate_rejected=4, n_dedup_dropped=0)
+    assert manifest["n_accepted"] == 6            # claims, not the 1 record
+    assert manifest["acceptance_rate"] == pytest.approx(0.6)
+    assert manifest["n_train"] == 1
+
+
 def test_build_manifest_zero_total_has_none_acceptance_rate():
     manifest = build_manifest([], [], generator_model_digests={}, source_corpus_hash=None,
-                              n_gate_rejected=0, n_dedup_dropped=0)
+                              n_accepted_claims=0, n_gate_rejected=0, n_dedup_dropped=0)
     assert manifest["acceptance_rate"] is None
 
 
@@ -430,3 +509,69 @@ def test_build_sft_dataset_dedups_across_chunks(tmp_path):
     parsed = parse_extraction_response(all_records[0]["messages"][2]["content"])
     assert len(parsed["claims"]) == 1  # the dup collapsed
     assert result["manifest"]["n_dedup_dropped"] == 1
+
+
+def test_gate_rejected_counts_claims_not_completions(tmp_path):
+    """I5 probe, end to end: ONE completion with 5 claims, 4 gate-rejected
+    -> manifest n_gate_rejected == 4 and acceptance_rate == 1/5. The old
+    completion-unit arithmetic would have reported 0 rejections (1
+    completion - 1 'accepted')."""
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+
+    text = "Validators exchange heartbeats every cycle."
+    chunk = _chunk("training#c001", text, slices=["prose"])
+    good = _claim_json("Validators exchange heartbeats every cycle", "training#c001", 0, 42, claim_id="ok")
+    bad = [_claim_json(f"bogus {i}", "training#c001", 0, 999, claim_id=f"bad{i}") for i in range(4)]
+
+    def teacher(chunk_batch, k, temperature):
+        return [_completion(good, *bad)]  # ONE completion, five claims
+
+    result = build_sft_dataset([chunk], {"e4b": teacher}, contamination_index)
+    assert result["manifest"]["n_gate_rejected"] == 4
+    assert result["manifest"]["n_accepted"] == 1
+    assert result["manifest"]["acceptance_rate"] == pytest.approx(1 / 5)
+
+
+def test_total_completions_budget_skips_later_chunks(tmp_path, caplog):
+    """M2: with max_total_completions=4 and a 4-completion first chunk, the
+    second chunk is skipped (logged + recorded), never half-sampled."""
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+
+    chunk1 = _chunk("training#c001", "Validators exchange heartbeats every cycle.", slices=["prose"])
+    chunk2 = _chunk("training#c002", "Auditors record checkpoints hourly.", slices=["prose"])
+    good1 = _claim_json("Validators exchange heartbeats every cycle", "training#c001", 0, 42)
+    teacher_calls = []
+
+    def teacher(chunk_batch, k, temperature):
+        teacher_calls.append(chunk_batch[0]["locator"])
+        return [_completion(good1)] * k  # k completions per call
+
+    with caplog.at_level(logging.WARNING, logger="deep_research_toolkit.tunekit.dataset"):
+        result = build_sft_dataset([chunk1, chunk2], {"e4b": teacher}, contamination_index,
+                                   k_ladder=(4,), max_total_completions=4)
+
+    assert teacher_calls == ["training#c001"]  # chunk2's teacher never called
+    skipped = [e for e in result["escalation_log"] if e.get("skipped")]
+    assert len(skipped) == 1
+    assert skipped[0]["locator"] == "training#c002"
+    assert skipped[0]["skipped"] == "total-completions-budget"
+    assert any("max_total_completions" in rec.message for rec in caplog.records)
+
+
+def test_unlimited_total_budget_logs_usage(tmp_path, caplog):
+    """M2: max_total_completions=None is allowed but the total used must be
+    logged, so an unbounded run is at least visible."""
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    chunk = _chunk("training#c001", "Validators exchange heartbeats every cycle.", slices=["prose"])
+    good = _claim_json("Validators exchange heartbeats every cycle", "training#c001", 0, 42)
+
+    def teacher(chunk_batch, k, temperature):
+        return [_completion(good)]
+
+    with caplog.at_level(logging.INFO, logger="deep_research_toolkit.tunekit.dataset"):
+        build_sft_dataset([chunk], {"e4b": teacher}, contamination_index)
+
+    assert any("without a max_total_completions cap" in rec.message for rec in caplog.records)
