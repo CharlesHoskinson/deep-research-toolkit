@@ -1,0 +1,662 @@
+{
+  "run_id": "recipe-b-v1",
+  "recipe_id": "recipe-b",
+  "purpose": "Recipe-B QLoRA SFT on gemma-4-E4B-it against the assembled sft-final dataset",
+  "config_sha256": "sha256:471faf149ba27f96afd4d8a83ec15a0aa2702ccc4f6b4dcccc3c7c76582dca52",
+  "dataset_hash": "sha256:decaa8b07002d3527212b222152bc84fe8396f5c8ca5d8402b17b0cc49f94dd7",
+  "seed": 42,
+  "git_commit": "c64d0ee38b56034b76fdd8747d761757238a7d44",
+  "config": {
+    "base_model": "unsloth/gemma-4-E4B-it-unsloth-bnb-4bit",
+    "max_seq_length": 4096,
+    "load_in_4bit": true,
+    "attn_implementation": "sdpa",
+    "text_only": true,
+    "return_logits": true,
+    "lora": {
+      "r": 16,
+      "lora_alpha": 32,
+      "lora_dropout": 0.1,
+      "target_modules": "all-linear",
+      "bias": "none"
+    },
+    "sft": {
+      "per_device_train_batch_size": 1,
+      "per_device_eval_batch_size": 1,
+      "gradient_accumulation_steps": 16,
+      "num_train_epochs": 2,
+      "learning_rate": 0.0002,
+      "optim": "adamw_8bit",
+      "weight_decay": 0.01,
+      "seed": 42
+    },
+    "instruction_part": "<|turn>user\n",
+    "response_part": "<|turn>model\n",
+    "dataset_hash": "sha256:decaa8b07002d3527212b222152bc84fe8396f5c8ca5d8402b17b0cc49f94dd7",
+    "seed": 42
+  },
+  "preflight_version_snapshot": {
+    "torch": "2.11.0+cu129",
+    "torchvision": "0.26.0+cu129",
+    "torchaudio": "2.11.0+cu129",
+    "transformers": "5.5.4",
+    "trl": "0.23.1",
+    "bitsandbytes": "0.49.2",
+    "unsloth": "2026.7.1",
+    "unsloth_zoo": "2026.7.1",
+    "triton": "3.6.0",
+    "xformers": null,
+    "python": "3.13.14"
+  },
+  "env_snapshot": {
+    "snapshot_date": "2026-07-07",
+    "purpose": "Gemma-4 fine-tune environment provenance (spec 2026-07-07 pipeline-hardening 6.2)",
+    "host": {
+      "platform": "Windows 11 + WSL2 Ubuntu-26.04",
+      "gpu": "NVIDIA GeForce RTX 5090 (32607 MiB, Blackwell sm_120)",
+      "nvidia_driver": "596.49 (WSL libcuda 595.71.05)",
+      "driver_cuda_version": "13.2",
+      "wsl_memory_gib": 62,
+      "wsl_swap_gib": 16,
+      "wsl_cpus": 24
+    },
+    "env": {
+      "kind": "Unsloth Studio venv (installed via https://unsloth.ai/install.sh, UNSLOTH_NO_TORCH=1, UNSLOTH_PYTHON=3.13)",
+      "studio_home": "/root/gemma4-tune",
+      "venv_path": "/root/gemma4-tune/unsloth_studio",
+      "python_bin": "/root/gemma4-tune/unsloth_studio/bin/python"
+    },
+    "resolved_versions": {
+      "python": "3.13.14",
+      "torch": "2.11.0+cu129",
+      "torch_cuda_wheel_tag": "cu129",
+      "torchvision": "0.26.0+cu129",
+      "torchaudio": "2.11.0+cu129",
+      "transformers": "5.5.4",
+      "trl": "0.23.1",
+      "bitsandbytes": "0.49.2",
+      "triton": "3.6.0",
+      "triton_kernels": "1.0.0",
+      "xformers": null,
+      "unsloth": "2026.7.1",
+      "unsloth_zoo": "2026.7.1",
+      "peft": "0.18.1",
+      "torchao": "0.17.0",
+      "datasets": "4.3.0",
+      "accelerate": "1.14.0",
+      "tokenizers": "0.22.2",
+      "safetensors": "0.8.0",
+      "msgspec": "0.21.1",
+      "uv": "0.11.28"
+    },
+    "spec_pins_vs_resolved": {
+      "torch": {
+        "spec": "2.11.0+cu129",
+        "resolved": "2.11.0+cu129",
+        "status": "exact"
+      },
+      "transformers": {
+        "spec": ">=5.5.3",
+        "resolved": "5.5.4",
+        "status": "satisfied (latest 5.5.x)"
+      },
+      "trl": {
+        "spec": ">=0.23.1",
+        "resolved": "0.23.1",
+        "status": "satisfied"
+      },
+      "bitsandbytes": {
+        "spec": "0.49.2",
+        "resolved": "0.49.2",
+        "status": "exact"
+      },
+      "cu130": {
+        "spec": "forbidden",
+        "resolved": "not installed",
+        "status": "ok"
+      }
+    },
+    "divergences_from_installer_defaults": [
+      "Installer's CUDA auto-detect maps driver CUDA 13.2 to the cu130 torch index (spec-forbidden); bypassed with UNSLOTH_NO_TORCH=1 and torch==2.11.0+cu129 pinned manually from https://download.pytorch.org/whl/cu129",
+      "PyPI unsloth 2026.7.1 metadata declares torch<2.11.0 and transformers<=5.5.0; spec pins exceed both. Runtime-validated (CPU-only import + AutoConfig) despite declared bounds. uv pip check reports these as expected incompatibilities.",
+      "Studio single-env constraints pin transformers==4.57.6; base venv upgraded to 5.5.4 for model_type=gemma4 support (Studio's own vendored overlays at .venv_t5_530/.venv_t5_550/.venv_t5_510 = 5.3.0/5.5.0/5.10.2 are untouched).",
+      "xformers not installed: no cu129 cp313 wheel exists on the PyTorch index; sdpa is the mandated attention path anyway (spec 6.2).",
+      "torchao 0.17.0 + msgspec installed manually (Studio's overrides step self-skips in no-torch mode; 0.17.0 is Studio's own mapping for torch 2.11.x).",
+      "llama.cpp GGUF engine NOT installed (prebuilt fetch and source clone both failed on transient network timeouts; Studio reports 'limited: llama.cpp unavailable'). Only affects the later GGUF export/serving path (spec 6.3), not training. Retry 'unsloth studio' setup or build llama.cpp when network is stable; libcurl4-openssl-dev also missing for source builds."
+    ],
+    "preflight": {
+      "path": "/root/gemma4-tune/scripts/preflight.py",
+      "gates": [
+        "sdpa mandatory",
+        "torch.compile off (TORCHDYNAMO_DISABLE guard)",
+        "FA2/FA4 not selected",
+        "Triton cache freshness (~/.triton cleared 2026-07-07)"
+      ],
+      "status": "all gates pass in CLI smoke mode"
+    },
+    "predownloaded_no_weights": {
+      "unsloth/gemma-4-E4B-it": "config+tokenizer+chat_template cached; offline reload verified; model_type=gemma4, vocab 262144",
+      "unsloth/gemma-4-E4B-it-unsloth-bnb-4bit": "config+tokenizer+chat_template cached; offline reload verified",
+      "hf_cache": "/root/.cache/huggingface (62 MB)"
+    },
+    "gpu_idle_compliance": "No CUDA context created by any validation step (CUDA_VISIBLE_DEVICES masked; torch.cuda.is_initialized()==False asserted at start and end; full 'import unsloth' deferred to GPU smoke because its _gpu_init probes the device by design)"
+  },
+  "timestamp_start": "2026-07-08T21:24:35Z",
+  "timings_s": {
+    "load_model_s": 6.267794609069824,
+    "get_peft_model_s": 2.833205223083496,
+    "train_s": 887.3216860294342
+  },
+  "vram_peak_gib": 16.567601203918457,
+  "vram_peak_bytes": 17789326336,
+  "train_loss_curve": [
+    {
+      "step": 1,
+      "epoch": 0.0221606648199446,
+      "loss": 0.5629684925079346
+    },
+    {
+      "step": 2,
+      "epoch": 0.0443213296398892,
+      "loss": 0.5523727536201477
+    },
+    {
+      "step": 3,
+      "epoch": 0.0664819944598338,
+      "loss": 0.40925824642181396
+    },
+    {
+      "step": 4,
+      "epoch": 0.0886426592797784,
+      "loss": 0.3575461804866791
+    },
+    {
+      "step": 5,
+      "epoch": 0.11080332409972299,
+      "loss": 0.30743104219436646
+    },
+    {
+      "step": 6,
+      "epoch": 0.1329639889196676,
+      "loss": 0.32964107394218445
+    },
+    {
+      "step": 7,
+      "epoch": 0.15512465373961218,
+      "loss": 0.31316903233528137
+    },
+    {
+      "step": 8,
+      "epoch": 0.1772853185595568,
+      "loss": 0.31215381622314453
+    },
+    {
+      "step": 9,
+      "epoch": 0.1994459833795014,
+      "loss": 0.2954271137714386
+    },
+    {
+      "step": 10,
+      "epoch": 0.22160664819944598,
+      "loss": 0.31914201378822327
+    },
+    {
+      "step": 11,
+      "epoch": 0.24376731301939059,
+      "loss": 0.2816801369190216
+    },
+    {
+      "step": 12,
+      "epoch": 0.2659279778393352,
+      "loss": 0.2707335352897644
+    },
+    {
+      "step": 13,
+      "epoch": 0.2880886426592798,
+      "loss": 0.28083693981170654
+    },
+    {
+      "step": 14,
+      "epoch": 0.31024930747922436,
+      "loss": 0.2818179428577423
+    },
+    {
+      "step": 15,
+      "epoch": 0.33240997229916897,
+      "loss": 0.2771991193294525
+    },
+    {
+      "step": 16,
+      "epoch": 0.3545706371191136,
+      "loss": 0.2631244361400604
+    },
+    {
+      "step": 17,
+      "epoch": 0.3767313019390582,
+      "loss": 0.2870936393737793
+    },
+    {
+      "step": 18,
+      "epoch": 0.3988919667590028,
+      "loss": 0.26802343130111694
+    },
+    {
+      "step": 19,
+      "epoch": 0.42105263157894735,
+      "loss": 0.2571573555469513
+    },
+    {
+      "step": 20,
+      "epoch": 0.44321329639889195,
+      "loss": 0.2679500877857208
+    },
+    {
+      "step": 21,
+      "epoch": 0.46537396121883656,
+      "loss": 0.2632693648338318
+    },
+    {
+      "step": 22,
+      "epoch": 0.48753462603878117,
+      "loss": 0.2557513117790222
+    },
+    {
+      "step": 23,
+      "epoch": 0.5096952908587258,
+      "loss": 0.2641414403915405
+    },
+    {
+      "step": 24,
+      "epoch": 0.5318559556786704,
+      "loss": 0.25571057200431824
+    },
+    {
+      "step": 25,
+      "epoch": 0.554016620498615,
+      "loss": 0.24540412425994873
+    },
+    {
+      "step": 26,
+      "epoch": 0.5761772853185596,
+      "loss": 0.27575162053108215
+    },
+    {
+      "step": 27,
+      "epoch": 0.5983379501385041,
+      "loss": 0.24127617478370667
+    },
+    {
+      "step": 28,
+      "epoch": 0.6204986149584487,
+      "loss": 0.25077611207962036
+    },
+    {
+      "step": 29,
+      "epoch": 0.6426592797783933,
+      "loss": 0.2424328476190567
+    },
+    {
+      "step": 30,
+      "epoch": 0.6648199445983379,
+      "loss": 0.24517329037189484
+    },
+    {
+      "step": 31,
+      "epoch": 0.6869806094182825,
+      "loss": 0.23444867134094238
+    },
+    {
+      "step": 32,
+      "epoch": 0.7091412742382271,
+      "loss": 0.2433730512857437
+    },
+    {
+      "step": 33,
+      "epoch": 0.7313019390581718,
+      "loss": 0.2573990225791931
+    },
+    {
+      "step": 34,
+      "epoch": 0.7534626038781164,
+      "loss": 0.25622284412384033
+    },
+    {
+      "step": 35,
+      "epoch": 0.775623268698061,
+      "loss": 0.25343430042266846
+    },
+    {
+      "step": 36,
+      "epoch": 0.7977839335180056,
+      "loss": 0.24885936081409454
+    },
+    {
+      "step": 37,
+      "epoch": 0.8199445983379502,
+      "loss": 0.25163447856903076
+    },
+    {
+      "step": 38,
+      "epoch": 0.8421052631578947,
+      "loss": 0.23516646027565002
+    },
+    {
+      "step": 39,
+      "epoch": 0.8642659279778393,
+      "loss": 0.2526873052120209
+    },
+    {
+      "step": 40,
+      "epoch": 0.8864265927977839,
+      "loss": 0.23181791603565216
+    },
+    {
+      "step": 41,
+      "epoch": 0.9085872576177285,
+      "loss": 0.24132923781871796
+    },
+    {
+      "step": 42,
+      "epoch": 0.9307479224376731,
+      "loss": 0.24440425634384155
+    },
+    {
+      "step": 43,
+      "epoch": 0.9529085872576177,
+      "loss": 0.24076150357723236
+    },
+    {
+      "step": 44,
+      "epoch": 0.9750692520775623,
+      "loss": 0.24158203601837158
+    },
+    {
+      "step": 45,
+      "epoch": 0.997229916897507,
+      "loss": 0.23318317532539368
+    },
+    {
+      "step": 46,
+      "epoch": 1.0,
+      "loss": 0.2593614459037781
+    },
+    {
+      "step": 47,
+      "epoch": 1.0221606648199446,
+      "loss": 0.22975625097751617
+    },
+    {
+      "step": 48,
+      "epoch": 1.0443213296398892,
+      "loss": 0.2306094616651535
+    },
+    {
+      "step": 49,
+      "epoch": 1.0664819944598338,
+      "loss": 0.23003575205802917
+    },
+    {
+      "step": 50,
+      "epoch": 1.0886426592797784,
+      "loss": 0.2257094830274582
+    },
+    {
+      "step": 51,
+      "epoch": 1.110803324099723,
+      "loss": 0.23068638145923615
+    },
+    {
+      "step": 52,
+      "epoch": 1.1329639889196677,
+      "loss": 0.22610794007778168
+    },
+    {
+      "step": 53,
+      "epoch": 1.1551246537396123,
+      "loss": 0.24231261014938354
+    },
+    {
+      "step": 54,
+      "epoch": 1.1772853185595569,
+      "loss": 0.22818848490715027
+    },
+    {
+      "step": 55,
+      "epoch": 1.1994459833795015,
+      "loss": 0.20865993201732635
+    },
+    {
+      "step": 56,
+      "epoch": 1.221606648199446,
+      "loss": 0.2292647808790207
+    },
+    {
+      "step": 57,
+      "epoch": 1.2437673130193905,
+      "loss": 0.2177588939666748
+    },
+    {
+      "step": 58,
+      "epoch": 1.2659279778393353,
+      "loss": 0.22604109346866608
+    },
+    {
+      "step": 59,
+      "epoch": 1.2880886426592797,
+      "loss": 0.2105424553155899
+    },
+    {
+      "step": 60,
+      "epoch": 1.3102493074792243,
+      "loss": 0.23463128507137299
+    },
+    {
+      "step": 61,
+      "epoch": 1.332409972299169,
+      "loss": 0.22953492403030396
+    },
+    {
+      "step": 62,
+      "epoch": 1.3545706371191135,
+      "loss": 0.21191301941871643
+    },
+    {
+      "step": 63,
+      "epoch": 1.3767313019390581,
+      "loss": 0.2320626676082611
+    },
+    {
+      "step": 64,
+      "epoch": 1.3988919667590027,
+      "loss": 0.23337426781654358
+    },
+    {
+      "step": 65,
+      "epoch": 1.4210526315789473,
+      "loss": 0.21809767186641693
+    },
+    {
+      "step": 66,
+      "epoch": 1.443213296398892,
+      "loss": 0.22461125254631042
+    },
+    {
+      "step": 67,
+      "epoch": 1.4653739612188366,
+      "loss": 0.22174713015556335
+    },
+    {
+      "step": 68,
+      "epoch": 1.4875346260387812,
+      "loss": 0.22126702964305878
+    },
+    {
+      "step": 69,
+      "epoch": 1.5096952908587258,
+      "loss": 0.22379794716835022
+    },
+    {
+      "step": 70,
+      "epoch": 1.5318559556786704,
+      "loss": 0.23644612729549408
+    },
+    {
+      "step": 71,
+      "epoch": 1.554016620498615,
+      "loss": 0.21296490728855133
+    },
+    {
+      "step": 72,
+      "epoch": 1.5761772853185596,
+      "loss": 0.2062874287366867
+    },
+    {
+      "step": 73,
+      "epoch": 1.5983379501385042,
+      "loss": 0.21243272721767426
+    },
+    {
+      "step": 74,
+      "epoch": 1.6204986149584486,
+      "loss": 0.23237307369709015
+    },
+    {
+      "step": 75,
+      "epoch": 1.6426592797783934,
+      "loss": 0.20636782050132751
+    },
+    {
+      "step": 76,
+      "epoch": 1.6648199445983378,
+      "loss": 0.22085636854171753
+    },
+    {
+      "step": 77,
+      "epoch": 1.6869806094182827,
+      "loss": 0.21680597960948944
+    },
+    {
+      "step": 78,
+      "epoch": 1.709141274238227,
+      "loss": 0.22944404184818268
+    },
+    {
+      "step": 79,
+      "epoch": 1.7313019390581719,
+      "loss": 0.22194431722164154
+    },
+    {
+      "step": 80,
+      "epoch": 1.7534626038781163,
+      "loss": 0.2096703201532364
+    },
+    {
+      "step": 81,
+      "epoch": 1.775623268698061,
+      "loss": 0.2157537341117859
+    },
+    {
+      "step": 82,
+      "epoch": 1.7977839335180055,
+      "loss": 0.2170604020357132
+    },
+    {
+      "step": 83,
+      "epoch": 1.8199445983379503,
+      "loss": 0.22095926105976105
+    },
+    {
+      "step": 84,
+      "epoch": 1.8421052631578947,
+      "loss": 0.2325286865234375
+    },
+    {
+      "step": 85,
+      "epoch": 1.8642659279778393,
+      "loss": 0.2038542628288269
+    },
+    {
+      "step": 86,
+      "epoch": 1.886426592797784,
+      "loss": 0.22157388925552368
+    },
+    {
+      "step": 87,
+      "epoch": 1.9085872576177285,
+      "loss": 0.21713431179523468
+    },
+    {
+      "step": 88,
+      "epoch": 1.9307479224376731,
+      "loss": 0.19939777255058289
+    },
+    {
+      "step": 89,
+      "epoch": 1.9529085872576177,
+      "loss": 0.20611640810966492
+    },
+    {
+      "step": 90,
+      "epoch": 1.9750692520775623,
+      "loss": 0.229081392288208
+    },
+    {
+      "step": 91,
+      "epoch": 1.997229916897507,
+      "loss": 0.21740929782390594
+    },
+    {
+      "step": 92,
+      "epoch": 2.0,
+      "loss": 0.2364080846309662
+    }
+  ],
+  "eval_loss_curve": [
+    {
+      "step": 46,
+      "epoch": 1.0,
+      "eval_loss": 0.3050687909126282
+    },
+    {
+      "step": 92,
+      "epoch": 2.0,
+      "eval_loss": 0.29067912697792053
+    }
+  ],
+  "response_marker_check": {
+    "n_train_before": 722,
+    "n_train_after": 722,
+    "n_val_before": 80,
+    "n_val_after": 80
+  },
+  "early_stopped": false,
+  "val_diverged": false,
+  "adapter_path": "/root/gemma4-tune/runs/recipe-b-v1/adapter",
+  "merged_path": null,
+  "generation_samples": [
+    {
+      "locator": "pcb-signal-integrity#c020",
+      "component": "local",
+      "generated": "{\"claims\": [{\"claim_id\": \"c_0001\", \"claim\": \"Striplane's cloud verification farm processes an average of 41,000 DRC jobs per month across customer accounts as of the v9.4 release.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 14, \"end_char\": 115, \"url\": null, \"quote\": \"e's cloud verification farm processes an average of 41,000 DRC jobs per month across customer accounts, with a median queue wait of 18 seconds and a 99th-percentile job completion time of 6.4 minutes for boards under 20 layers. The largest single verification job recorded to date checked a 32-layer, 46,000-net supercomputer interconnect backplane, completing full impedance, crosstalk, and via-stub analysis in 58 minutes. Seventy-eight percent of active customer accounts now run automated nightly DRC sweeps triggered directly from their PCB CAD tool via Striplane's version-9 API, up from 22% under the pre-cloud v8.x release line. Support tickets tagged \\\"false positive impedance flag\\\" fell 61% between the v8.4 and v9.4 releases after the ML-assisted stackup optimizer was retrained on an expanded field-data set\"}], \"citable\": true}, {\"claim_id\": \"c_0002\", \"claim\": \"The median queue wait for DRC jobs in Striplane's cloud verification farm is 18 seconds.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 144, \"end_char\": 227, \"url\": null, \"quote\": \"s. The largest single verification job recorded to date checked a 32-layer, 46,000-net supercomputer interconnect backplane, completing full impedance, crosstalk, and via-stub analysis in 58 minutes. Seventy-eight percent of active customer accounts now run automated nightly DRC sweeps triggered directly from their PCB CAD tool via Striplane's version-9 API, up from",
+      "reference": "{\"claims\": [{\"claim_id\": \"c_0008\", \"claim\": \"Support tickets tagged 'false positive impedance flag' fell by 61% between the v8.4 and v9.4 releases after the ML-assisted stackup optimizer was retrained on an expanded field-data set.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 460, \"end_char\": 579, \"url\": null, \"quote\": \"enty-eight percent of active customer accounts now run automated nightly DRC sweeps triggered directly from their PCB C\"}], \"citable\": true}, {\"claim_id\": \"c_0001\", \"claim\": \"As of the v9.4 release, Striplane's cloud verification farm processes an average of 41,000 DRC jobs per month across customer accounts.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 0, \"end_char\": 88, \"url\": null, \"quote\": \"As of the v9.4 release, Striplane's cloud verification farm processes an average of 41,0\"}], \"citable\": true}, {\"claim_id\": \"c_0007\", \"claim\": \"The percentage of active customer accounts running automated nightly DRC sweeps increased from 22% under the pre-cloud v8.x release to 78% in the v9.4 release.\", \"claim_type\": \"comparative\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 410, \"end_char\": 493, \"url\": null, \"quote\": \"rosstalk, and via-stub analysis in 58 minutes. Seventy-eight percent of active cust\"}], \"citable\": true}, {\"claim_id\": \"c_0006\", \"claim\": \"Seventy-eight percent of active customer accounts now run automated nightly DRC sweeps triggered directly from their PCB CAD tool via Striplane's version-9 API.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 278, \"end_char\": 356, \"url\": null, \"quote\": \" verification job recorded to date checked a 32-layer, 46,000-net supercompute\"}], \"citable\": true}, {\"claim_id\": \"c_0004\", \"claim\": \"The largest single verification job recorded to date was a 32-layer, 46,000-net supercomputer interconnect backplane.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 188, \"end_char\": 266, \"url\": null, \"quote\": \"rcentile job completion time of 6.4 minutes for boards under 20 layers. The la\"}], \"citable\": true}, {\"claim_id\": \"c_0005\", \"claim\": \"That largest single verification job completed full impedance, crosstalk, and via-stub analysis in 58 minutes.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 248, \"end_char\": 314, \"url\": null, \"quote\": \" 20 layers. The largest single verification job recorded to date c\"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"The 99th-percentile job completion time for PCBs under 20 layers in Striplane's cloud verification farm is 6.4 minutes.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 126, \"end_char\": 188, \"url\": null, \"quote\": \"accounts, with a median queue wait of 18 seconds and a 99th-pe\"}], \"citable\": true}, {\"claim_id\": \"c_0007\", \"claim\": \"This automation rate is up from 22% under the pre-cloud v8.x release line.\", \"claim_type\": \"comparative\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"pcb-signal-integrity#c020\", \"start_char\": 369, \"end_char\": 424, \"url\": null, \"quote\": \"t backplane, completing full impedance, crosstalk, and \"}], \"citable\": true}], \"entities\": [], \"relations\": []}",
+      "gen_s": 57.806220293045044
+    },
+    {
+      "locator": "subsea-cable-repair-logistics#c010",
+      "component": "local",
+      "generated": "{\"claims\": [{\"claim_id\": \"c_0001\", \"claim\": \"Tanaka and Endo's 2015 paper established much of the disagreement-tolerance methodology Fathomline's reconciliation logic still follows.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 146, \"end_char\": 249, \"url\": null, \"quote\": \"nter first. Tanaka and Endo's \u5149\u6d77\u5e95\u30b1\u30fc\u30d6\u30eb\u306b\u304a\u3051\u308b\u5149\u5b66\u7684\u304a\u3088\u3073\u96fb\u6c17\u7684\u6545\u969c\u70b9\u6a19\u5b9a\u624b\u6cd5\u306e\u6bd4\u8f03 (2015), a comparative study of optical and electrical fault-location methods for optical subma\"}], \"citable\": true}, {\"claim_id\": \"c_0002\", \"claim\": \"The paper argued that treating the two measurement methods as independent estimators reduced localization error on cables where the fault also compromised the power-feed conductor.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 250, \"end_char\": 349, \"url\": null, \"quote\": \"ble cables, established much of the disagreement-tolerance methodology Fathomline's reconciliation logic still follows. The paper argued that treating the two measurement methods as independent esti\"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"Fathomline's engineering documentation cites the paper directly in its fault-distance estimation specification.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 350, \"end_char\": 438, \"url\": null, \"quote\": \"mator, rather than trusting the optical trace alone, meaningfully reduced localization error on cables where the fault also compromised the power-feed conductor. Fathomline's engineering doc\"}], \"citable\": true}, {\"claim_id\": \"c_0004\", \"claim\": \"Several of the reconciliation module's configurable tolerance parameters trace their original default values to figures reported in the 2015",
+      "reference": "{\"claims\": [{\"claim_id\": \"c_0004\", \"claim\": \"Fathomline's reconciliation module parameters trace their original default values to figures reported in the 2015 study.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 682, \"end_char\": 943, \"url\": null, \"quote\": \"r. Fathomline's engineering documentation cites the paper directly in its fault-distance estimation specification, and several of the reconciliation module's configurable tolerance parameters trace their original default values to figures reported in that 2015 \"}], \"citable\": true}, {\"claim_id\": \"c_0002\", \"claim\": \"The study by Tanaka and Endo compared optical and electrical fault-location methods for optical submarine cables.\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 38, \"end_char\": 269, \"url\": null, \"quote\": \"lds directly on fault-localization research published outside the English-language submarine cable literature most engineers encounter first. Tanaka and Endo's \u5149\u6d77\u5e95\u30b1\u30fc\u30d6\u30eb\u306b\u304a\u3051\u308b\u5149\u5b66\u7684\u304a\u3088\u3073\u96fb\u6c17\u7684\u6545\u969c\u70b9\u6a19\u5b9a\u624b\u6cd5\u306e\u6bd4\u8f03 (2015), a comparative study of optical a\"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"Treating two measurement methods as independent estimators, rather than trusting the optical trace alone, reduced localization error on cables where the fault compromised the power-feed conductor.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 237, \"end_char\": 398, \"url\": null, \"quote\": \"a comparative study of optical and electrical fault-location methods for optical submarine cables, established much of the disagreement-tolerance methodology Fat\"}], \"citable\": true}, {\"claim_id\": \"c_0001\", \"claim\": \"Fathomline's reconciliation module builds directly on fault-localization research published outside the English-language submarine cable literature.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 4, \"end_char\": 89, \"url\": null, \"quote\": \"omline's reconciliation module builds directly on fault-localization research publish\"}], \"citable\": true}, {\"claim_id\": \"c_0001\", \"claim\": \"Tanaka and Endo's work established much of the disagreement-tolerance methodology followed by Fathomline's reconciliation logic.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 89, \"end_char\": 174, \"url\": null, \"quote\": \"ed outside the English-language submarine cable literature most engineers encounter f\"}], \"citable\": true}, {\"claim_id\": \"c_0005\", \"claim\": \"Fathomline's engineering documentation cites the paper directly in its fault-distance estimation specification.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"subsea-cable-repair-logistics#c010\", \"start_char\": 483, \"end_char\": 527, \"url\": null, \"quote\": \"measurement methods as independent estimator\"}], \"citable\": true}], \"entities\": [], \"relations\": []}",
+      "gen_s": 54.33038568496704
+    },
+    {
+      "locator": "ci-build-caching#c014",
+      "component": "local",
+      "generated": "{\"claims\": [{\"claim_id\": \"c_0001\", \"claim\": \"Kilnstore's content-addressed storage deduplicates identical artifacts produced by different actions.\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 0, \"end_char\": 68, \"url\": null, \"quote\": \"Kilnstore's content-addressed storage naturally deduplicates identical artifacts produced by different actions, which is common when multiple build tar\"}], \"citable\": true}, {\"claim_id\": \"c_0002\", \"claim\": \"The dedup ratio across the current production store is approximately 3.4x.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 146, \"end_char\": 217, \"url\": null, \"quote\": \"e the same shared header or link the same static library. Measuring raw artifact volume before deduplication against actual stored bytes after deduplicatio\"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"Roughly two-thirds of nominal artifact volume is never actually stored a second time.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 224, \"end_char\": 289, \"url\": null, \"quote\": \"n against actual stored bytes after deduplication gives a dedup ratio of approximately 3.4x across the current production store, mean\"}], \"citable\": true}, {\"claim_id\": \"c_0004\", \"claim\": \"The expected storage growth without garbage collection follows the formula S(t) = S_0 + r * t * (1 - 1/d).\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 314, \"end_char\": 377, \"url\": null, \"quote",
+      "reference": "{\"claims\": [{\"claim_id\": \"c_0006\", \"claim\": \"Garbage collection further bounds actual growth by reclaiming entries unreferenced for more than 45 days.\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 486, \"end_char\": 572, \"url\": null, \"quote\": \"time. Expected storage growth without garbage collection follows roughly S(t) = S_0 + \"}], \"citable\": true}, {\"claim_id\": \"c_0002\", \"claim\": \"Measuring raw artifact volume before deduplication against actual stored bytes after deduplication gives a dedup ratio of approximately 3.4x across the current production store.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 163, \"end_char\": 239, \"url\": null, \"quote\": \" the same shared header or link the same static library. Measuring raw artif\"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"Roughly two-thirds of nominal artifact volume is never actually stored a second time.\", \"claim_type\": \"empirical\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 256, \"end_char\": 318, \"url\": null, \"quote\": \" deduplication against actual stored bytes after deduplication\"}], \"citable\": true}, {\"claim_id\": \"c_0001\", \"claim\": \"Kilnstore's content-addressed storage deduplicates identical artifacts produced by different actions.\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 35, \"end_char\": 97, \"url\": null, \"quote\": \"ge naturally deduplicates identical artifacts produced by diff\"}], \"citable\": true}, {\"claim_id\": \"c_0004\", \"claim\": \"The term (1 - 1/d) in the growth formula captures how deduplication suppresses most, but not all, nominal growth.\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 376, \"end_char\": 425, \"url\": null, \"quote\": \"ent production store, meaning roughly two-thirds \"}], \"citable\": true}, {\"claim_id\": \"c_0003\", \"claim\": \"The expected storage growth without garbage collection follows the formula S(t) = S_0 + r * t * (1 - 1/d).\", \"claim_type\": \"definitional\", \"confidence\": \"high\", \"supporting_evidence\": [{\"locator\": \"ci-build-caching#c014\", \"start_char\": 323, \"end_char\": 368, \"url\": null, \"quote\": \"s a dedup ratio of approximately 3.4x across \"}], \"citable\": true}], \"entities\": [], \"relations\": []}",
+      "gen_s": 53.10826849937439
+    }
+  ],
+  "total_wall_s": 1173.3672585487366,
+  "timestamp_end": "2026-07-08T21:44:08Z",
+  "merged_export_status": "BLOCKED: unsloth merged_16bit no-ops for text_only Gemma-4 (save.py structure check) + transformers 5.5.4 revert_weight_conversion NotImplementedError on merged Gemma-4 save. Adapter is the trained artifact (see MERGE_STATUS.txt). Merged/GGUF is a separate post-promotion serving step."
+}

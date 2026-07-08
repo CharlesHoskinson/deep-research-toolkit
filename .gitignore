@@ -19,7 +19,12 @@ eval-results/*
 !eval-results/baseline.json
 
 # Recipe-B final SFT dataset -- large train/val JSONL stay out of git; the
-# provenance manifest (dataset_hash, component hashes, curation method) is
-# the one committed reference point, mirroring eval-results/baseline.json.
+# provenance manifest (dataset_hash, component hashes, curation method) and the
+# training-run provenance (run.json, merge status) are the committed reference
+# points, mirroring eval-results/baseline.json. Data files stay out.
 sft-final/*
 !sft-final/manifest.json
+!sft-final/provenance/
+sft-final/provenance/*
+!sft-final/provenance/*.json
+!sft-final/provenance/*.txt

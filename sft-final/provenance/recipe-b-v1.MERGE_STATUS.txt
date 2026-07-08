@@ -1,0 +1,28 @@
+Recipe-B v1 merged-16bit export: BLOCKED (framework limitation, not a training failure)
+
+Training SUCCEEDED. The LoRA adapter is the trained artifact and is fully saved:
+  - adapter/              (adapter_config.json + adapter_model.safetensors, 139 MB)
+  - trainer_output/checkpoint-92/  (best-model epoch-2 checkpoint, same adapter)
+  - trainer_output/checkpoint-46/  (epoch-1 checkpoint)
+
+The 16-bit merged export could not be produced in this validated Studio env due to
+two independent framework limitations (both hit, neither hand-patchable):
+
+1. unsloth save.py:932-937 -- save_pretrained_merged(save_method='merged_16bit')
+   silently no-ops (returns in ~1s, writes only the adapter) for a text_only-loaded
+   Gemma-4 MULTIMODAL model: the merge path is gated on hasattr(internal_model.model,
+   'layers'), which the Gemma-4 text-decoder-under-multimodal structure does not
+   expose, so it falls into the 'Cannot be converted properly' general-save branch.
+   It also cannot fetch a 16-bit base (only the 4-bit base weights are cached
+   offline: 'Model unsloth/gemma-4-e4b-it not found locally or on HuggingFace').
+
+2. PEFT merge_and_unload() fallback DOES merge, but transformers 5.5.4
+   merged.save_pretrained() then raises NotImplementedError in
+   core_model_loading.py revert_weight_conversion -> reverse_transform ->
+   reverse_op (no reverse implemented for a Gemma-4 load-time weight conversion).
+
+Per the finetune runbook, the merged->GGUF serving export is a POST-PROMOTION step
+(Phase 4/6), separate from training, and is itself already gated in this env on
+llama.cpp not being installed (see provenance/env_snapshot.json divergences).
+The adapter fully captures the trained model and is sufficient for the eval/promote
+gate (which runs the model, not a merged GGUF).
