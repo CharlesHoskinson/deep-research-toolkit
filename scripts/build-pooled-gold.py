@@ -5,8 +5,8 @@ NOT run in CI, and its live execution is not unit-tested (only the pure
 `evalkit.pool_gold` helper is). This needs what CI does not have:
   1. A .deepresearch.yml with `llm: {provider: local, local: {base_url: ...}}`.
   2. A live OpenAI-compatible endpoint (e.g. `ollama serve`) with BOTH pooled
-     models pulled (default: gemma4:e4b and qwen3:30b-a3b, the two
-     recall-leading extractors).
+     models pulled (default: gemma4:e4b and qwen3:30b-a3b-instruct-2507-q4_K_M,
+     the two recall-leading extractors).
 
 What it does, per doc under tests/fixtures/eval-corpus/:
   - Copies the doc into a temp run dir (the committed chunks.jsonl /
@@ -16,7 +16,11 @@ What it does, per doc under tests/fixtures/eval-corpus/:
     each pooled model in turn -- the same copy/repoint pattern as
     scripts/validate-local-llm.py and scripts/eval-pipeline.py, and the same
     role-model override mechanism as eval-pipeline's --models A/B path.
-  - Reads back each model's gate-passing claims.jsonl and pools them with
+  - Reads back each model's gate-passing claims.jsonl, namespaces every
+    claim_id with that model's slug (evalkit.namespace_claim_ids -- Anomaly-1
+    fix: both pooled models mint bNN_c_NNNN-style ids independently, and
+    pool_gold dedups by claim TEXT not id, so without this an id can collide
+    across models within a doc), then pools the namespaced lists with
     evalkit.pool_gold (union + dedup by selfconsistency.claim_key,
     min_support=1: any model's gate-passed claim is gold).
   - Writes the pooled set to <doc>/pooled-gold.jsonl -- the ONLY file this
@@ -29,9 +33,17 @@ What it does, per doc under tests/fixtures/eval-corpus/:
 Skips-with-reason (exit 0, like the live test tier) when the provider isn't
 'local', the endpoint doesn't answer, or a pooled model isn't pulled.
 
+`--renamespace` runs a separate, offline migration instead of extraction: it
+rewrites claim_id in every already-committed <doc>/pooled-gold.jsonl (rows
+pooled before namespace_claim_ids existed) so no id repeats within its doc --
+see renamespace_pooled_gold's docstring for how source-model attribution is
+recovered without a per-row provenance field. No live endpoint or config
+needed; it never touches chunks.jsonl/reference-claims.jsonl.
+
 Usage:
   python scripts/build-pooled-gold.py
   python scripts/build-pooled-gold.py --corpus path/to/corpus --models m1,m2
+  python scripts/build-pooled-gold.py --renamespace
 """
 from __future__ import annotations
 
@@ -50,12 +62,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from deep_research_toolkit.config import load_config  # noqa: E402
-from deep_research_toolkit.evalkit import pool_gold  # noqa: E402
+from deep_research_toolkit.evalkit import (  # noqa: E402
+    duplicate_claim_id_groups,
+    namespace_claim_ids,
+    pool_gold,
+    renamespace_duplicate_claim_ids,
+)
 from deep_research_toolkit.llm.backend import LLMBackendNotConfigured, get_backend  # noqa: E402
 from deep_research_toolkit.llm.extract import extract_claims_to_run  # noqa: E402
 
 DEFAULT_CORPUS_DIR = REPO_ROOT / "tests" / "fixtures" / "eval-corpus"
-DEFAULT_MODELS = "gemma4:e4b,qwen3:30b-a3b"
+#: qwen3:30b-a3b (bare) was never pulled -- the endpoint only ever served the
+#: instruct-2507 quant below, so that bare tag would always skip. Matches the
+#: model actually recorded in the committed pool (see LEGACY_POOL_MODELS).
+DEFAULT_MODELS = "gemma4:e4b,qwen3:30b-a3b-instruct-2507-q4_K_M"
+#: The exact models, in pool order, that built the CURRENTLY COMMITTED
+#: tests/fixtures/eval-corpus/*/pooled-gold.jsonl files -- back when
+#: DEFAULT_MODELS still named the unpulled "qwen3:30b-a3b" tag. --renamespace
+#: defaults to this (not DEFAULT_MODELS above) so migrating the existing
+#: corpus attributes each disambiguated legacy row to the model that
+#: actually produced it, not to today's corrected default.
+LEGACY_POOL_MODELS = "gemma4:e4b,qwen3:30b-a3b"
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -116,6 +143,46 @@ def _pulled_models(base_url: str, timeout: float = 2.0) -> set[str] | None:
         return None
 
 
+def _dup_counts(rows: list[dict]) -> dict:
+    """{"dup_ids": distinct claim_ids appearing >1x, "dup_rows": total rows
+    among those groups} -- the --renamespace before/after report."""
+    groups = duplicate_claim_id_groups(rows)
+    return {"dup_ids": len(groups), "dup_rows": sum(len(v) for v in groups.values())}
+
+
+def renamespace_pooled_gold(corpus_dir: Path, models: list[str]) -> dict:
+    """--renamespace driver: walks every <doc>/pooled-gold.jsonl under
+    corpus_dir, rewrites duplicate claim_ids via
+    evalkit.renamespace_duplicate_claim_ids, and reports before/after
+    duplicate counts. Pure file I/O over the committed corpus -- no live
+    endpoint, no config, so it runs even when llm.provider isn't 'local'.
+    Idempotent: a doc with no collisions (before["dup_ids"] == 0) is never
+    rewritten, so re-running after a clean migration touches no files.
+
+    Returns {"docs": {doc_id: {"before": counts, "after": counts}},
+    "total_before": int, "total_after": int} (dup_ids summed across docs)."""
+    summary: dict = {"docs": {}, "total_before": 0, "total_after": 0}
+    for doc_dir in sorted(p for p in corpus_dir.iterdir() if p.is_dir()):
+        path = doc_dir / "pooled-gold.jsonl"
+        if not path.is_file():
+            continue
+        rows = _read_jsonl(path)
+        before = _dup_counts(rows)
+        new_rows = renamespace_duplicate_claim_ids(rows, models)
+        after = _dup_counts(new_rows)
+        if after["dup_ids"]:
+            raise RuntimeError(
+                f"{doc_dir.name}: {after['dup_ids']} duplicate claim_id(s) remain after "
+                f"renamespacing with models={models} -- refusing to write (a duplicate group "
+                f"deeper than the model list can disambiguate; list more --legacy-models)")
+        if before["dup_ids"]:
+            _write_jsonl_rows(path, new_rows)
+        summary["docs"][doc_dir.name] = {"before": before, "after": after}
+        summary["total_before"] += before["dup_ids"]
+        summary["total_after"] += after["dup_ids"]
+    return summary
+
+
 def extract_doc_with_model(doc_dir: Path, config, backend) -> list[dict]:
     """Copy `doc_dir` into a temp run dir, repoint research_runs_path at the
     copy's parent, run extract_claims_to_run against the copy, and return its
@@ -138,9 +205,32 @@ def main(argv: list[str] | None = None) -> int:
                         help="Eval corpus directory (default: tests/fixtures/eval-corpus)")
     parser.add_argument("--models", default=DEFAULT_MODELS,
                         help=f"Comma-separated extract models to pool (default: {DEFAULT_MODELS})")
+    parser.add_argument("--renamespace", action="store_true",
+                        help="Idempotent migration (Anomaly 1): rewrite claim_id in every "
+                             "committed <doc>/pooled-gold.jsonl under --corpus so no id "
+                             "repeats within its doc, then exit. Offline -- no live endpoint "
+                             "or config needed; never runs extraction.")
+    parser.add_argument("--legacy-models", default=LEGACY_POOL_MODELS,
+                        help="Comma-separated models, in pool order, that built the "
+                             f"pooled-gold.jsonl files being migrated by --renamespace "
+                             f"(default: {LEGACY_POOL_MODELS})")
     args = parser.parse_args(argv)
 
     corpus_dir = Path(args.corpus).resolve()
+
+    if args.renamespace:
+        legacy_models = [m.strip() for m in args.legacy_models.split(",") if m.strip()]
+        if not legacy_models:
+            return _skip("no --legacy-models given to renamespace against")
+        summary = renamespace_pooled_gold(corpus_dir, legacy_models)
+        for doc_id, counts in summary["docs"].items():
+            b, a = counts["before"], counts["after"]
+            print(f"{doc_id}: {b['dup_ids']} dup id(s) ({b['dup_rows']} rows) -> "
+                  f"{a['dup_ids']} dup id(s) ({a['dup_rows']} rows)")
+        print(f"total: {summary['total_before']} -> {summary['total_after']} duplicate claim_id "
+              f"group(s) across {len(summary['docs'])} doc(s) under {corpus_dir}")
+        return 0
+
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     if not models:
         return _skip("no models given to pool")
@@ -182,7 +272,11 @@ def main(argv: list[str] | None = None) -> int:
         per_model: dict[str, list[dict]] = {}
         for model in models:
             cfg = _repoint_extract_model(config, model)
-            per_model[model] = extract_doc_with_model(doc_dir, cfg, backends[model])
+            claims = extract_doc_with_model(doc_dir, cfg, backends[model])
+            # Anomaly-1 fix: namespace ids by source model BEFORE pooling, so
+            # two models minting the same raw bNN_c_NNNN id can never collide
+            # in the pooled output (pool_gold dedups by claim text, not id).
+            per_model[model] = namespace_claim_ids(claims, model)
         pooled = pool_gold([per_model[m] for m in models])
         out_path = doc_dir / "pooled-gold.jsonl"
         _write_jsonl_rows(out_path, pooled)
