@@ -13,33 +13,41 @@ other than the two report JSONs it's pointed at.
 GATES (design doc §8, "trained adapter -> production adoption"), each mapped
 to its own exit code so CI can tell failures apart at a glance:
   0  all gates passed -> promote
-  2  recall gate failed (lower-CI-bound < floor, OR does not beat baseline)
+  2  recall gate failed (pooled per-claim lower-CI-bound < floor, OR the
+     paired per-claim delta's lower CI bound does not clear min_effect)
   3  bait_rejection regressed vs baseline
   4  gate_pass_rate fell below its floor
-  5  capability drift on wiki_write/synthesize/conflict_adjudicate
+  5  capability drift on wiki_write/synthesize/conflict_adjudicate (a role
+     measured on only ONE side also fails -- the gate cannot confirm
+     no-regress without both numbers, so absence fails CLOSED)
   6  provenance incomplete (missing/mismatched corpus_hash or prompt_hash --
      candidate and baseline MUST have been measured on the same corpus, or
      the whole comparison is invalid; checked FIRST, before any statistics)
 
-DESIGN DECISION (spec ambiguity -- see the design doc §6.3 gate 1 wording
-"recall lower-CI-bound clears 0.90 AND beats baseline", immediately followed
-by "bootstrap 95% CI ... on the per-chunk delta"): a CI computed on a DELTA
-straddles zero by construction and cannot itself "clear 0.90", so gate 1 is
-implemented as two independent checks that together satisfy both clauses:
-  (a) "clears 0.90": bootstrap the CANDIDATE's own per-doc recall values
-      (evalkit.bootstrap.paired_bootstrap, reused as a generic bootstrap-of-
-      a-list -- it does not care whether the list is deltas or raw values)
-      and require the resampled-mean CI's LOWER bound >= the floor.
-  (b) "beats baseline": bootstrap the PER-DOC (candidate - baseline) deltas
-      on the docs both reports scored, and require that CI's lower bound to
-      be > 0 (strictly positive -- the same "CI excludes zero, in favor of
-      the candidate" criterion scripts/eval-pipeline.py's --models A/B path
-      already uses).
-Per-CHUNK granularity per the design doc requires per-chunk metrics that the
-current eval-pipeline.py report does not expose (it reports per-DOC recall in
-`roles.extract.models.<model>.per_doc`); this reuses the finest granularity
-the existing report actually carries. Revisit if a per-chunk report ever
-ships.
+GATE 1 GRAIN -- PER-CLAIM, NOT PER-DOC (design doc §6.3/§8): the eval report
+exposes per-DOC metrics, but each doc's `recalled` count plus its
+`missed_claim_ids` list lets the per-CLAIM indicator vector be reconstructed
+EXACTLY: a doc with R = recalled + len(missed_claim_ids) reference claims
+contributes `recalled` ones and len(missed) zeros. Pooling those indicators
+across docs (the provenance gate has already guaranteed both reports scored
+the SAME corpus) gives the n~=186-grain sample the spec's CI requirement is
+calibrated to. A per-DOC macro mean must NOT be used here: it weights a
+1-claim doc equally with a 100-claim doc (macro/micro divergence -- one
+100-claim doc at 0.10 recall plus nine 1-claim docs at 1.0 has a 0.91 macro
+mean but a true claim-weighted recall of 0.174), and a bootstrap over n=10
+doc values is anti-conservative.
+
+The two checks, both over per-claim quantities:
+  (a) "clears 0.90": bootstrap CI (evalkit.bootstrap.paired_bootstrap,
+      reused as a generic bootstrap-of-a-list) over the POOLED candidate
+      indicator vector; the lower bound must be >= the floor.
+  (b) "beats baseline": reconstruct the paired per-claim delta for every
+      reference claim id -- id missed by baseline only -> +1, missed by
+      candidate only -> -1, missed by both -> 0, plus one 0 per claim BOTH
+      recalled -- pool across docs, bootstrap, and require the delta CI's
+      lower bound > `min_effect` (default 0.01: the calibrated judge-noise
+      floor -- spec §6.3, "at n=186 a 0.3-pt delta is judge noise", so a
+      sub-point delta must not trigger promotion however tight its CI).
 """
 from __future__ import annotations
 
@@ -57,6 +65,11 @@ DEFAULT_RECALL_FLOOR = 0.90
 DEFAULT_GATE_PASS_FLOOR = 0.95
 DEFAULT_BOOTSTRAP_RESAMPLES = 1000
 DEFAULT_SEED = 7
+#: Minimum paired per-claim delta the "beats baseline" CI lower bound must
+#: clear -- the calibrated judge-noise floor (spec §6.3: at n=186 a 0.3-pt
+#: delta is judge noise; requiring >1 point keeps hairline "wins" from
+#: promoting).
+DEFAULT_MIN_EFFECT = 0.01
 
 #: Exit codes, one per gate (see module docstring).
 EXIT_PROMOTE = 0
@@ -102,33 +115,79 @@ def _join_keys(report: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Gate 1 (exit 2): recall
+# Gate 1 (exit 2): recall -- pooled PER-CLAIM grain (see module docstring)
 # ---------------------------------------------------------------------------
+
+def per_claim_indicators(doc_metrics: dict) -> list[float]:
+    """One doc's per-claim recall indicator vector, reconstructed exactly
+    from the report's own fields: `recalled` ones + one zero per
+    `missed_claim_ids` entry (R = recalled + len(missed) reference claims).
+    A doc missing either field contributes nothing (it carried no
+    reconstructable claim-level signal)."""
+    missed = doc_metrics.get("missed_claim_ids")
+    recalled = doc_metrics.get("recalled")
+    if missed is None or recalled is None:
+        return []
+    return [1.0] * int(recalled) + [0.0] * len(missed)
+
+
+def per_claim_deltas(cand_metrics: dict, base_metrics: dict) -> list[float]:
+    """One doc's paired per-claim (candidate - baseline) recall deltas,
+    reconstructed by claim id: an id in the BASELINE's missed set only ->
+    +1 (candidate recalled what baseline missed); in the CANDIDATE's missed
+    set only -> -1; in both -> 0; plus one 0 for every reference claim BOTH
+    recalled (R - |union of missed|). Iteration over the union is sorted so
+    the delta vector -- and therefore the seeded bootstrap over it -- is
+    deterministic across processes."""
+    cand_missed_ids = cand_metrics.get("missed_claim_ids")
+    base_missed_ids = base_metrics.get("missed_claim_ids")
+    cand_recalled = cand_metrics.get("recalled")
+    if cand_missed_ids is None or base_missed_ids is None or cand_recalled is None:
+        return []
+    cand_missed, base_missed = set(cand_missed_ids), set(base_missed_ids)
+    r = int(cand_recalled) + len(cand_missed)
+    union = cand_missed | base_missed
+    deltas: list[float] = []
+    for cid in sorted(union):
+        if cid in base_missed and cid not in cand_missed:
+            deltas.append(1.0)
+        elif cid in cand_missed and cid not in base_missed:
+            deltas.append(-1.0)
+        else:
+            deltas.append(0.0)
+    deltas.extend([0.0] * max(0, r - len(union)))
+    return deltas
+
 
 def recall_gate(candidate: dict, baseline: dict, model: str | None = None,
                 floor: float = DEFAULT_RECALL_FLOOR,
+                min_effect: float = DEFAULT_MIN_EFFECT,
                 resamples: int = DEFAULT_BOOTSTRAP_RESAMPLES, seed: int = DEFAULT_SEED) -> dict:
-    """See the module docstring's DESIGN DECISION for what "clears 0.90 AND
-    beats baseline" is computed as. Returns
-    {"passed", "clears_floor", "beats_baseline", "candidate_ci95",
-     "delta_ci95", "n_docs", "n_common_docs"}."""
+    """See the module docstring's GATE 1 GRAIN section: both checks run over
+    POOLED PER-CLAIM quantities (n~=186), never a per-doc macro mean.
+    `clears_floor` bootstraps the pooled candidate indicator vector and
+    requires its CI lower bound >= `floor`; `beats_baseline` bootstraps the
+    pooled paired per-claim deltas and requires that CI's lower bound >
+    `min_effect` (the judge-noise floor -- a statistically-tight hairline
+    delta must still not promote). Returns {"passed", "clears_floor",
+    "beats_baseline", "candidate_ci95", "delta_ci95", "floor", "min_effect",
+    "n_claims", "n_paired_claims"}."""
     cand = extract_model_metrics(candidate, model)
     base = extract_model_metrics(baseline, model)
     cand_per_doc = cand.get("per_doc") or {}
     base_per_doc = base.get("per_doc") or {}
 
-    cand_recalls = [m["recall"] for m in cand_per_doc.values() if m.get("recall") is not None]
-    cand_ci = paired_bootstrap(cand_recalls, b=resamples, seed=seed)
-    clears_floor = cand_ci["ci95"][0] >= floor
+    indicators: list[float] = []
+    for doc_id in sorted(cand_per_doc):
+        indicators.extend(per_claim_indicators(cand_per_doc[doc_id]))
+    cand_ci = paired_bootstrap(indicators, b=resamples, seed=seed)
+    clears_floor = bool(indicators) and cand_ci["ci95"][0] >= floor
 
-    common_docs = sorted(set(cand_per_doc) & set(base_per_doc))
-    deltas = [
-        cand_per_doc[d]["recall"] - base_per_doc[d]["recall"]
-        for d in common_docs
-        if cand_per_doc[d].get("recall") is not None and base_per_doc[d].get("recall") is not None
-    ]
+    deltas: list[float] = []
+    for doc_id in sorted(set(cand_per_doc) & set(base_per_doc)):
+        deltas.extend(per_claim_deltas(cand_per_doc[doc_id], base_per_doc[doc_id]))
     delta_ci = paired_bootstrap(deltas, b=resamples, seed=seed)
-    beats_baseline = delta_ci["ci95"][0] > 0
+    beats_baseline = bool(deltas) and delta_ci["ci95"][0] > min_effect
 
     return {
         "passed": clears_floor and beats_baseline,
@@ -137,8 +196,9 @@ def recall_gate(candidate: dict, baseline: dict, model: str | None = None,
         "candidate_ci95": cand_ci["ci95"],
         "delta_ci95": delta_ci["ci95"],
         "floor": floor,
-        "n_docs": len(cand_recalls),
-        "n_common_docs": len(deltas),
+        "min_effect": min_effect,
+        "n_claims": len(indicators),
+        "n_paired_claims": len(deltas),
     }
 
 
@@ -176,17 +236,27 @@ def gate_pass_gate(candidate: dict, model: str | None = None,
 # ---------------------------------------------------------------------------
 
 def drift_gate(candidate: dict, baseline: dict) -> dict:
-    """A role absent from EITHER report is skipped (not run this eval, not a
-    regression signal) rather than failing the gate -- but a role present in
-    both with a missing metric value DOES fail (can't confirm no-regress)."""
+    """FAILS CLOSED on one-sided absence: a capability role measured in one
+    report but not the other cannot be confirmed no-regress, so it FAILS the
+    gate ("role not measured") -- most importantly, a candidate eval that
+    simply skipped wiki_write/synthesize/adjudicate must not sail through the
+    forgetting check. Only a role absent from BOTH reports is skipped (that
+    role genuinely isn't part of this eval protocol). A role present in both
+    with a missing metric VALUE also fails, for the same reason."""
     roles_out: dict = {}
     passed = True
     for role, metric_key in _DRIFT_ROLE_METRIC.items():
         cand_role = (candidate.get("roles") or {}).get(role)
         base_role = (baseline.get("roles") or {}).get(role)
-        if cand_role is None or base_role is None:
+        if cand_role is None and base_role is None:
             roles_out[role] = {"passed": True, "skipped": True,
-                               "reason": "role not present in both reports"}
+                               "reason": "role not present in either report"}
+            continue
+        if cand_role is None or base_role is None:
+            side = "candidate" if cand_role is None else "baseline"
+            roles_out[role] = {"passed": False,
+                               "reason": f"role not measured on {side}"}
+            passed = False
             continue
         cand_val = cand_role.get(metric_key)
         base_val = base_role.get(metric_key)
@@ -243,6 +313,7 @@ def provenance_gate(candidate: dict, baseline: dict) -> dict:
 
 def evaluate_promotion(candidate: dict, baseline: dict, model: str | None = None,
                        recall_floor: float = DEFAULT_RECALL_FLOOR,
+                       min_effect: float = DEFAULT_MIN_EFFECT,
                        gate_pass_floor: float = DEFAULT_GATE_PASS_FLOOR,
                        resamples: int = DEFAULT_BOOTSTRAP_RESAMPLES,
                        seed: int = DEFAULT_SEED) -> tuple[int, dict]:
@@ -260,7 +331,7 @@ def evaluate_promotion(candidate: dict, baseline: dict, model: str | None = None
         return EXIT_PROVENANCE, details
 
     recall = recall_gate(candidate, baseline, model=model, floor=recall_floor,
-                         resamples=resamples, seed=seed)
+                         min_effect=min_effect, resamples=resamples, seed=seed)
     details["recall"] = recall
     if not recall["passed"]:
         details["exit_code"] = EXIT_RECALL
@@ -299,6 +370,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", default=None,
                         help="extract model name to compare, if a report has more than one")
     parser.add_argument("--recall-floor", type=float, default=DEFAULT_RECALL_FLOOR)
+    parser.add_argument("--min-effect", type=float, default=DEFAULT_MIN_EFFECT,
+                        help="Minimum paired per-claim recall delta the beats-baseline CI lower "
+                             f"bound must clear (judge-noise floor; default {DEFAULT_MIN_EFFECT})")
     parser.add_argument("--gate-pass-floor", type=float, default=DEFAULT_GATE_PASS_FLOOR)
     parser.add_argument("--resamples", type=int, default=DEFAULT_BOOTSTRAP_RESAMPLES)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -315,7 +389,8 @@ def main(argv: list[str] | None = None) -> int:
 
     exit_code, details = evaluate_promotion(
         candidate, baseline, model=args.model, recall_floor=args.recall_floor,
-        gate_pass_floor=args.gate_pass_floor, resamples=args.resamples, seed=args.seed)
+        min_effect=args.min_effect, gate_pass_floor=args.gate_pass_floor,
+        resamples=args.resamples, seed=args.seed)
 
     if args.json:
         print(json.dumps(details, indent=2, ensure_ascii=False))
