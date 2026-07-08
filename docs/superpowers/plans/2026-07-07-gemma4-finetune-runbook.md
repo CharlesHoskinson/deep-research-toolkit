@@ -297,16 +297,21 @@ All recipes: adapters per role (one tune per role, not one do-everything model).
     --baseline eval-results/baseline.json --model drt-extract-gemma4-e4b:v1-<evaltag>
 ```
 
-`scripts/promote.py` (backed by `deep_research_toolkit.tunekit.registry`/
-`gguf_check`) checks, in order, and STOPS at the first failure:
+`scripts/promote.py` is self-contained: pure gate functions over the two eval
+reports, reusing only `evalkit.bootstrap.paired_bootstrap` (the registry append
+and the GGUF check are SEPARATE post-accept steps — see below). The recall gate
+runs at **per-claim grain**: each doc's `recalled` count + `missed_claim_ids`
+list reconstructs the pooled per-claim indicator vector (n≈186 on the eval
+corpus), so a per-doc macro mean can never mask a large low-recall doc. It
+checks, in order, and STOPS at the first failure:
 
 | Exit | Gate | Meaning |
 | --- | --- | --- |
 | 6 | provenance | candidate/baseline share the same `corpus_hash`/`prompt_hash` — checked FIRST, or nothing below is meaningful |
-| 2 | recall | candidate's per-doc recall bootstrap-CI lower bound clears 0.90 AND beats baseline (paired-bootstrap delta CI excludes zero, in the candidate's favor) |
+| 2 | recall | pooled per-claim recall bootstrap-CI lower bound clears 0.90 AND the paired per-claim delta's CI lower bound clears the `--min-effect` judge-noise floor (default 0.01) |
 | 3 | bait | bait_rejection does not regress vs baseline (any regression blocks) |
 | 4 | gate_pass | candidate gate_pass_rate stays ≥ 0.95 |
-| 5 | drift | wiki_write/synthesize/conflict_adjudicate (the forgetting check) do not regress |
+| 5 | drift | wiki_write/synthesize/conflict_adjudicate (the forgetting check) do not regress — a role measured in only ONE of the two reports also fails ("role not measured"); run all roles on both sides |
 | 0 | — | **promote** |
 
 **Accept** only on exit 0. **Reject** on any nonzero exit — keep the stock model,
