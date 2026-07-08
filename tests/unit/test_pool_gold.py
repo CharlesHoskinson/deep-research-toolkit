@@ -9,6 +9,8 @@ id) can pool two different-content claims that happen to share a raw id --
 namespace_claim_ids tags ids per source model at pool time so that can never
 happen, and renamespace_duplicate_claim_ids migrates already-pooled rows
 that predate the fix."""
+import pytest
+
 from deep_research_toolkit.evalkit import (
     duplicate_claim_id_groups,
     namespace_claim_ids,
@@ -66,6 +68,21 @@ def test_namespace_claim_ids_output_ids_match_claim_marker_regex():
     out = namespace_claim_ids(claims, "qwen3:30b-a3b-instruct-2507-q4_K_M")
     cid = out[0]["claim_id"]
     assert CLAIM_MARKER_RE.match(f"[claim:{cid}]").group(1) == cid
+
+
+def test_namespace_claim_ids_raises_on_duplicate_ids_within_one_model():
+    # Defensive check for the premise the whole no-collision guarantee rests
+    # on: a single model's kept claims must already carry unique raw ids. An
+    # LLM emitting the same claim_id twice in one batch (the samples=1 path
+    # has no union dedup to catch it) would survive namespacing as a
+    # within-model collision -- that must fail loud, naming the id, never
+    # write a colliding pool.
+    claims = [
+        _c("first claim", 0, 10, claim_id="b00_c_0001"),
+        _c("second, different claim", 20, 30, claim_id="b00_c_0001"),
+    ]
+    with pytest.raises(ValueError, match=r"gemma4-e4b\.b00_c_0001"):
+        namespace_claim_ids(claims, "gemma4:e4b")
 
 
 def test_namespace_claim_ids_at_pool_time_prevents_cross_model_id_collision():

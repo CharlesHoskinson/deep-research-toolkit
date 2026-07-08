@@ -55,9 +55,25 @@ def namespace_claim_ids(claims: list[dict], model: str) -> list[dict]:
     Because this runs per model before the lists are pooled, two models that
     independently mint the same raw id can never collide in the pooled
     output -- pool_gold's own dedup logic (by claim_key, unaffected by this
-    rename) still decides which claims survive."""
+    rename) still decides which claims survive.
+
+    That guarantee rests on a premise this function now VERIFIES rather than
+    assumes: one model's kept claims must already carry unique raw ids.
+    extract_claims_to_run's batch/pass prefixes are designed to ensure that,
+    but an LLM emitting the same claim_id twice within one batch (the
+    samples=1 path has no union dedup to collapse it) would slip through as a
+    within-model collision the model-slug prefix cannot fix. Raises
+    ValueError naming the colliding id(s) -- fail loud, never hand pool_gold
+    a list that could write a colliding pool."""
     tag = slugify_model_id(model)
-    return [{**c, "claim_id": f"{tag}.{c.get('claim_id', '')}"} for c in claims]
+    out = [{**c, "claim_id": f"{tag}.{c.get('claim_id', '')}"} for c in claims]
+    dups = duplicate_claim_id_groups(out)
+    if dups:
+        raise ValueError(
+            f"model {model!r} emitted duplicate claim_id(s) within its own claim list "
+            f"(namespacing cannot disambiguate a within-model collision): "
+            f"{', '.join(sorted(dups))}")
+    return out
 
 
 def duplicate_claim_id_groups(claims: list[dict]) -> dict[str, list[int]]:
@@ -93,7 +109,14 @@ def renamespace_duplicate_claim_ids(claims: list[dict], models: list[str]) -> li
     already-migrated claims (every id now unique) makes no further change --
     idempotent by construction. A duplicate group deeper than len(models)
     (not expected for a 2-model pool) falls back to a "dupN" tag for the
-    occurrences beyond the known model list, rather than guessing a model."""
+    occurrences beyond the known model list, rather than guessing a model.
+
+    Residual risk, legacy path only: if a model had itself emitted a
+    duplicate raw id within its own list (the case namespace_claim_ids now
+    rejects at pool time, but which legacy rows were pooled without checking
+    for), this occurrence-order attribution would silently assign the second
+    same-model occurrence to the wrong model -- ids stay unique either way,
+    but the model tag would be a misattribution."""
     groups = duplicate_claim_id_groups(claims)
     out = list(claims)
     for claim_id, idxs in groups.items():
