@@ -550,6 +550,37 @@ def test_run_extract_for_model_degrades_when_embedder_raises(tmp_path):
     assert out["recall"] == pytest.approx(1 / 3)  # base metrics intact
 
 
+def test_run_extract_for_model_embedder_failure_isolated_to_one_aggregate(tmp_path):
+    # Anomaly 2: a batch that dies (e.g. the embedding runner crashing on an
+    # oversized request) must fail entailment for ONLY the aggregate it was
+    # scoring -- never permanently disable the embedder for the rest of the
+    # run. doc-a is scored first (the first _metrics() call, which calls the
+    # embedder for its non-empty reference texts) and is made to fail; doc-b
+    # and the final corpus-level aggregate come after and must still get
+    # recall_entailment, proving the failure didn't leak forward.
+    _build_tiny_corpus(tmp_path)
+    config = _tiny_corpus_config(tmp_path)
+    backend = _FakeExtractBackend({"doc-a#c001": _ALPHA_PAYLOAD})
+    index = json.loads((tmp_path / "corpus-index.json").read_text(encoding="utf-8"))
+    doc_selection = eval_pipeline.select_docs_for_limit(tmp_path, None)
+
+    good = _make_one_hot_embedder()
+    calls = {"n": 0}
+
+    def flaky(texts):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("embedding runner died on this batch")
+        return good(texts)
+
+    out = eval_pipeline.run_extract_for_model(
+        tmp_path, index, config, backend, doc_selection, embedder=flaky)
+
+    assert "recall_entailment" not in out["per_doc"]["doc-a"]  # the failed aggregate
+    assert "recall_entailment" in out["per_doc"]["doc-b"]      # unaffected by doc-a's failure
+    assert out["recall_entailment"] is not None                # corpus-level aggregate unaffected too
+
+
 def test_run_extract_for_doc_prefers_pooled_gold_reference(tmp_path):
     _build_tiny_corpus(tmp_path)
     pooled = [_claim("pg1", "doc-a#c001", "Alpha fact one"),

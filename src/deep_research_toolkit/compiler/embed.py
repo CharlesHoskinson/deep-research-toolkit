@@ -67,9 +67,20 @@ class OllamaEmbedder:
     #: is listening. A cold load of an ~8.7 GB embedding model can take 10-30 s,
     #: so the retry budget must span that: 8 attempts with backoff capped at 10 s
     #: (~0.5+1+2+4+8+10+10 ~= 35 s) rather than dropping entailment metrics for
-    #: the whole run on a one-time load delay.
+    #: the whole run on a one-time load delay. Applied PER BATCH (see _BATCH_SIZE
+    #: below), so a later batch's cold-load hiccup doesn't spend an earlier
+    #: batch's budget and vice versa.
     _MAX_ATTEMPTS = 8
     _BACKOFF_CAP_S = 10.0
+
+    #: Max texts per /v1/embeddings request. A single request over the eval
+    #: corpus-level aggregate (2,400+ claim texts pooled across every doc) has
+    #: been observed to kill the Ollama embedding runner outright rather than
+    #: time out cleanly -- retrying that same oversized request just repeats
+    #: the failure. Chunking well under any observed failure size, with each
+    #: batch retried independently, keeps one runner-killing request from
+    #: taking the whole embed() call down.
+    _BATCH_SIZE = 128
 
     def __init__(self, model: str, base_url: str = "http://localhost:11434/v1",
                  api_key: str = "not-needed") -> None:
@@ -91,6 +102,17 @@ class OllamaEmbedder:
         return self._client
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        """Chunks `texts` into batches of at most _BATCH_SIZE, embeds each
+        batch independently (its own full retry budget -- see _embed_batch),
+        and concatenates the results in input order. A single small call
+        (the common case, well under _BATCH_SIZE) is still exactly one
+        request, unchanged from before batching existed."""
+        out: list[list[float]] = []
+        for start in range(0, len(texts), self._BATCH_SIZE):
+            out.extend(self._embed_batch(texts[start:start + self._BATCH_SIZE]))
+        return out
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         import time
 
         last_exc: Exception | None = None
@@ -103,7 +125,7 @@ class OllamaEmbedder:
                 if attempt == self._MAX_ATTEMPTS - 1:
                     break
                 time.sleep(min(0.5 * (2 ** attempt), self._BACKOFF_CAP_S))  # 0.5,1,2,4,8,10,10 -- covers a cold load
-        raise last_exc  # exhausted retries -- surface so the caller's degrade path still runs
+        raise last_exc  # exhausted this batch's retries -- surface so the caller's degrade path still runs
 
 
 def get_embedder(model_name: str = "all-MiniLM-L6-v2",

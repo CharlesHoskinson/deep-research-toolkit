@@ -291,11 +291,16 @@ def run_extract_for_model(corpus_dir: Path, index: dict, config, backend,
 
     `samples`/`min_support`/`parallel`/`pooled_gold` are threaded through to
     run_extract_for_doc. `embedder` is a callable ``texts -> vectors`` handed
-    to extract_metrics so recall_entailment/f_fact are computed; if any embed
-    call fails (no embedding endpoint), scoring degrades for the rest of the
-    run to the plain no-embedder metric shape instead of crashing. The model
-    summary also carries `truncated_calls`/`batches` (summed across docs, the
-    <5% truncation SLO signal) and `reference_source` per doc."""
+    to extract_metrics so recall_entailment/f_fact are computed; it already
+    batches and retries internally (compiler.embed.OllamaEmbedder), but if a
+    call still fails outright (embedding endpoint down, or a batch that
+    exhausted its own retries), scoring degrades to the plain no-embedder
+    metric shape for THAT aggregate only -- a per-doc failure must not
+    permanently disable entailment for the rest of the run (later docs, or
+    the final corpus-level aggregate computed after this loop), so `embedder`
+    itself is never reassigned; each _metrics() call independently attempts
+    it. The model summary also carries `truncated_calls`/`batches` (summed
+    across docs, the <5% truncation SLO signal) and `reference_source` per doc."""
     all_produced: list[dict] = []
     all_reference: list[dict] = []
     all_dropped: list = []
@@ -307,15 +312,14 @@ def run_extract_for_model(corpus_dir: Path, index: dict, config, backend,
     per_doc: dict[str, dict] = {}
 
     def _metrics(produced, reference, dropped, parse_failures):
-        nonlocal embedder
         if embedder is not None:
             try:
                 return extract_metrics(produced, reference, dropped, parse_failures,
                                        embedder=embedder)
-            except Exception as e:  # noqa: BLE001 -- degrade, never crash the run
-                print(f"embedder failed ({e}); continuing without entailment metrics",
-                      file=sys.stderr)
-                embedder = None
+            except Exception as e:  # noqa: BLE001 -- degrade THIS aggregate only, never crash the run
+                print(f"embedder failed scoring this aggregate ({e}); "
+                      "recall_entailment/f_fact unavailable for it, entailment scoring "
+                      "continues for the rest of the run", file=sys.stderr)
         return extract_metrics(produced, reference, dropped, parse_failures)
 
     for doc_id, chunk_cap in doc_selection:
