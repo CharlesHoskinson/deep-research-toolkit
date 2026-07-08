@@ -17,3 +17,9 @@ knowledge_base/
 # one exception: a committed reference point for --compare, see Task 7)
 eval-results/*
 !eval-results/baseline.json
+
+# Recipe-B final SFT dataset -- large train/val JSONL stay out of git; the
+# provenance manifest (dataset_hash, component hashes, curation method) is
+# the one committed reference point, mirroring eval-results/baseline.json.
+sft-final/*
+!sft-final/manifest.json

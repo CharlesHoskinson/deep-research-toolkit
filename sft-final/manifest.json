@@ -1,0 +1,74 @@
+{
+  "dataset_hash": "sha256:decaa8b07002d3527212b222152bc84fe8396f5c8ca5d8402b17b0cc49f94dd7",
+  "component_hashes": {
+    "local": "sha256:774b19ad53d1ec87fae857da361daa9a0c0a919ab5fdb9ba6b5bd6b68cac2c33",
+    "frontier_bait": "sha256:06ac4c09200619ca56c8988cc798a56ac9e127e5000edad8353f05bc3b94dd88",
+    "general": "sha256:4140be8eb9c3ee2ef99cdb2ccfa75441fcc957b81e7d4d855bd8fbd8bd231db2"
+  },
+  "n_total": {
+    "train": 722,
+    "val": 80
+  },
+  "n_by_component": {
+    "local": {
+      "train": 551,
+      "val": 61,
+      "total": 612
+    },
+    "bait": {
+      "train": 81,
+      "val": 9,
+      "total": 90
+    },
+    "general": {
+      "train": 90,
+      "val": 10,
+      "total": 100
+    }
+  },
+  "atomicity": {
+    "local_before_curation": {
+      "n": 612,
+      "mean": 38.745098039215684,
+      "median": 25.0,
+      "min": 4,
+      "max": 158
+    },
+    "local_after_curation": {
+      "n": 612,
+      "mean": 6.882352941176471,
+      "median": 7.0,
+      "min": 2,
+      "max": 8
+    },
+    "bait_after_merge": {
+      "n": 90,
+      "mean": 6.111111111111111,
+      "median": 6.0,
+      "min": 6,
+      "max": 7
+    }
+  },
+  "verbatim_gate_version": "span-v2.0",
+  "source_corpus_hash": "sha256:120c253a7f33e333a7b9963ba150357b21088d7da04b3b9aa2c3bdef407f1956",
+  "generator_digests": {
+    "e4b": 3077,
+    "qwen3:30b-a3b": 1135,
+    "frontier-agent-opus": 550,
+    "self-authored (assembling agent)": 100
+  },
+  "curation_method": "Support-count filter (design doc §5.2, keep claims supported by >=2 of N samples) was investigated and found NOT recoverable from this build's artifacts: tunekit.dataset.escalating_k_sample pools all of a round's gate-passing claims from every completion into one flat accepted list with no per-claim sample-count; build_sft_dataset's cross-dataset dedup_claims then keeps only the first occurrence of each claim_key and drops the rest without recording how many occurrences were merged; escalation-log.json records only round-level aggregates ({k, completions, parsed, accepted} per chunk), never per-claim provenance; and no accepted.partial.jsonl/progress.json checkpoint (which WOULD carry per-claim, per-completion records) survives on disk for this build. Fallback heuristic applied instead, per chunk: (1) rank gate-passing claims by total supporting-quote character length descending (longer verbatim span ~ higher-value, less trivial claim); (2) greedily drop any claim whose normalized-token-set Jaccard similarity to an already-kept claim is >= 0.3 (paraphrase collapse); (3) cap the survivors at 8 per chunk. This is coarser than a true support filter (cannot distinguish 'said once, said with confidence' from 'said once, by chance') but is documented here as the deviation and was validated empirically to land atomicity in a sane 2-8/record band (see manifest's atomicity_after).",
+  "curation_params": {
+    "jaccard_threshold": 0.3,
+    "per_record_cap": 8,
+    "val_fraction": 0.1,
+    "seed": 42,
+    "general_n": 100
+  },
+  "general_source": "Self-authored by the assembling agent (no cached permissively-licensed instruction dataset was found in this repo) -- 25 short generic topics (cooking, science, civics-adjacent how-tos, health, etc.), each deliberately disjoint from every training-corpus/eval-corpus subject, x 4 task types (summarize / casual rewrite / Q&A / prose-to-bullets) = 100 records. See deep_research_toolkit.tunekit.assemble.GENERAL_TOPICS for the source content.",
+  "sources": {
+    "local_raw_manifest": "C:\\deep-research-toolkit\\sft-dataset-recipe-b\\manifest.json",
+    "bait_manifest": "C:\\deep-research-toolkit\\datasets\\frontier-bait\\manifest.json",
+    "training_corpus_dir": "C:\\deep-research-toolkit\\training-corpus"
+  }
+}
