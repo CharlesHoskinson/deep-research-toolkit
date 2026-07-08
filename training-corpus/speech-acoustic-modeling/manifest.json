@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "speech-acoustic-modeling",
+  "title": "Formantis: Acoustic Modeling Engine for Phoneme-Level Speech Recognition",
+  "source_url": "https://example.org/training-corpus/speech-acoustic-modeling",
+  "content_hash": "sha256:c6c27b39aef55438",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

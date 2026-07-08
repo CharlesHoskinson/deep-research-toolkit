@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "pcb-signal-integrity",
+  "title": "Striplane: A Design-Rule-Checking and Verification Toolchain for High-Speed PCB Signal Integrity",
+  "source_url": "https://example.org/training-corpus/pcb-signal-integrity",
+  "content_hash": "sha256:3cabd3e86c50c8b6",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "vaccine-cold-chain-monitoring",
+  "title": "Isotherm Trace: Continuous Cold-Chain Monitoring for Vaccine Logistics",
+  "source_url": "https://example.org/training-corpus/vaccine-cold-chain-monitoring",
+  "content_hash": "sha256:6c5e3f43b0525c44",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

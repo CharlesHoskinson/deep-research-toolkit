@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "grid-frequency-regulation",
+  "title": "Kestrel AGC: Automatic Generation Control for Interconnected Power Grids",
+  "source_url": "https://example.org/training-corpus/grid-frequency-regulation",
+  "content_hash": "sha256:a3aae6b841da4147",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

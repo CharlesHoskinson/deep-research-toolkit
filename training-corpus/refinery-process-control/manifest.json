@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "refinery-process-control",
+  "title": "Anthracite-6: Distributed Control and Safety Instrumented Systems for Refinery Process Units",
+  "source_url": "https://example.org/training-corpus/refinery-process-control",
+  "content_hash": "sha256:60740e7da56e7ba5",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

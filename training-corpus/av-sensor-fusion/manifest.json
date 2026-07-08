@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "av-sensor-fusion",
+  "title": "Palisade FE-3: Multi-Sensor Fusion Engine for Autonomous Perception",
+  "source_url": "https://example.org/training-corpus/av-sensor-fusion",
+  "content_hash": "sha256:57cf7b0b52188190",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "video-codec-rate-control",
+  "title": "Framewright: A Perceptual-Quality-Driven Rate-Control Engine for Adaptive Video Encoding",
+  "source_url": "https://example.org/training-corpus/video-codec-rate-control",
+  "content_hash": "sha256:1cbc47931bd2a274",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

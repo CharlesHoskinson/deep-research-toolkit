@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "tlb-mmu-design",
+  "title": "Corvid MMU: Multi-Level TLB and Page-Walk Architecture for the Sawtooth Core Family",
+  "source_url": "https://example.org/training-corpus/tlb-mmu-design",
+  "content_hash": "sha256:75edb9c2671d94fd",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

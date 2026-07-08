@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "3d-printing-slicers",
+  "title": "Gabbro Slicer: Adaptive Toolpath Generation for Fused Filament Printers",
+  "source_url": "https://example.org/training-corpus/3d-printing-slicers",
+  "content_hash": "sha256:ac05237cd2d72e10",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

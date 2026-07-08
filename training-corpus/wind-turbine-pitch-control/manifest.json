@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "wind-turbine-pitch-control",
+  "title": "Talus PCS-4: Independent Blade Pitch Control for Multi-Megawatt Turbines",
+  "source_url": "https://example.org/training-corpus/wind-turbine-pitch-control",
+  "content_hash": "sha256:8aef2b7a73eaa95b",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

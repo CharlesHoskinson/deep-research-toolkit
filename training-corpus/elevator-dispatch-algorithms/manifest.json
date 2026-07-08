@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "elevator-dispatch-algorithms",
+  "title": "Ascentra: Destination-Dispatch Optimization for High-Rise Elevator Banks",
+  "source_url": "https://example.org/training-corpus/elevator-dispatch-algorithms",
+  "content_hash": "sha256:f01e16bf364293d7",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

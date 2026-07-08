@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "wildfire-detection-networks",
+  "title": "Emberline: A Sensor-Tower Network for Early Wildfire Smoke Detection",
+  "source_url": "https://example.org/training-corpus/wildfire-detection-networks",
+  "content_hash": "sha256:b3ec6f59d4997568",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

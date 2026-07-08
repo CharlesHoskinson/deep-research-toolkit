@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "quantum-cryostat-cooling",
+  "title": "Millidyne: Millikelvin Dilution-Refrigerator Cryostat Platform for Superconducting Qubits",
+  "source_url": "https://example.org/training-corpus/quantum-cryostat-cooling",
+  "content_hash": "sha256:4db967841efd8b7b",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

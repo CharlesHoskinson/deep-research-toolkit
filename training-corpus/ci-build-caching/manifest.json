@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "ci-build-caching",
+  "title": "Kilnstore: A Content-Addressed Remote Build Cache for CI",
+  "source_url": "https://example.org/training-corpus/ci-build-caching",
+  "content_hash": "sha256:dc21dc31fff6a39f",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

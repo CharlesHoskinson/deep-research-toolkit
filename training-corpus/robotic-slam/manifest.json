@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "robotic-slam",
+  "title": "Driftlock: A Loop-Closure-Corrected SLAM Stack for Warehouse Robots",
+  "source_url": "https://example.org/training-corpus/robotic-slam",
+  "content_hash": "sha256:833018ac370f35d6",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

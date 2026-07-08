@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "precision-agriculture-sensors",
+  "title": "Furrowmesh: LPWAN Soil-Sensor Network for Variable-Rate Application",
+  "source_url": "https://example.org/training-corpus/precision-agriculture-sensors",
+  "content_hash": "sha256:6953d4a81d832f08",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "coherent-optical-transceivers",
+  "title": "Lucerna: DWDM Coherent Optical Transceiver Design for Metro and Long-Haul Links",
+  "source_url": "https://example.org/training-corpus/coherent-optical-transceivers",
+  "content_hash": "sha256:57cfd2b4f742a8c6",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "seismic-sensor-arrays",
+  "title": "Tremora: Networked Seismic Arrays for Earthquake Early Warning",
+  "source_url": "https://example.org/training-corpus/seismic-sensor-arrays",
+  "content_hash": "sha256:5af7501581a3aad2",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 19
+}

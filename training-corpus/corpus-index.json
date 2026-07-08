@@ -1,0 +1,4327 @@
+{
+  "chunks": {
+    "3d-printing-slicers#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c009": {
+      "slices": [
+        "math"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c010": {
+      "slices": [
+        "math"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c019": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "3d-printing-slicers#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "3d-printing-slicers"
+    },
+    "air-traffic-conflict-detection#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c008": {
+      "slices": [
+        "table"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c009": {
+      "slices": [
+        "table"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c010": {
+      "slices": [
+        "math"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c011": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c017": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "air-traffic-conflict-detection#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "air-traffic-conflict-detection"
+    },
+    "av-sensor-fusion#c001": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c005": {
+      "slices": [
+        "list"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c007": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c009": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c010": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c015": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c016": {
+      "slices": [
+        "long"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c018": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "av-sensor-fusion#c019": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "av-sensor-fusion"
+    },
+    "battery-management-systems#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c008": {
+      "slices": [
+        "math"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c009": {
+      "slices": [
+        "list"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c019": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "battery-management-systems#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "battery-management-systems"
+    },
+    "ci-build-caching#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c018": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "ci-build-caching#c020": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "ci-build-caching"
+    },
+    "coherent-optical-transceivers#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c008": {
+      "slices": [
+        "math"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c009": {
+      "slices": [
+        "list"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c019": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "coherent-optical-transceivers#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "coherent-optical-transceivers"
+    },
+    "columnar-query-engines#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c003": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c006": {
+      "slices": [
+        "table"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c010": {
+      "slices": [
+        "math"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c013": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c014": {
+      "slices": [
+        "table"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c015": {
+      "slices": [
+        "math"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c016": {
+      "slices": [
+        "list"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c017": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c018": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "columnar-query-engines#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "columnar-query-engines"
+    },
+    "container-schedulers#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c006": {
+      "slices": [
+        "table"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c009": {
+      "slices": [
+        "math"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c014": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c015": {
+      "slices": [
+        "math"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "container-schedulers"
+    },
+    "container-schedulers#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "container-schedulers"
+    },
+    "content-addressable-storage#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c008": {
+      "slices": [
+        "math"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c009": {
+      "slices": [
+        "list"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c017": {
+      "slices": [
+        "list"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "content-addressable-storage#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "content-addressable-storage"
+    },
+    "distributed-rate-limiters#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c003": {
+      "slices": [
+        "math"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c010": {
+      "slices": [
+        "math"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c012": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c014": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c018": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "distributed-rate-limiters#c020": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "distributed-rate-limiters"
+    },
+    "dns-resolver-architecture#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "dns-resolver-architecture#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "dns-resolver-architecture"
+    },
+    "elevator-dispatch-algorithms#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c009": {
+      "slices": [
+        "table"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c011": {
+      "slices": [
+        "math"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c012": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c018": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "elevator-dispatch-algorithms#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "elevator-dispatch-algorithms"
+    },
+    "firmware-ota-updates#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c006": {
+      "slices": [
+        "table"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c007": {
+      "slices": [
+        "math"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c016": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "firmware-ota-updates#c020": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "firmware-ota-updates"
+    },
+    "graph-query-planners#c001": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c003": {
+      "slices": [
+        "list"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c005": {
+      "slices": [
+        "math"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c016": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c018": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c019": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "graph-query-planners#c020": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "graph-query-planners"
+    },
+    "grid-frequency-regulation#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c005": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c016": {
+      "slices": [
+        "list"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c017": {
+      "slices": [
+        "list"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "grid-frequency-regulation#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "grid-frequency-regulation"
+    },
+    "homomorphic-encryption#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c017": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c018": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "homomorphic-encryption#c020": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "homomorphic-encryption"
+    },
+    "incremental-parsing#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c008": {
+      "slices": [
+        "list"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c009": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c018": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "incremental-parsing#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "incremental-parsing"
+    },
+    "lithography-overlay-metrology#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c009": {
+      "slices": [
+        "table"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c011": {
+      "slices": [
+        "math"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c019": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "lithography-overlay-metrology#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "lithography-overlay-metrology"
+    },
+    "pacemaker-firmware#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c003": {
+      "slices": [
+        "table"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c004": {
+      "slices": [
+        "math"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c005": {
+      "slices": [
+        "list"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c017": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pacemaker-firmware#c020": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pacemaker-firmware"
+    },
+    "pcb-signal-integrity#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c005": {
+      "slices": [
+        "math"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c009": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c014": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c015": {
+      "slices": [
+        "long"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "pcb-signal-integrity#c020": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "pcb-signal-integrity"
+    },
+    "precision-agriculture-sensors#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c007": {
+      "slices": [
+        "table"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c008": {
+      "slices": [
+        "list"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "precision-agriculture-sensors#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "precision-agriculture-sensors"
+    },
+    "quantum-cryostat-cooling#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c007": {
+      "slices": [
+        "table"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c008": {
+      "slices": [
+        "list"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c017": {
+      "slices": [
+        "list"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "quantum-cryostat-cooling#c020": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "quantum-cryostat-cooling"
+    },
+    "refinery-process-control#c001": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c003": {
+      "slices": [
+        "math"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c006": {
+      "slices": [
+        "list"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c007": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c012": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c014": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c016": {
+      "slices": [
+        "long"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c017": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "refinery-process-control#c019": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "refinery-process-control"
+    },
+    "rf-mesh-protocols#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c008": {
+      "slices": [
+        "math"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c009": {
+      "slices": [
+        "list"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "rf-mesh-protocols#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "rf-mesh-protocols"
+    },
+    "robotic-slam#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c006": {
+      "slices": [
+        "list"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c008": {
+      "slices": [
+        "math"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c017": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "robotic-slam"
+    },
+    "robotic-slam#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "robotic-slam"
+    },
+    "satellite-ground-stations#c001": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c003": {
+      "slices": [
+        "list"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c005": {
+      "slices": [
+        "math"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c007": {
+      "slices": [
+        "table"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c009": {
+      "slices": [
+        "math"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c010": {
+      "slices": [
+        "list"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c011": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c012": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c014": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c016": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c018": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "satellite-ground-stations#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "satellite-ground-stations"
+    },
+    "seismic-sensor-arrays#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c006": {
+      "slices": [
+        "list"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c009": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c010": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c013": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "seismic-sensor-arrays#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "seismic-sensor-arrays"
+    },
+    "speech-acoustic-modeling#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c006": {
+      "slices": [
+        "table"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c007": {
+      "slices": [
+        "math"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c008": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c011": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c012": {
+      "slices": [
+        "list"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c013": {
+      "slices": [
+        "list"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c014": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c015": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c016": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "speech-acoustic-modeling#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "speech-acoustic-modeling"
+    },
+    "subsea-cable-repair-logistics#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c007": {
+      "slices": [
+        "table"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c008": {
+      "slices": [
+        "list"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "subsea-cable-repair-logistics#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "subsea-cable-repair-logistics"
+    },
+    "timeseries-compression#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c005": {
+      "slices": [
+        "math"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c006": {
+      "slices": [
+        "table"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c008": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c011": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c013": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c014": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c016": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c017": {
+      "slices": [
+        "long"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "timeseries-compression#c019": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "timeseries-compression"
+    },
+    "tlb-mmu-design#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c004": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c005": {
+      "slices": [
+        "table"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c006": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c008": {
+      "slices": [
+        "list"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c009": {
+      "slices": [
+        "math"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c010": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c011": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c012": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c013": {
+      "slices": [
+        "table"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c014": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c015": {
+      "slices": [
+        "math"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c016": {
+      "slices": [
+        "list"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c017": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c018": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "tlb-mmu-design#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "tlb-mmu-design"
+    },
+    "underwater-acoustic-modems#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c016": {
+      "slices": [
+        "list"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c017": {
+      "slices": [
+        "list"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "underwater-acoustic-modems#c020": {
+      "slices": [
+        "long"
+      ],
+      "doc": "underwater-acoustic-modems"
+    },
+    "vaccine-cold-chain-monitoring#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c004": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c009": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c010": {
+      "slices": [
+        "table"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c012": {
+      "slices": [
+        "math"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c013": {
+      "slices": [
+        "math"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c014": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c015": {
+      "slices": [
+        "list"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c016": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c018": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "vaccine-cold-chain-monitoring#c019": {
+      "slices": [
+        "long"
+      ],
+      "doc": "vaccine-cold-chain-monitoring"
+    },
+    "video-codec-rate-control#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c003": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c005": {
+      "slices": [
+        "math"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c006": {
+      "slices": [
+        "list"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c007": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c008": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c009": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c014": {
+      "slices": [
+        "list"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c017": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "video-codec-rate-control#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "video-codec-rate-control"
+    },
+    "wildfire-detection-networks#c001": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c002": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c003": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c005": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c006": {
+      "slices": [
+        "math"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c007": {
+      "slices": [
+        "list"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c008": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c009": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c010": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c011": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c012": {
+      "slices": [
+        "table"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c013": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c014": {
+      "slices": [
+        "math"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c015": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c016": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c017": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wildfire-detection-networks#c019": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wildfire-detection-networks"
+    },
+    "wind-turbine-pitch-control#c001": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c002": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c003": {
+      "slices": [
+        "math"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c004": {
+      "slices": [
+        "table"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c005": {
+      "slices": [
+        "list"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c006": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c007": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c008": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c009": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c010": {
+      "slices": [
+        "math"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c011": {
+      "slices": [
+        "table"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c012": {
+      "slices": [
+        "long",
+        "prose"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c013": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c014": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c015": {
+      "slices": [
+        "unicode"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c016": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c017": {
+      "slices": [
+        "dense-facts"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c018": {
+      "slices": [
+        "long"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c019": {
+      "slices": [
+        "bait"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    },
+    "wind-turbine-pitch-control#c020": {
+      "slices": [
+        "prose"
+      ],
+      "doc": "wind-turbine-pitch-control"
+    }
+  },
+  "bait_sources": {
+    "3d-printing-slicers#c016": "3d-printing-slicers#c006",
+    "3d-printing-slicers#c017": "3d-printing-slicers#c005",
+    "3d-printing-slicers#c018": "3d-printing-slicers#c009",
+    "air-traffic-conflict-detection#c015": "air-traffic-conflict-detection#c006",
+    "air-traffic-conflict-detection#c019": "air-traffic-conflict-detection#c003",
+    "av-sensor-fusion#c010": "av-sensor-fusion#c003",
+    "av-sensor-fusion#c017": "av-sensor-fusion#c013",
+    "battery-management-systems#c016": "battery-management-systems#c002",
+    "battery-management-systems#c017": "battery-management-systems#c007",
+    "battery-management-systems#c018": "battery-management-systems#c012",
+    "ci-build-caching#c009": "ci-build-caching#c008",
+    "ci-build-caching#c015": "ci-build-caching#c002",
+    "ci-build-caching#c017": "ci-build-caching#c004",
+    "coherent-optical-transceivers#c016": "coherent-optical-transceivers#c002",
+    "coherent-optical-transceivers#c017": "coherent-optical-transceivers#c004",
+    "coherent-optical-transceivers#c018": "coherent-optical-transceivers#c012",
+    "columnar-query-engines#c003": "columnar-query-engines#c002",
+    "columnar-query-engines#c009": "columnar-query-engines#c008",
+    "columnar-query-engines#c013": "columnar-query-engines#c012",
+    "container-schedulers#c014": "container-schedulers#c003",
+    "container-schedulers#c017": "container-schedulers#c012",
+    "container-schedulers#c019": "container-schedulers#c005",
+    "content-addressable-storage#c018": "content-addressable-storage#c002",
+    "content-addressable-storage#c019": "content-addressable-storage#c007",
+    "distributed-rate-limiters#c016": "distributed-rate-limiters#c010",
+    "distributed-rate-limiters#c019": "distributed-rate-limiters#c006",
+    "dns-resolver-architecture#c009": "dns-resolver-architecture#c008",
+    "dns-resolver-architecture#c015": "dns-resolver-architecture#c002",
+    "dns-resolver-architecture#c017": "dns-resolver-architecture#c006",
+    "elevator-dispatch-algorithms#c016": "elevator-dispatch-algorithms#c006",
+    "elevator-dispatch-algorithms#c017": "elevator-dispatch-algorithms#c008",
+    "firmware-ota-updates#c018": "firmware-ota-updates#c009",
+    "firmware-ota-updates#c019": "firmware-ota-updates#c005",
+    "firmware-ota-updates#c020": "firmware-ota-updates#c005",
+    "graph-query-planners#c009": "graph-query-planners#c001",
+    "graph-query-planners#c015": "graph-query-planners#c007",
+    "graph-query-planners#c020": "graph-query-planners#c019",
+    "grid-frequency-regulation#c018": "grid-frequency-regulation#c002",
+    "grid-frequency-regulation#c019": "grid-frequency-regulation#c003",
+    "homomorphic-encryption#c009": "homomorphic-encryption#c002",
+    "homomorphic-encryption#c016": "homomorphic-encryption#c008",
+    "incremental-parsing#c016": "incremental-parsing#c002",
+    "incremental-parsing#c017": "incremental-parsing#c007",
+    "lithography-overlay-metrology#c016": "lithography-overlay-metrology#c005",
+    "lithography-overlay-metrology#c017": "lithography-overlay-metrology#c008",
+    "lithography-overlay-metrology#c018": "lithography-overlay-metrology#c012",
+    "pacemaker-firmware#c009": "pacemaker-firmware#c002",
+    "pacemaker-firmware#c019": "pacemaker-firmware#c016",
+    "pcb-signal-integrity#c016": "pcb-signal-integrity#c002",
+    "pcb-signal-integrity#c017": "pcb-signal-integrity#c006",
+    "pcb-signal-integrity#c018": "pcb-signal-integrity#c010",
+    "precision-agriculture-sensors#c015": "precision-agriculture-sensors#c009",
+    "precision-agriculture-sensors#c018": "precision-agriculture-sensors#c009",
+    "precision-agriculture-sensors#c019": "precision-agriculture-sensors#c013",
+    "quantum-cryostat-cooling#c019": "quantum-cryostat-cooling#c003",
+    "quantum-cryostat-cooling#c020": "quantum-cryostat-cooling#c013",
+    "refinery-process-control#c009": "refinery-process-control#c001",
+    "refinery-process-control#c015": "refinery-process-control#c010",
+    "refinery-process-control#c018": "refinery-process-control#c013",
+    "rf-mesh-protocols#c016": "rf-mesh-protocols#c002",
+    "rf-mesh-protocols#c017": "rf-mesh-protocols#c007",
+    "rf-mesh-protocols#c018": "rf-mesh-protocols#c012",
+    "robotic-slam#c009": "robotic-slam#c003",
+    "robotic-slam#c016": "robotic-slam#c002",
+    "satellite-ground-stations#c017": "satellite-ground-stations#c004",
+    "satellite-ground-stations#c019": "satellite-ground-stations#c012",
+    "seismic-sensor-arrays#c013": "seismic-sensor-arrays#c002",
+    "seismic-sensor-arrays#c018": "seismic-sensor-arrays#c010",
+    "speech-acoustic-modeling#c018": "speech-acoustic-modeling#c010",
+    "speech-acoustic-modeling#c019": "speech-acoustic-modeling#c010",
+    "subsea-cable-repair-logistics#c015": "subsea-cable-repair-logistics#c005",
+    "subsea-cable-repair-logistics#c018": "subsea-cable-repair-logistics#c009",
+    "subsea-cable-repair-logistics#c019": "subsea-cable-repair-logistics#c013",
+    "timeseries-compression#c014": "timeseries-compression#c002",
+    "timeseries-compression#c018": "timeseries-compression#c009",
+    "tlb-mmu-design#c014": "tlb-mmu-design#c002",
+    "tlb-mmu-design#c019": "tlb-mmu-design#c018",
+    "underwater-acoustic-modems#c018": "underwater-acoustic-modems#c005",
+    "underwater-acoustic-modems#c019": "underwater-acoustic-modems#c008",
+    "vaccine-cold-chain-monitoring#c016": "vaccine-cold-chain-monitoring#c002",
+    "vaccine-cold-chain-monitoring#c017": "vaccine-cold-chain-monitoring#c013",
+    "vaccine-cold-chain-monitoring#c018": "vaccine-cold-chain-monitoring#c009",
+    "video-codec-rate-control#c008": "video-codec-rate-control#c002",
+    "video-codec-rate-control#c015": "video-codec-rate-control#c014",
+    "wildfire-detection-networks#c009": "wildfire-detection-networks#c008",
+    "wildfire-detection-networks#c015": "wildfire-detection-networks#c002",
+    "wildfire-detection-networks#c017": "wildfire-detection-networks#c011",
+    "wind-turbine-pitch-control#c007": "wind-turbine-pitch-control#c001",
+    "wind-turbine-pitch-control#c014": "wind-turbine-pitch-control#c013",
+    "wind-turbine-pitch-control#c019": "wind-turbine-pitch-control#c006"
+  },
+  "corpus_version": ""
+}

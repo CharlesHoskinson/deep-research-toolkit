@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "firmware-ota-updates",
+  "title": "Emberflash: Delta-Patch Over-the-Air Firmware Update Platform",
+  "source_url": "https://example.org/training-corpus/firmware-ota-updates",
+  "content_hash": "sha256:a90f81ef635b4a8a",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}

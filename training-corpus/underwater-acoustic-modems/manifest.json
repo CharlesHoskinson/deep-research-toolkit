@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "producer": "web",
+  "document_id": "underwater-acoustic-modems",
+  "title": "Abyssal Link: Adaptive-Equalization Acoustic Modems for Subsea Networks",
+  "source_url": "https://example.org/training-corpus/underwater-acoustic-modems",
+  "content_hash": "sha256:e7ac0ecb5b153d7f",
+  "fetched_at": "2026-06-15T00:00:00Z",
+  "chunk_count": 20
+}
