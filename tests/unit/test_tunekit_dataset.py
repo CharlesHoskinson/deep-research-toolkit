@@ -62,14 +62,14 @@ def test_route_for_chunk_bait_slice_gets_frontier():
 def test_route_for_chunk_dense_facts_gets_recall_teacher():
     chunk = _chunk("d#c1", "text", slices=["dense-facts"])
     route = route_for_chunk(chunk)
-    assert route.model == "qwen3:30b-a3b"
+    assert route.model == "qwen3:30b-a3b-instruct-2507-q4_K_M"
 
 
 def test_route_for_chunk_default_is_bulk_e4b():
     chunk = _chunk("d#c1", "text", slices=["prose"])
     route = route_for_chunk(chunk)
     assert route == DEFAULT_TEACHER_ROUTE
-    assert route.model == "e4b"
+    assert route.model == "gemma4:e4b"
 
 
 def test_route_for_chunk_banned_model_raises():
@@ -461,7 +461,7 @@ def test_build_sft_dataset_end_to_end(tmp_path):
         "training#c001": [_claim_json("Validators exchange heartbeats every cycle", "training#c001", 0, 42)],
         "training#c002": [_claim_json("Auditors record checkpoints hourly", "training#c002", 0, 34)],
     }
-    teachers = {"e4b": _fake_teacher_factory(claims_by_locator)}
+    teachers = {"gemma4:e4b": _fake_teacher_factory(claims_by_locator)}
 
     result = build_sft_dataset([chunk1, chunk2], teachers, contamination_index,
                                val_fraction=0.5, seed=1, source_corpus_hash="sha256:training-corpus")
@@ -470,7 +470,7 @@ def test_build_sft_dataset_end_to_end(tmp_path):
     assert len(all_records) == 2
     assert result["manifest"]["n_accepted"] == 2
     assert result["manifest"]["source_corpus_hash"] == "sha256:training-corpus"
-    assert result["manifest"]["generator_model_digests"] == {"e4b": 2}
+    assert result["manifest"]["generator_model_digests"] == {"gemma4:e4b": 2}
     assert len(result["escalation_log"]) == 2
 
     # Round-trips through the production parser for every written example.
@@ -483,7 +483,7 @@ def test_build_sft_dataset_raises_on_contaminated_chunk(tmp_path):
     corpus_dir = _write_eval_corpus(tmp_path)
     contamination_index = load_contamination_index(corpus_dir)
     contaminated_chunk = _chunk("distributed-consensus#c001", "Leaders rotate each epoch.")
-    teachers = {"e4b": _fake_teacher_factory({})}
+    teachers = {"gemma4:e4b": _fake_teacher_factory({})}
 
     with pytest.raises(ContaminationError):
         build_sft_dataset([contaminated_chunk], teachers, contamination_index)
@@ -501,7 +501,7 @@ def test_build_sft_dataset_dedups_across_chunks(tmp_path):
     chunk1 = _chunk("training#c001", "Validators exchange heartbeats every cycle.", slices=["prose"])
     dup_claim_1 = _claim_json("Validators exchange heartbeats every cycle", "training#c001", 0, 42, claim_id="a")
     dup_claim_2 = _claim_json("validators  exchange heartbeats every cycle", "training#c001", 0, 42, claim_id="b")
-    teachers = {"e4b": _fake_teacher_factory({"training#c001": [dup_claim_1, dup_claim_2]})}
+    teachers = {"gemma4:e4b": _fake_teacher_factory({"training#c001": [dup_claim_1, dup_claim_2]})}
 
     result = build_sft_dataset([chunk1], teachers, contamination_index)
     all_records = result["train"] + result["val"]
@@ -527,7 +527,7 @@ def test_gate_rejected_counts_claims_not_completions(tmp_path):
     def teacher(chunk_batch, k, temperature):
         return [_completion(good, *bad)]  # ONE completion, five claims
 
-    result = build_sft_dataset([chunk], {"e4b": teacher}, contamination_index)
+    result = build_sft_dataset([chunk], {"gemma4:e4b": teacher}, contamination_index)
     assert result["manifest"]["n_gate_rejected"] == 4
     assert result["manifest"]["n_accepted"] == 1
     assert result["manifest"]["acceptance_rate"] == pytest.approx(1 / 5)
@@ -549,7 +549,7 @@ def test_total_completions_budget_skips_later_chunks(tmp_path, caplog):
         return [_completion(good1)] * k  # k completions per call
 
     with caplog.at_level(logging.WARNING, logger="deep_research_toolkit.tunekit.dataset"):
-        result = build_sft_dataset([chunk1, chunk2], {"e4b": teacher}, contamination_index,
+        result = build_sft_dataset([chunk1, chunk2], {"gemma4:e4b": teacher}, contamination_index,
                                    k_ladder=(4,), max_total_completions=4)
 
     assert teacher_calls == ["training#c001"]  # chunk2's teacher never called
@@ -572,6 +572,209 @@ def test_unlimited_total_budget_logs_usage(tmp_path, caplog):
         return [_completion(good)]
 
     with caplog.at_level(logging.INFO, logger="deep_research_toolkit.tunekit.dataset"):
-        build_sft_dataset([chunk], {"e4b": teacher}, contamination_index)
+        build_sft_dataset([chunk], {"gemma4:e4b": teacher}, contamination_index)
 
     assert any("without a max_total_completions cap" in rec.message for rec in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Live-run finding #2: router defaults must name real pulled Ollama tags
+# ---------------------------------------------------------------------------
+
+def test_default_router_table_uses_real_pulled_tags():
+    """The router's defaults must name tags Ollama actually serves (matching
+    build-pooled-gold.py's DEFAULT_MODELS precedent), not abstract names
+    that 404 against a live endpoint."""
+    assert DEFAULT_TEACHER_ROUTE.model == "gemma4:e4b"
+    assert DEFAULT_ROUTER_TABLE["dense-facts"].model == "qwen3:30b-a3b-instruct-2507-q4_K_M"
+    assert DEFAULT_ROUTER_TABLE["bait"].model == "frontier"  # frontier stays abstract -- never locally wired
+
+
+# ---------------------------------------------------------------------------
+# Live-run finding #1: unwired-teacher route -- skip-with-reason instead of
+# a run-ending KeyError
+# ---------------------------------------------------------------------------
+
+def test_build_sft_dataset_skips_chunk_with_unwired_teacher(tmp_path, caplog):
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    bait_chunk = _chunk("training#c001", "Some bait-slice content nobody teaches yet.", slices=["bait"])
+    teachers = {"gemma4:e4b": _fake_teacher_factory({})}  # "frontier" deliberately not wired
+
+    with caplog.at_level(logging.WARNING, logger="deep_research_toolkit.tunekit.dataset"):
+        result = build_sft_dataset([bait_chunk], teachers, contamination_index)
+
+    assert result["train"] == []
+    assert result["val"] == []
+    assert result["manifest"]["n_accepted"] == 0
+    assert result["manifest"]["n_skipped_unwired"] == 1
+    assert result["manifest"]["skipped_unwired_by_route"] == {"frontier": 1}
+    skipped = [e for e in result["escalation_log"] if e.get("skipped") == "unwired-teacher"]
+    assert len(skipped) == 1
+    assert skipped[0]["locator"] == "training#c001"
+    assert skipped[0]["teacher_model"] == "frontier"
+    assert any("no teacher wired" in rec.message for rec in caplog.records)
+
+
+def test_build_sft_dataset_completes_with_a_mix_of_wired_and_unwired_routes(tmp_path):
+    """A bait chunk (unwired frontier teacher) alongside a prose chunk (wired
+    gemma4:e4b teacher): the run completes, producing the prose chunk's
+    example and skipping only the bait chunk -- not aborting with zero
+    output on the first unwired chunk it meets."""
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    bait_chunk = _chunk("training#c001", "Bait content, no frontier teacher wired.", slices=["bait"])
+    prose_chunk = _chunk("training#c002", "Validators exchange heartbeats every cycle.", slices=["prose"])
+    claims_by_locator = {
+        "training#c002": [_claim_json("Validators exchange heartbeats every cycle", "training#c002", 0, 42)],
+    }
+    teachers = {"gemma4:e4b": _fake_teacher_factory(claims_by_locator)}
+
+    result = build_sft_dataset([bait_chunk, prose_chunk], teachers, contamination_index)
+
+    all_records = result["train"] + result["val"]
+    assert len(all_records) == 1
+    assert all_records[0]["locator"] == "training#c002"
+    assert result["manifest"]["n_skipped_unwired"] == 1
+    assert result["manifest"]["skipped_unwired_by_route"] == {"frontier": 1}
+    assert result["manifest"]["n_accepted"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Live-run finding #3: checkpoint/resume
+# ---------------------------------------------------------------------------
+
+def _distinct_chunks(n: int, slices=("prose",)) -> list[dict]:
+    return [_chunk(f"training#c00{i}", f"Distinct training sentence number {i} right here today.",
+                   slices=list(slices))
+            for i in range(1, n + 1)]
+
+
+def _claims_for(chunks: list[dict]) -> dict[str, list[dict]]:
+    return {
+        c["locator"]: [_claim_json(c["text"].rstrip("."), c["locator"], 0, len(c["text"]) - 1)]
+        for c in chunks
+    }
+
+
+def _tracking_teacher(claims_by_locator: dict, call_log: list, raise_for: str | None = None):
+    def teacher(chunk_batch, k, temperature):
+        loc = chunk_batch[0]["locator"]
+        call_log.append(loc)
+        if raise_for is not None and loc == raise_for:
+            raise RuntimeError(f"simulated teacher outage for {loc}")
+        return [_completion(*claims_by_locator.get(loc, []))]
+    return teacher
+
+
+def test_checkpoint_writes_partial_and_progress_per_chunk(tmp_path):
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    chunks = _distinct_chunks(2)
+    claims = _claims_for(chunks)
+    out_dir = tmp_path / "out"
+
+    build_sft_dataset(chunks, {"gemma4:e4b": _tracking_teacher(claims, [])}, contamination_index,
+                      out_dir=out_dir)
+
+    progress_rows = [json.loads(line)
+                     for line in (out_dir / "progress.json").read_text(encoding="utf-8").splitlines()]
+    partial_rows = [json.loads(line)
+                    for line in (out_dir / "accepted.partial.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {r["locator"] for r in progress_rows} == {"training#c001", "training#c002"}
+    assert {r["locator"] for r in partial_rows} == {"training#c001", "training#c002"}
+
+
+def test_resume_skips_already_done_chunks_after_a_simulated_crash(tmp_path):
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    chunks = _distinct_chunks(5)
+    claims = _claims_for(chunks)
+    out_dir = tmp_path / "out"
+
+    crash_calls: list[str] = []
+    with pytest.raises(RuntimeError):
+        build_sft_dataset(
+            chunks, {"gemma4:e4b": _tracking_teacher(claims, crash_calls, raise_for="training#c004")},
+            contamination_index, out_dir=out_dir)
+
+    # Chunks 1-3 completed (and were checkpointed) before chunk 4 blew up.
+    assert crash_calls == ["training#c001", "training#c002", "training#c003", "training#c004"]
+    progress_rows = [json.loads(line)
+                     for line in (out_dir / "progress.json").read_text(encoding="utf-8").splitlines()]
+    assert {r["locator"] for r in progress_rows} == {"training#c001", "training#c002", "training#c003"}
+    partial_rows = [json.loads(line)
+                    for line in (out_dir / "accepted.partial.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {r["locator"] for r in partial_rows} == {"training#c001", "training#c002", "training#c003"}
+
+    resume_calls: list[str] = []
+    result = build_sft_dataset(chunks, {"gemma4:e4b": _tracking_teacher(claims, resume_calls)},
+                               contamination_index, out_dir=out_dir, resume=True)
+
+    # Chunks 1-3's teacher is NEVER called again -- only 4 and 5 run.
+    assert resume_calls == ["training#c004", "training#c005"]
+    assert result["manifest"]["resumed"] is True
+    all_locators = sorted(r["locator"] for r in result["train"] + result["val"])
+    assert all_locators == ["training#c001", "training#c002", "training#c003", "training#c004", "training#c005"]
+
+
+def test_resume_final_output_matches_an_uninterrupted_run_modulo_ordering(tmp_path):
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    chunks = _distinct_chunks(5)
+    claims = _claims_for(chunks)
+
+    control = build_sft_dataset(chunks, {"gemma4:e4b": _tracking_teacher(claims, [])},
+                                contamination_index, seed=7)
+
+    out_dir = tmp_path / "out"
+    with pytest.raises(RuntimeError):
+        build_sft_dataset(
+            chunks, {"gemma4:e4b": _tracking_teacher(claims, [], raise_for="training#c004")},
+            contamination_index, seed=7, out_dir=out_dir)
+
+    result = build_sft_dataset(chunks, {"gemma4:e4b": _tracking_teacher(claims, [])},
+                               contamination_index, seed=7, out_dir=out_dir, resume=True)
+
+    def _sorted_bodies(records):
+        return sorted((r["locator"], r["messages"][2]["content"]) for r in records)
+
+    assert _sorted_bodies(control["train"] + control["val"]) == _sorted_bodies(result["train"] + result["val"])
+    assert control["manifest"]["n_accepted"] == result["manifest"]["n_accepted"]
+    assert control["manifest"]["n_gate_rejected"] == result["manifest"]["n_gate_rejected"]
+    assert control["manifest"]["n_train"] == result["manifest"]["n_train"]
+    assert control["manifest"]["n_val"] == result["manifest"]["n_val"]
+
+
+def test_resume_without_out_dir_raises():
+    with pytest.raises(ValueError):
+        build_sft_dataset([], {}, {"locators": set(), "text_hashes": set()}, resume=True)
+
+
+def test_fresh_non_resumed_run_clears_stale_checkpoint_files(tmp_path):
+    """A non-resumed run must not silently inherit a previous crashed run's
+    checkpoint state left behind in the same out_dir."""
+    corpus_dir = _write_eval_corpus(tmp_path)
+    contamination_index = load_contamination_index(corpus_dir)
+    chunks = _distinct_chunks(2)
+    claims = _claims_for(chunks)
+    out_dir = tmp_path / "out"
+
+    # Leave stale checkpoint files behind, as if from an unrelated prior run.
+    out_dir.mkdir(parents=True)
+    (out_dir / "progress.json").write_text(
+        json.dumps({"locator": "training#c001", "teacher_role": "bulk", "teacher_model": "gemma4:e4b",
+                   "n_accepted": 1, "n_gate_rejected": 0, "completions_used": 4}) + "\n",
+        encoding="utf-8")
+    (out_dir / "accepted.partial.jsonl").write_text(
+        json.dumps({"locator": "training#c001", "claim": _claim_json("stale claim", "training#c001", 0, 5)}) + "\n",
+        encoding="utf-8")
+
+    calls: list[str] = []
+    result = build_sft_dataset(chunks, {"gemma4:e4b": _tracking_teacher(claims, calls)}, contamination_index,
+                               out_dir=out_dir)  # resume NOT requested
+
+    assert calls == ["training#c001", "training#c002"]  # chunk1 was NOT skipped
+    assert result["manifest"]["resumed"] is False
+    locators = sorted(r["locator"] for r in result["train"] + result["val"])
+    assert locators == ["training#c001", "training#c002"]

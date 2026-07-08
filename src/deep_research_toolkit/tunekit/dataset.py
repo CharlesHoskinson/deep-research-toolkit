@@ -85,13 +85,24 @@ BANNED_TEACHER_MODELS = frozenset({"gemma4:31b", "gemma-4:31b"})
 
 #: Slice tag -> teacher route. Only slices needing a NON-default teacher are
 #: listed; anything else falls back to DEFAULT_TEACHER_ROUTE (e4b bulk).
+#:
+#: Model tags are the REAL pulled Ollama tags, not abstract names -- a live
+#: run found the router naming abstract names ("e4b", "qwen3:30b-a3b") that
+#: don't match any tag Ollama actually serves (404s), matching the identical
+#: gotcha scripts/build-pooled-gold.py hit and fixed for its own --models
+#: flag (see that script's DEFAULT_MODELS comment). These tags are that same
+#: precedent: gemma4:e4b and qwen3:30b-a3b-instruct-2507-q4_K_M are what's
+#: actually pulled on the reference host. A caller whose host pulled
+#: different tags overrides them via scripts/build-sft-dataset.py's
+#: --base-model-override flag rather than editing this table.
 DEFAULT_ROUTER_TABLE: dict[str, TeacherRoute] = {
     "bait": TeacherRoute("bait", "frontier"),
-    "dense-facts": TeacherRoute("recall", "qwen3:30b-a3b"),
+    "dense-facts": TeacherRoute("recall", "qwen3:30b-a3b-instruct-2507-q4_K_M"),
 }
 
-#: e4b self-distillation for bulk (design doc §6.1).
-DEFAULT_TEACHER_ROUTE = TeacherRoute("bulk", "e4b")
+#: e4b self-distillation for bulk (design doc §6.1) -- gemma4:e4b, the real
+#: pulled tag (see DEFAULT_ROUTER_TABLE's comment above).
+DEFAULT_TEACHER_ROUTE = TeacherRoute("bulk", "gemma4:e4b")
 
 
 class BannedTeacherError(ValueError):
@@ -435,7 +446,10 @@ def dataset_hash(records: list[dict]) -> str:
 def build_manifest(train: list[dict], val: list[dict], *, generator_model_digests: dict,
                    source_corpus_hash: str | None, n_accepted_claims: int,
                    n_gate_rejected: int, n_dedup_dropped: int,
-                   verbatim_gate_version: str = VERBATIM_GATE_VERSION) -> dict:
+                   verbatim_gate_version: str = VERBATIM_GATE_VERSION,
+                   n_skipped_unwired: int = 0,
+                   skipped_unwired_by_route: dict[str, int] | None = None,
+                   resumed: bool = False) -> dict:
     """Design doc §6.1's manifest fields: `dataset_hash` is computed over
     train+val TOGETHER (train then val, in that order) so one hash covers
     the whole shipped dataset. All acceptance arithmetic is in CLAIM units:
@@ -444,7 +458,17 @@ def build_manifest(train: list[dict], val: list[dict], *, generator_model_digest
     `acceptance_rate` = accepted_claims / (accepted + rejected claims) --
     i.e. accepted / parsed for a single-round build. Record counts (one
     conversation record per chunk) are reported separately as
-    `n_train`/`n_val`; they must never be mixed into the claim-unit rate."""
+    `n_train`/`n_val`; they must never be mixed into the claim-unit rate.
+
+    `n_skipped_unwired`/`skipped_unwired_by_route` (both additive, default
+    0/{}) count CHUNKS (not claims) whose route named a teacher model absent
+    from the `teachers` dict passed to `build_sft_dataset` -- see that
+    function's docstring; such a chunk contributes to neither the accepted
+    nor rejected claim counts, only to these two fields, so a run that
+    skips every chunk still produces a valid (empty) manifest instead of
+    crashing. `resumed` (additive, default False) is True iff this build
+    picked up at least one already-completed chunk from a prior
+    `out_dir`/`--resume` checkpoint (see build_sft_dataset)."""
     all_records = train + val
     n_rejected = n_gate_rejected + n_dedup_dropped
     total = n_accepted_claims + n_rejected
@@ -460,7 +484,42 @@ def build_manifest(train: list[dict], val: list[dict], *, generator_model_digest
         "n_train": len(train),
         "n_val": len(val),
         "acceptance_rate": (n_accepted_claims / total) if total else None,
+        "n_skipped_unwired": n_skipped_unwired,
+        "skipped_unwired_by_route": dict(skipped_unwired_by_route or {}),
+        "resumed": resumed,
     }
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint/resume -- `<out_dir>/accepted.partial.jsonl` (one accepted claim
+# per line, `{"locator", "claim"}`) and `<out_dir>/progress.json` (one
+# escalation-log-shaped row per COMPLETED chunk) are both append-only JSONL,
+# each line flushed to disk the moment it's written, so a crash mid-run
+# never loses more than the chunk in flight at the time. `--resume` reads
+# both back to skip already-done chunks and reseed the claim accumulator --
+# see build_sft_dataset's docstring for the full contract.
+# ---------------------------------------------------------------------------
+
+def _read_jsonl_lines(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def _append_jsonl_line(path: Path, row: dict) -> None:
+    """Opens, writes ONE line, and closes -- the close() flushes the write to
+    disk, so a crash immediately after this call returns still leaves `row`
+    durably recorded (never silently lost in a buffered, unflushed write)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        f.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +536,9 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
                       val_fraction: float = 0.10, seed: int = 42,
                       source_corpus_hash: str | None = None,
                       max_completions_per_chunk: int = DEFAULT_MAX_COMPLETIONS_PER_CHUNK,
-                      max_total_completions: int | None = None) -> dict:
+                      max_total_completions: int | None = None,
+                      out_dir: str | Path | None = None,
+                      resume: bool = False) -> dict:
     """End-to-end (but network/model-free) dataset build: for every chunk,
     (1) raise on eval-corpus contamination, (2) route to a teacher by slice
     tag, (3) run the DART k-escalation sampler, gate-filtering as it goes.
@@ -490,9 +551,14 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
     (`build_manifest`).
 
     `teachers` maps a TeacherRoute's `model` name to the actual callable
-    (design doc §6.1: "an interface + config, real teachers wired later") --
-    a route naming a model not present in `teachers` raises KeyError
-    immediately (fail fast, not a silently-skipped chunk).
+    (design doc §6.1: "an interface + config, real teachers wired later").
+    A route naming a model ABSENT from `teachers` no longer aborts the run:
+    the chunk is SKIPPED (logged, and recorded in `escalation_log` with
+    `"skipped": "unwired-teacher"`) and counted in the manifest's
+    `n_skipped_unwired` / `skipped_unwired_by_route` -- a run with, say, an
+    unwired "frontier" bait-slice teacher still completes over every chunk
+    a wired teacher CAN serve, rather than crashing with zero output on the
+    first bait chunk it meets.
 
     Budget: `max_completions_per_chunk` bounds each chunk's escalation
     ladder; `max_total_completions` (default None = unlimited, but the total
@@ -502,18 +568,104 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
     `"skipped"`), never silently half-sampled. The contamination guard runs
     for every chunk BEFORE any budget skip -- safety is not budget-gated.
 
+    Checkpoint/resume: when `out_dir` is given, every chunk that completes
+    escalation+gating (successfully -- an exception, e.g. a teacher call
+    raising, propagates as before and is NOT checkpointed) has its accepted
+    claims appended to `<out_dir>/accepted.partial.jsonl` and its
+    escalation-log row appended to `<out_dir>/progress.json`, both flushed
+    immediately. A chunk SKIPPED (unwired teacher or budget-exhausted) is
+    NOT checkpointed -- it never "completed gating", so a later run (e.g.
+    with the missing teacher wired or a bigger budget) still retries it.
+    `resume=True` (requires `out_dir`) reads both files back at startup:
+    every locator already in `progress.json` is skipped entirely (its
+    teacher is NEVER called again) and its prior escalation-log row,
+    generator-digest and gate-rejection contribution are carried into this
+    run's totals; `accepted.partial.jsonl`'s claims reseed the claim
+    accumulator (paired back up with their originating chunk by locator,
+    looked up in THIS call's own `chunks` argument -- resuming a build
+    assumes the same training corpus, matching the CLI's own re-invocation
+    pattern). `resume=False` with a non-empty `out_dir` clears any stale
+    checkpoint files first, so a fresh (non-resumed) run never silently
+    inherits a previous crash's partial state. Final assembly (dedup,
+    regroup, split, manifest) is UNCHANGED and still runs once at the end,
+    over the full accumulated set (resumed chunks + this run's chunks) --
+    checkpointing changes how the accumulator is seeded, not how it's
+    consumed. The manifest's `resumed` field is True iff at least one
+    chunk was actually skipped via a resumed `progress.json` entry.
+
     Returns `{"train": [...], "val": [...], "manifest": {...},
     "escalation_log": [...]}`."""
+    out_path = Path(out_dir) if out_dir is not None else None
+    if resume and out_path is None:
+        raise ValueError("resume=True requires out_dir")
+
+    progress_path = out_path / "progress.json" if out_path is not None else None
+    partial_path = out_path / "accepted.partial.jsonl" if out_path is not None else None
+
+    chunk_by_locator_all = {(c.get("locator") or c.get("node_id")): c for c in chunks}
+
     escalation_log: list[dict] = []
     claim_chunk_pairs: list[tuple[dict, dict]] = []  # (claim, its originating chunk)
     generator_digests: dict[str, int] = {}
     n_gate_rejected = 0
+    n_skipped_unwired = 0
+    skipped_unwired_by_route: dict[str, int] = {}
     total_completions_used = 0
+    done_locators: set = set()
+    resumed = False
+
+    if out_path is not None:
+        if resume:
+            progress_rows = _read_jsonl_lines(progress_path)
+            resumed = bool(progress_rows)
+            for row in progress_rows:
+                done_locators.add(row["locator"])
+                escalation_log.append(row)
+                generator_digests[row["teacher_model"]] = (
+                    generator_digests.get(row["teacher_model"], 0) + row.get("n_accepted", 0))
+                n_gate_rejected += row.get("n_gate_rejected", 0)
+                total_completions_used += row.get("completions_used", 0)
+            for prow in _read_jsonl_lines(partial_path):
+                loc = prow["locator"]
+                seed_chunk = chunk_by_locator_all.get(loc)
+                if seed_chunk is None:
+                    logger.warning(
+                        "accepted.partial.jsonl references locator %r not present in this "
+                        "run's chunks -- dropping it (the training corpus may have changed "
+                        "since the checkpointed run)", loc)
+                    continue
+                claim_chunk_pairs.append((prow["claim"], seed_chunk))
+        else:
+            # Fresh (non-resumed) run: clear any stale checkpoint from a
+            # previous build in this same out_dir so it can't be silently
+            # inherited.
+            if progress_path.is_file():
+                progress_path.unlink()
+            if partial_path.is_file():
+                partial_path.unlink()
 
     for chunk in chunks:
+        locator = chunk.get("locator") or chunk.get("node_id")
+        if locator in done_locators:
+            continue
+
         assert_not_contaminated(chunk, contamination_index)
         route = route_for_chunk(chunk, router_table=router_table, fallback=fallback_route)
-        teacher = teachers[route.model]
+        teacher = teachers.get(route.model)
+        if teacher is None:
+            logger.warning(
+                "no teacher wired for route model %r (role=%s) -- skipping chunk %s "
+                "(counted in the manifest's n_skipped_unwired)",
+                route.model, route.role, locator)
+            escalation_log.append({
+                "locator": locator,
+                "teacher_role": route.role,
+                "teacher_model": route.model,
+                "skipped": "unwired-teacher",
+            })
+            n_skipped_unwired += 1
+            skipped_unwired_by_route[route.model] = skipped_unwired_by_route.get(route.model, 0) + 1
+            continue
 
         chunk_cap = max_completions_per_chunk
         if max_total_completions is not None:
@@ -523,10 +675,9 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
             logger.warning(
                 "max_total_completions=%s exhausted after %s completions -- skipping "
                 "chunk %s and all later chunks' sampling",
-                max_total_completions, total_completions_used,
-                chunk.get("locator") or chunk.get("node_id"))
+                max_total_completions, total_completions_used, locator)
             escalation_log.append({
-                "locator": chunk.get("locator") or chunk.get("node_id"),
+                "locator": locator,
                 "teacher_role": route.role,
                 "teacher_model": route.model,
                 "skipped": "total-completions-budget",
@@ -546,20 +697,32 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
         # rung produced it. (Earlier-round ACCEPTED claims that a re-sampling
         # escalation replaced are superseded samples -- counted neither as
         # accepted nor rejected.)
-        n_gate_rejected += sum(r["parsed"] - r["accepted"] for r in result["rounds"])
+        chunk_gate_rejected = sum(r["parsed"] - r["accepted"] for r in result["rounds"])
+        n_gate_rejected += chunk_gate_rejected
 
         generator_digests[route.model] = generator_digests.get(route.model, 0) + n_accepted_round
-        escalation_log.append({
-            "locator": chunk.get("locator") or chunk.get("node_id"),
+        log_entry = {
+            "locator": locator,
             "teacher_role": route.role,
             "teacher_model": route.model,
             "rounds": result["rounds"],
             "escalated": result["escalated"],
             "completions_used": result["completions_used"],
             "budget_exhausted": result["budget_exhausted"],
-        })
+            "n_accepted": n_accepted_round,
+            "n_gate_rejected": chunk_gate_rejected,
+        }
+        escalation_log.append(log_entry)
         for claim in result["claims"]:
             claim_chunk_pairs.append((claim, chunk))
+            if partial_path is not None:
+                _append_jsonl_line(partial_path, {"locator": locator, "claim": claim})
+        # Checkpointed AFTER this chunk's claims are durably appended, so a
+        # crash between the two can only ever leave partial.jsonl AHEAD of
+        # progress.json (re-processed harmlessly on resume), never the
+        # reverse (which would silently drop accepted claims on resume).
+        if progress_path is not None:
+            _append_jsonl_line(progress_path, log_entry)
 
     if max_total_completions is None:
         logger.info("build_sft_dataset ran without a max_total_completions cap; "
@@ -596,6 +759,8 @@ def build_sft_dataset(chunks: list[dict], teachers: dict[str, TeacherFn],
     manifest = build_manifest(
         train, val, generator_model_digests=generator_digests,
         source_corpus_hash=source_corpus_hash, n_accepted_claims=len(deduped_pairs),
-        n_gate_rejected=n_gate_rejected, n_dedup_dropped=n_dedup_dropped)
+        n_gate_rejected=n_gate_rejected, n_dedup_dropped=n_dedup_dropped,
+        n_skipped_unwired=n_skipped_unwired, skipped_unwired_by_route=skipped_unwired_by_route,
+        resumed=resumed)
 
     return {"train": train, "val": val, "manifest": manifest, "escalation_log": escalation_log}
