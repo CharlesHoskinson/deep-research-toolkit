@@ -12,6 +12,8 @@ import pytest
 from deep_research_toolkit.tunekit.registry import (
     REQUIRED_FIELDS,
     DuckDBNotInstalled,
+    DuplicateRegistryRowError,
+    RegistryCorruptionError,
     RegistrySchemaError,
     append_registry_row,
     build_registry_row,
@@ -109,6 +111,26 @@ def test_multiple_violations_all_reported():
     assert len(exc_info.value.violations) >= 2
 
 
+def test_timestamp_is_required():
+    """I4: a promoted version without a promotion time cannot be audited."""
+    row = _valid_row()
+    del row["timestamp"]
+    with pytest.raises(RegistrySchemaError) as exc_info:
+        validate_registry_row(row)
+    assert "timestamp" in str(exc_info.value)
+
+
+def test_non_iso_timestamp_raises():
+    row = _valid_row(timestamp="last tuesday, ish")
+    with pytest.raises(RegistrySchemaError) as exc_info:
+        validate_registry_row(row)
+    assert "ISO-8601" in str(exc_info.value)
+
+
+def test_z_suffixed_iso_timestamp_accepted():
+    validate_registry_row(_valid_row(timestamp="2026-07-07T00:00:00Z"))  # no raise
+
+
 # ---------------------------------------------------------------------------
 # build_registry_row
 # ---------------------------------------------------------------------------
@@ -167,6 +189,46 @@ def test_read_registry_missing_file_is_empty(tmp_path):
     assert read_registry(tmp_path / "nonexistent.jsonl") == []
 
 
+def test_append_refuses_duplicate_triple_naming_existing_timestamp(tmp_path):
+    """I3: the same (config_sha256, dataset_hash, corpus_hash) triple must
+    not be promoted twice -- and the error names when it already was."""
+    registry_path = tmp_path / "registry.jsonl"
+    append_registry_row(registry_path, _valid_row(timestamp="2026-07-01T00:00:00+00:00"))
+    dup = _valid_row(timestamp="2026-07-07T12:00:00+00:00")  # same triple, later time
+    with pytest.raises(DuplicateRegistryRowError) as exc_info:
+        append_registry_row(registry_path, dup)
+    assert "2026-07-01T00:00:00+00:00" in str(exc_info.value)
+    assert len(read_registry(registry_path)) == 1  # nothing was written
+
+
+def test_append_allows_same_config_dataset_on_different_corpus(tmp_path):
+    """The uniqueness key is the full triple: the same artifact re-measured
+    on a NEW corpus is a legitimate new row, not a duplicate."""
+    registry_path = tmp_path / "registry.jsonl"
+    append_registry_row(registry_path, _valid_row(corpus_hash="sha256:corpus-v1"))
+    append_registry_row(registry_path, _valid_row(corpus_hash="sha256:corpus-v2"))
+    assert len(read_registry(registry_path)) == 2
+
+
+def test_read_registry_corrupted_line_raises_with_line_number(tmp_path):
+    """M4: an unreadable source of truth must fail CLOSED and diagnosable,
+    never silently read as a shorter registry."""
+    registry_path = tmp_path / "registry.jsonl"
+    append_registry_row(registry_path, _valid_row())
+    with open(registry_path, "a", encoding="utf-8") as f:
+        f.write("{this is not json\n")
+    with pytest.raises(RegistryCorruptionError) as exc_info:
+        read_registry(registry_path)
+    assert "line 2" in str(exc_info.value)
+
+
+def test_corrupted_registry_blocks_further_appends(tmp_path):
+    registry_path = tmp_path / "registry.jsonl"
+    registry_path.write_text("not json at all\n", encoding="utf-8")
+    with pytest.raises(RegistryCorruptionError):
+        append_registry_row(registry_path, _valid_row())
+
+
 # ---------------------------------------------------------------------------
 # registry_view_sql (pure text, no duckdb import required)
 # ---------------------------------------------------------------------------
@@ -182,6 +244,15 @@ def test_registry_view_sql_is_pure_text_and_needs_no_duckdb_import(monkeypatch):
 def test_registry_view_sql_custom_view_name():
     sql = registry_view_sql("runs.jsonl", "registry.jsonl", view_name="my_view")
     assert "CREATE OR REPLACE VIEW my_view" in sql
+
+
+def test_registry_view_sql_escapes_single_quotes_in_paths():
+    """M3: a path containing a single quote must be SQL-escaped (doubled),
+    not left to terminate the string literal early."""
+    sql = registry_view_sql("it's-a-dir/runs.jsonl", "o'registry.jsonl")
+    assert "it''s-a-dir/runs.jsonl" in sql
+    assert "o''registry.jsonl" in sql
+    assert "it's" not in sql  # no un-escaped copy anywhere
 
 
 # ---------------------------------------------------------------------------
@@ -219,3 +290,30 @@ def test_open_registry_duckdb_queries_joined_view(tmp_path):
     assert result[0] == ("sha256:c1", "promoted")  # joined to its registry row
     assert result[1] == ("sha256:c2", None)  # no matching registry row -> LEFT JOIN null
     assert isinstance(duckdb.__version__, str)
+
+
+def test_view_does_not_fan_out_after_refused_duplicate(tmp_path):
+    """I3: with the uniqueness triple enforced at append time, a run row
+    can only ever join ONE registry row -- the LEFT JOIN cannot fan out."""
+    pytest.importorskip("duckdb")
+
+    runs_path = tmp_path / "runs.jsonl"
+    registry_path = tmp_path / "registry.jsonl"
+    runs_path.write_text(
+        json.dumps({"config_sha256": "sha256:c1", "dataset_hash": "sha256:d1",
+                    "seed": 42, "git_commit": "abc"}) + "\n", encoding="utf-8")
+
+    row = _valid_row(config_sha256="sha256:c1", dataset_hash="sha256:d1")
+    append_registry_row(registry_path, row)
+    with pytest.raises(DuplicateRegistryRowError):
+        append_registry_row(registry_path, _valid_row(
+            config_sha256="sha256:c1", dataset_hash="sha256:d1",
+            timestamp="2026-07-08T00:00:00+00:00"))
+
+    con = open_registry_duckdb(tmp_path / "view.duckdb", runs_path, registry_path)
+    try:
+        n = con.execute(
+            "SELECT COUNT(*) FROM tunekit_runs WHERE config_sha256 = 'sha256:c1'").fetchone()[0]
+    finally:
+        con.close()
+    assert n == 1  # exactly one view row per run -- no fan-out

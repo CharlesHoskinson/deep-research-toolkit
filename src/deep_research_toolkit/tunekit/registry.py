@@ -40,8 +40,11 @@ _HASH_FIELDS = ("corpus_hash", "prompt_hash")
 #: The eval block's required sub-keys (design doc §6.3's `eval{...}`).
 _EVAL_FIELDS = ("recall", "bait_rejection", "gate_pass", "atomicity")
 
-#: Every row-level field a valid registry row must carry.
-REQUIRED_FIELDS = (*_ANCHOR_FIELDS, *_PROVENANCE_FIELDS, *_HASH_FIELDS, "eval", "status")
+#: Every row-level field a valid registry row must carry. `timestamp` is
+#: REQUIRED (ISO-8601): a promoted version without a promotion time cannot be
+#: audited, and the DuckDB view exposes it as `promoted_at`.
+REQUIRED_FIELDS = (*_ANCHOR_FIELDS, *_PROVENANCE_FIELDS, *_HASH_FIELDS,
+                   "eval", "status", "timestamp")
 
 
 class RegistrySchemaError(ValueError):
@@ -55,6 +58,19 @@ class RegistrySchemaError(ValueError):
         super().__init__("invalid registry row: " + "; ".join(violations))
 
 
+class DuplicateRegistryRowError(ValueError):
+    """Raised by append_registry_row when a row's (config_sha256,
+    dataset_hash, corpus_hash) triple already exists in the registry -- the
+    same artifact measured on the same corpus must not be promoted twice
+    (a duplicate would also fan out the DuckDB view's LEFT JOIN)."""
+
+
+class RegistryCorruptionError(ValueError):
+    """Raised by read_registry when a registry line is not valid JSON --
+    fail CLOSED (an unreadable source of truth must not silently read as a
+    shorter registry) but diagnosable: the message names the line number."""
+
+
 class DuckDBNotInstalled(RuntimeError):
     def __init__(self):
         super().__init__(
@@ -63,14 +79,25 @@ class DuckDBNotInstalled(RuntimeError):
         )
 
 
+def _iso_timestamp_ok(value) -> bool:
+    """True iff `value` parses as an ISO-8601 timestamp. A trailing 'Z' is
+    normalized to '+00:00' first (datetime.fromisoformat on Python 3.10
+    rejects the bare 'Z' suffix)."""
+    try:
+        datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return True
+    except ValueError:
+        return False
+
+
 def validate_registry_row(row: dict) -> None:
     """Raises RegistrySchemaError listing every violation; returns None on a
     valid row. Checked, in order: every REQUIRED_FIELDS key is present and
     non-empty/non-None; `hf_commit_sha` is exactly 40 lowercase-hex chars;
-    `eval` is a dict carrying every _EVAL_FIELDS key (a missing eval metric
-    is allowed to be `None` -- e.g. atomicity when reference is empty -- but
-    the KEY itself must be present, so a caller can't silently omit a metric
-    by leaving the key out)."""
+    `timestamp` is an ISO-8601 string; `eval` is a dict carrying every
+    _EVAL_FIELDS key (a missing eval metric is allowed to be `None` -- e.g.
+    atomicity when reference is empty -- but the KEY itself must be present,
+    so a caller can't silently omit a metric by leaving the key out)."""
     violations: list[str] = []
 
     for field in REQUIRED_FIELDS:
@@ -82,6 +109,10 @@ def validate_registry_row(row: dict) -> None:
         violations.append(
             f"hf_commit_sha {hf_sha!r} is not a 40-character lowercase-hex commit SHA "
             "(abbreviated SHAs are not immutable anchors)")
+
+    ts = row.get("timestamp")
+    if ts and not _iso_timestamp_ok(ts):
+        violations.append(f"timestamp {ts!r} is not an ISO-8601 timestamp string")
 
     eval_block = row.get("eval")
     if eval_block is not None:
@@ -120,11 +151,25 @@ def build_registry_row(*, ollama_manifest_digest: str, hf_commit_sha: str,
 
 def append_registry_row(registry_path, row: dict) -> dict:
     """Validates `row` (raising RegistrySchemaError on any violation --
-    NOTHING is written on a bad row) then appends it as one JSON line to
-    `registry_path`, creating the file (and its parent dir) if needed.
-    Returns `row` unchanged, for chaining with `build_registry_row`."""
+    NOTHING is written on a bad row), refuses a duplicate of an existing
+    row's (config_sha256, dataset_hash, corpus_hash) triple (raising
+    DuplicateRegistryRowError naming the existing row's timestamp), then
+    appends it as one JSON line to `registry_path`, creating the file (and
+    its parent dir) if needed. Reading the existing registry also means a
+    corrupted file blocks all further appends (RegistryCorruptionError) --
+    fail closed, fix the file, then promote. Returns `row` unchanged, for
+    chaining with `build_registry_row`."""
     validate_registry_row(row)
     registry_path = Path(registry_path)
+    key = (row["config_sha256"], row["dataset_hash"], row["corpus_hash"])
+    for existing in read_registry(registry_path):
+        if (existing.get("config_sha256"), existing.get("dataset_hash"),
+                existing.get("corpus_hash")) == key:
+            raise DuplicateRegistryRowError(
+                f"registry already has a row for config_sha256={key[0]!r}, "
+                f"dataset_hash={key[1]!r}, corpus_hash={key[2]!r} "
+                f"(promoted at {existing.get('timestamp')!r}) -- the registry is "
+                "append-only and rows are unique per (config, dataset, corpus) triple")
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     with open(registry_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -133,16 +178,24 @@ def append_registry_row(registry_path, row: dict) -> dict:
 
 def read_registry(registry_path) -> list[dict]:
     """Reads every row of `registry_path` back, in append order. A missing
-    file reads as an empty registry, not an error (nothing promoted yet)."""
+    file reads as an empty registry, not an error (nothing promoted yet);
+    an unparseable LINE raises RegistryCorruptionError naming its line
+    number -- the source of truth must never silently read shorter than it
+    is on disk."""
     path = Path(registry_path)
     if not path.is_file():
         return []
     rows = []
     with open(path, encoding="utf-8") as f:
-        for line in f:
+        for lineno, line in enumerate(f, start=1):
             line = line.strip()
-            if line:
+            if not line:
+                continue
+            try:
                 rows.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                raise RegistryCorruptionError(
+                    f"registry {path} line {lineno} is not valid JSON: {e}") from e
     return rows
 
 
@@ -153,9 +206,13 @@ def registry_view_sql(runs_path, registry_path, view_name: str = "tunekit_runs")
     pair `run_exists` uses. Does NOT import duckdb and does not require it to
     be installed: this function only builds SQL text, so it is unit-testable
     without the optional 'compiler' extra. Use `open_registry_duckdb` to
-    actually execute it against a live connection."""
-    runs_path = str(Path(runs_path)).replace("\\", "/")
-    registry_path = str(Path(registry_path)).replace("\\", "/")
+    actually execute it against a live connection.
+
+    Paths are interpolated into single-quoted SQL string literals, so any
+    single quote in a path is doubled (standard SQL escaping) -- a path like
+    ``it's/runs.jsonl`` must not break (or worse, reshape) the statement."""
+    runs_path = str(Path(runs_path)).replace("\\", "/").replace("'", "''")
+    registry_path = str(Path(registry_path)).replace("\\", "/").replace("'", "''")
     return (
         f"CREATE OR REPLACE VIEW {view_name} AS\n"
         f"SELECT r.*, g.ollama_manifest_digest, g.hf_commit_sha, g.corpus_hash,\n"
