@@ -1,0 +1,719 @@
+{
+  "ts": "2026-07-08T02:34:59.651060+00:00",
+  "corpus_dir": "C:\\deep-research-toolkit\\tests\\fixtures\\eval-corpus",
+  "join_keys": {
+    "prompt_version": "sha256:beb0f7036251f3da19049fc5759f0187beb41a02a8f062c7046bb1ea52445902",
+    "corpus_version": "sha256:d42ff7147f435997fc318e070681536474e4b77a575fc86464ec083cc5e36452",
+    "ollama_version": "0.31.1"
+  },
+  "roles": {
+    "extract": {
+      "models": {
+        "gemma4:e4b": {
+          "gate_pass_rate": 0.9925705794947994,
+          "recall": 0.961659333752357,
+          "gold_match_rate": 0.1661676646706587,
+          "atomicity": 0.4198617221873036,
+          "parse_failures": 0,
+          "recalled": 1530,
+          "missed_claim_ids": [
+            "b01_c_0025",
+            "b00_c_0037",
+            "b01_c_0025",
+            "b03_c_0024",
+            "b03_c_0025",
+            "b03_c_0026",
+            "b03_c_0027",
+            "b03_c_0028",
+            "b03_c_0029",
+            "b03_c_0032",
+            "b03_c_0033",
+            "b03_c_0034",
+            "b03_c_0035",
+            "b03_c_0037",
+            "b03_c_0038",
+            "b03_c_0039",
+            "b01_c_0025",
+            "b01_c_0025",
+            "b00_c_0037",
+            "b00_c_0038",
+            "b00_c_0039",
+            "b00_c_0040",
+            "b00_c_0042",
+            "b01_c_0025",
+            "b01_c_0025",
+            "b03_c_0024",
+            "b03_c_0025",
+            "b03_c_0026",
+            "b03_c_0027",
+            "b03_c_0028",
+            "b01_c_0025",
+            "b01_c_0032",
+            "b01_c_0033",
+            "b00_c_0037",
+            "b01_c_0025",
+            "b04_c_0001",
+            "b04_c_0002",
+            "b04_c_0003",
+            "b04_c_0004",
+            "b04_c_0005",
+            "b04_c_0006",
+            "b04_c_0007",
+            "b04_c_0008",
+            "b04_c_0009",
+            "b04_c_0010",
+            "b04_c_0011",
+            "b04_c_0012",
+            "b04_c_0013",
+            "b04_c_0014",
+            "b04_c_0015",
+            "b04_c_0016",
+            "b04_c_0017",
+            "b04_c_0018",
+            "b04_c_0019",
+            "b04_c_0020",
+            "b04_c_0021",
+            "b04_c_0023",
+            "b04_c_0024",
+            "b04_c_0025",
+            "b04_c_0026",
+            "b04_c_0027"
+          ],
+          "bait_rejection": 0.9044444444444444,
+          "docs": 10,
+          "truncated_calls": 0,
+          "batches": 36,
+          "per_doc": {
+            "bft-networking": {
+              "gate_pass_rate": 0.9565217391304348,
+              "recall": 0.8181818181818182,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.4,
+              "parse_failures": 0,
+              "recalled": 90,
+              "missed_claim_ids": [
+                "b00_c_0013",
+                "b00_c_0014",
+                "b00_c_0015",
+                "b00_c_0016",
+                "b00_c_0019",
+                "b00_c_0020",
+                "b00_c_0021",
+                "b00_c_0022",
+                "b00_c_0023",
+                "b00_c_0026",
+                "b00_c_0027",
+                "b00_c_0028",
+                "b00_c_0029",
+                "b01_c_0015",
+                "b01_c_0016",
+                "b01_c_0017",
+                "b01_c_0018",
+                "b01_c_0019",
+                "b01_c_0020",
+                "b01_c_0021"
+              ],
+              "recall_entailment": 0.5727272727272728,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "compiler-ir-design": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.9470198675496688,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.4768211920529801,
+              "parse_failures": 0,
+              "recalled": 143,
+              "missed_claim_ids": [
+                "b01_c_0021",
+                "b01_c_0022",
+                "b01_c_0023",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0026",
+                "b01_c_0028",
+                "b01_c_0029"
+              ],
+              "recall_entailment": 0.7019867549668874,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "distributed-consensus": {
+              "gate_pass_rate": 0.9859154929577465,
+              "recall": 0.7688172043010753,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.3763440860215054,
+              "parse_failures": 0,
+              "recalled": 143,
+              "missed_claim_ids": [
+                "b00_c_0018",
+                "b00_c_0019",
+                "b00_c_0020",
+                "b00_c_0022",
+                "b00_c_0024",
+                "b00_c_0025",
+                "b00_c_0026",
+                "b00_c_0027",
+                "b00_c_0029",
+                "b00_c_0030",
+                "b00_c_0031",
+                "b00_c_0032",
+                "b00_c_0033",
+                "b00_c_0036",
+                "b00_c_0037",
+                "b01_c_0014",
+                "b01_c_0015",
+                "b01_c_0016",
+                "b01_c_0018",
+                "b01_c_0020",
+                "b01_c_0021",
+                "b01_c_0022",
+                "b01_c_0023",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0029",
+                "b01_c_0030",
+                "b02_c_0015",
+                "b03_c_0023",
+                "b03_c_0024",
+                "b03_c_0025",
+                "b03_c_0026",
+                "b03_c_0027",
+                "b03_c_0028",
+                "b03_c_0029",
+                "b03_c_0032",
+                "b03_c_0033",
+                "b03_c_0034",
+                "b03_c_0035",
+                "b03_c_0036",
+                "b03_c_0037",
+                "b03_c_0038",
+                "b03_c_0039"
+              ],
+              "recall_entailment": 0.5376344086021505,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "embedded-rtos": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.7421875,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.34375,
+              "parse_failures": 0,
+              "recalled": 95,
+              "missed_claim_ids": [
+                "b00_c_0016",
+                "b00_c_0017",
+                "b00_c_0018",
+                "b00_c_0019",
+                "b00_c_0020",
+                "b00_c_0021",
+                "b00_c_0023",
+                "b00_c_0024",
+                "b00_c_0025",
+                "b00_c_0026",
+                "b00_c_0027",
+                "b00_c_0028",
+                "b00_c_0029",
+                "b00_c_0030",
+                "b00_c_0031",
+                "b01_c_0018",
+                "b01_c_0019",
+                "b01_c_0023",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0027",
+                "b01_c_0029",
+                "b01_c_0030",
+                "b01_c_0031",
+                "b02_c_0013",
+                "b02_c_0014",
+                "b02_c_0015",
+                "b02_c_0018",
+                "b02_c_0019",
+                "b02_c_0020",
+                "b02_c_0021",
+                "b02_c_0023",
+                "b02_c_0024"
+              ],
+              "recall_entailment": 0.5703125,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "formal-verification": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.8235294117647058,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.38562091503267976,
+              "parse_failures": 0,
+              "recalled": 126,
+              "missed_claim_ids": [
+                "b00_c_0023",
+                "b00_c_0024",
+                "b00_c_0025",
+                "b00_c_0027",
+                "b00_c_0029",
+                "b00_c_0031",
+                "b01_c_0022",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0027",
+                "b01_c_0028",
+                "b01_c_0029",
+                "b01_c_0030",
+                "b01_c_0031",
+                "b02_c_0013",
+                "b02_c_0014",
+                "b02_c_0015",
+                "b02_c_0016",
+                "b02_c_0017",
+                "b02_c_0018",
+                "b02_c_0019",
+                "b02_c_0020",
+                "b02_c_0023",
+                "b02_c_0024",
+                "b02_c_0027",
+                "b02_c_0028",
+                "b03_c_0005"
+              ],
+              "recall_entailment": 0.5424836601307189,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "gpu-scheduling": {
+              "gate_pass_rate": 0.9833333333333333,
+              "recall": 0.8235294117647058,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.38562091503267976,
+              "parse_failures": 0,
+              "recalled": 126,
+              "missed_claim_ids": [
+                "b00_c_0032",
+                "b00_c_0037",
+                "b00_c_0038",
+                "b00_c_0039",
+                "b00_c_0040",
+                "b00_c_0042",
+                "b01_c_0016",
+                "b01_c_0017",
+                "b01_c_0018",
+                "b01_c_0019",
+                "b01_c_0021",
+                "b01_c_0022",
+                "b01_c_0023",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0026",
+                "b01_c_0027",
+                "b01_c_0030",
+                "b01_c_0031",
+                "b02_c_0014",
+                "b02_c_0015",
+                "b02_c_0016",
+                "b02_c_0017",
+                "b02_c_0019",
+                "b02_c_0020",
+                "b02_c_0022",
+                "b02_c_0023"
+              ],
+              "recall_entailment": 0.6078431372549019,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "lsm-storage-engines": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.9939393939393939,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.5515151515151515,
+              "parse_failures": 0,
+              "recalled": 164,
+              "missed_claim_ids": [
+                "b03_c_0005"
+              ],
+              "recall_entailment": 0.7636363636363637,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "mempool-design": {
+              "gate_pass_rate": 0.9873417721518988,
+              "recall": 0.8315789473684211,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.4105263157894737,
+              "parse_failures": 0,
+              "recalled": 158,
+              "missed_claim_ids": [
+                "b00_c_0016",
+                "b00_c_0030",
+                "b00_c_0033",
+                "b00_c_0034",
+                "b00_c_0036",
+                "b01_c_0017",
+                "b01_c_0018",
+                "b01_c_0019",
+                "b01_c_0020",
+                "b01_c_0021",
+                "b01_c_0022",
+                "b01_c_0023",
+                "b01_c_0025",
+                "b01_c_0026",
+                "b01_c_0027",
+                "b01_c_0028",
+                "b01_c_0029",
+                "b03_c_0014",
+                "b03_c_0015",
+                "b03_c_0016",
+                "b03_c_0017",
+                "b03_c_0018",
+                "b03_c_0019",
+                "b03_c_0020",
+                "b03_c_0021",
+                "b03_c_0022",
+                "b03_c_0023",
+                "b03_c_0024",
+                "b03_c_0025",
+                "b03_c_0026",
+                "b03_c_0027",
+                "b03_c_0028"
+              ],
+              "recall_entailment": 0.6736842105263158,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "oceanographic-sensors": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.8913043478260869,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.427536231884058,
+              "parse_failures": 0,
+              "recalled": 123,
+              "missed_claim_ids": [
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0026",
+                "b01_c_0027",
+                "b01_c_0028",
+                "b01_c_0029",
+                "b01_c_0032",
+                "b01_c_0033",
+                "b02_c_0013",
+                "b02_c_0014",
+                "b02_c_0015",
+                "b02_c_0016",
+                "b02_c_0020",
+                "b02_c_0021",
+                "b02_c_0022"
+              ],
+              "recall_entailment": 0.5579710144927537,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            },
+            "zk-proofs": {
+              "gate_pass_rate": 1.0,
+              "recall": 0.815668202764977,
+              "gold_match_rate": 1.0,
+              "atomicity": 0.423963133640553,
+              "parse_failures": 0,
+              "recalled": 177,
+              "missed_claim_ids": [
+                "b00_c_0030",
+                "b00_c_0031",
+                "b00_c_0033",
+                "b00_c_0034",
+                "b00_c_0035",
+                "b00_c_0036",
+                "b00_c_0037",
+                "b01_c_0023",
+                "b01_c_0024",
+                "b01_c_0025",
+                "b01_c_0026",
+                "b02_c_0020",
+                "b02_c_0021",
+                "b02_c_0023",
+                "b04_c_0001",
+                "b04_c_0002",
+                "b04_c_0003",
+                "b04_c_0004",
+                "b04_c_0005",
+                "b04_c_0006",
+                "b04_c_0007",
+                "b04_c_0008",
+                "b04_c_0009",
+                "b04_c_0010",
+                "b04_c_0011",
+                "b04_c_0012",
+                "b04_c_0013",
+                "b04_c_0014",
+                "b04_c_0015",
+                "b04_c_0016",
+                "b04_c_0017",
+                "b04_c_0018",
+                "b04_c_0019",
+                "b04_c_0020",
+                "b04_c_0021",
+                "b04_c_0023",
+                "b04_c_0024",
+                "b04_c_0025",
+                "b04_c_0026",
+                "b04_c_0027"
+              ],
+              "recall_entailment": 0.6267281105990783,
+              "f_fact": null,
+              "reference_source": "pooled-gold.jsonl"
+            }
+          },
+          "backend_stats": {
+            "calls": 36,
+            "prompt_tokens": 59628,
+            "completion_tokens": 155667,
+            "seconds": 851.8287345003337
+          }
+        }
+      }
+    },
+    "wiki_write": {
+      "model": "gemma4:12b",
+      "per_chunk": {
+        "compiler-ir-design#c015": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "embedded-rtos#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c011": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c020": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c017": {
+          "runs": 5,
+          "passes": 3,
+          "rate": 0.6,
+          "ci95": [
+            0.231,
+            0.882
+          ],
+          "errors": [
+            "ValueError: page body fails citation coverage (absolute): cited 2/3",
+            "ValueError: page body fails citation coverage (absolute): cited 2/3"
+          ]
+        },
+        "mempool-design#c005": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c010": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "bft-networking#c014": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c023": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        }
+      },
+      "mean_pass_rate": 0.96,
+      "mean_coverage": 1.0,
+      "coverage_rules": {
+        "absolute": 38,
+        "ratio": 10
+      },
+      "bare_marker_rate": 0.0,
+      "marker_counts": {
+        "bare": 0,
+        "prefixed": 176
+      }
+    },
+    "synthesize": {
+      "model": "gemma4:31b",
+      "per_chunk": {
+        "compiler-ir-design#c015": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "embedded-rtos#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c011": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c020": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c017": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c005": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "gpu-scheduling#c010": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "bft-networking#c014": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "distributed-consensus#c023": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        },
+        "mempool-design#c008": {
+          "runs": 5,
+          "passes": 5,
+          "rate": 1.0,
+          "ci95": [
+            0.566,
+            1.0
+          ],
+          "errors": []
+        }
+      },
+      "mean_pass_rate": 1.0,
+      "mean_coverage": 1.0,
+      "coverage_rules": {
+        "absolute": 40,
+        "ratio": 10
+      },
+      "bare_marker_rate": 0.0,
+      "marker_counts": {
+        "bare": 0,
+        "prefixed": 154
+      }
+    },
+    "conflict_adjudicate": {
+      "model": "gemma4:31b",
+      "accuracy": 0.6666666666666666,
+      "n_pairs": 12,
+      "schema_valid": 12,
+      "schema_invalid": 0,
+      "parse_failures": 0,
+      "adjudicate_protocol": "pair-claims-v2",
+      "pair_warnings": []
+    }
+  }
+}
